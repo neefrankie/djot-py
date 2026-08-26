@@ -1,0 +1,14 @@
+[project]
+name = "pyjot"
+version = "0.1.0"
+description = "Djot implentation in Python"
+readme = "README.md"
+authors = [
+    { name = "Victor Nee", email = "neefrankie@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = []
+
+[build-system]
+requires = ["uv_build>=0.12.6,<0.13.0"]
+build-backend = "uv_build"
