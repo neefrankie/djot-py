@@ -1,12 +1,9 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum, StrEnum
-from typing import Dict, List, Literal, Protocol, Tuple, TypeGuard, TypeVar, runtime_checkable
+from typing import ClassVar, Dict, List, Literal, Protocol, Tuple, TypeGuard, TypeVar, runtime_checkable
 
-type Attributes = Dict[str, str]
 
-class AstNode(ABC):
-    pass
 
 @dataclass
 class SourceLoc:
@@ -19,6 +16,12 @@ class Pos:
     start: SourceLoc
     end: SourceLoc
 
+type Attributes = Dict[str, str]
+
+class AstNode(ABC):
+    tag: ClassVar[str] # put tag here as class var since in render_ast_node we need to know this field. However, in python we use class typing to determine a node type rather than using string.
+
+
 @dataclass
 class HasAttributes:
     attributes: Attributes | None
@@ -29,7 +32,8 @@ T = TypeVar("T")
 
 @runtime_checkable
 class HasChildren(Protocol[T]):
-    children: List[T] | Tuple[T, ...]
+    # children: List[T] | Tuple[T, ...] # why there is a tuple?
+    children: List[T]
 
 @dataclass
 class HasText:
@@ -42,7 +46,7 @@ class InlineNode(AstNode):
 
 @dataclass
 class Str(HasAttributes, HasText, InlineNode):
-    tag: Literal['str'] = 'str'
+    tag = 'str'
 
 @dataclass
 class SoftBreak(HasAttributes, InlineNode):
@@ -141,7 +145,7 @@ class Strong(HasAttributes, InlineNode):
     children: List[InlineNode]
 
 @dataclass
-class Link(HasAttributes, HasChildren[InlineNode], InlineNode):
+class Link(HasAttributes, InlineNode):
     """
     Inline link: [My link text](http://example.com)
     Reference link: [My link text][foo bar]
@@ -153,9 +157,10 @@ class Link(HasAttributes, HasChildren[InlineNode], InlineNode):
     tag = 'link'
     destination: str | None
     reference: str | None
+    children: List[InlineNode]
 
 @dataclass
-class Image(HasAttributes, HasChildren[InlineNode], InlineNode):
+class Image(HasAttributes, InlineNode):
     """
     Inline:
 
@@ -171,6 +176,7 @@ class Image(HasAttributes, HasChildren[InlineNode], InlineNode):
     tag = 'image'
     destination: str | None
     reference: str | None
+    children: List[InlineNode]
 
 @dataclass
 class Span(HasAttributes, InlineNode):
@@ -233,7 +239,7 @@ class BlockNode(AstNode):
     pass
 
 @dataclass
-class Para(HasAttributes,  BlockNode):
+class Para(HasAttributes, BlockNode):
     tag = 'para'
     children: List[BlockNode]
 
