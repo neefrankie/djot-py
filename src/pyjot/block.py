@@ -257,12 +257,12 @@ class ParseCellResult:
 
 class EventParser:
     def __init__(self, subject: str, options: Options | None = None):
+        # Add trailing newline
         if subject and subject[-1] != '\n':
             subject += '\n'
         self.subject = subject
         self.maxoffset = len(subject) - 1
         self.options = options or Options()
-        self.warn = self.options.warn
         self.indent = 0
         self.startline = 0
 
@@ -967,7 +967,7 @@ class EventParser:
 
         self.add_match(sp, ep, '-div')
         if sp == ep:
-            self.warn(Warning('Unclosed div', self.pos))
+            self.options.warn(Warning('Unclosed div', self.pos))
     
     def _open_code_block(self, spec: BlockSpec) -> bool:
         # (~~~~*|````*)([ \t]*)([^ \t\r\n`]*)[ \t]*\r?\n
@@ -1038,7 +1038,7 @@ class EventParser:
 
         self.add_match(sp, ep, '-code_block')
         if sp == ep:
-            self.warn(Warning('Unclose code block', self.pos))
+            self.options.warn(Warning('Unclose code block', self.pos))
 
     def find(self, patt: re.Pattern) -> FindResult | None:
         return find(self.subject, patt, self.pos)
