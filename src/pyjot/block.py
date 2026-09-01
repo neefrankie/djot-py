@@ -11,7 +11,7 @@ from .find import (
     find,
     FindResult
 )
-from .inline import InlineParser
+from .inline import InlineParser, AttrSlice
 
 _re_task_list_item = re.compile(r'^[+*-] \[[Xx ]\]')
 # 1. ordered, decimal-enumerated, followed by period
@@ -169,17 +169,24 @@ class FencedDivEndExtra(NamedTuple):
 class CodeBlockExtra(NamedTuple):
     close_pattern: re.Pattern
 
+@dataclass
+class AttributeExtra:
+    status: ParseStatus # will be modified in place, therefore use dataclass
+    indent: int
+    startpos: int
+    slices: List[AttrSlice]
+
 class Container:
-    def __init__(self, spec: BlockSpec, extra: Dict[str, Any] | None = None):
+    def __init__(self, spec: BlockSpec):
         self.name: str = spec.name
         self.type = spec.type_
         self.content = spec.content
         self.continue_fn = spec.continue_fn
         self.close_fn = spec.close_fn
+
         self.indent = 0
         self.inline_parser: InlineParser | None = None
         self.attribute_parser: AttributeParser | None = None
-        self.extra = extra or {}
 
         self.heading_extra: HeadingExtra | None = None
         self.footnote_extra: FootnoteExtra | None = None
@@ -189,6 +196,7 @@ class Container:
         self.fenced_div_open_extra: FencedDivOpenExtra | None = None
         self.fenced_div_end_extra: FencedDivEndExtra | None = None
         self.code_block_extra: CodeBlockExtra | None = None
+        self.attribute_extra: AttributeExtra | None = None
 
     def with_heading(self, level: int) -> 'Container':
         self.heading_extra = HeadingExtra(
@@ -245,6 +253,10 @@ class Container:
             close_pattern=close_pattern
         )
         return self
+
+    def with_attr_extra(self, extra: AttributeExtra):
+        self.attribute_extra = extra
+        return self
     
 
 
@@ -263,9 +275,9 @@ class EventParser:
         self.subject = subject
         self.maxoffset = len(subject) - 1
         self.options = options or Options()
+
         self.indent = 0
         self.startline = 0
-
         self.starteol = 0 # start position of end of line
         self.endeol = 0 # end position of end of line
         
@@ -388,7 +400,7 @@ class EventParser:
         ]
 
     def _open_para(self, spec: BlockSpec) -> bool:
-        self.add_container(Container(spec, {}))
+        self.add_container(Container(spec))
         self.add_match(self.pos, self.pos, '+para')
         return True
     
@@ -421,8 +433,8 @@ class EventParser:
         # [>][ \t\r\n]
         if self.find(patt_blockquote_prefix):
             self.add_container(Container(spec))
-            self.add_match(self.pos, self.pos, '+block_quote')
-            self.pos += 1 # first non-space char.
+            self.add_match(self.pos, self.pos, '+block_quote') # the > char
+            self.pos += 1 # after <.
             return True
         else:
             return False
@@ -836,40 +848,53 @@ class EventParser:
             elif res.is_done() and find(self.subject, patt_endline, res.position + 1) is None:
                 return False
             else:
-                container = self.add_container(Container(spec, {
-                    'status': res.status,
-                    'indent': self.indent,
-                    'startpos': self.pos,
-                    'slices': []
-                }))
+                container = self.add_container(Container(
+                    spec
+                ).with_attr_extra(AttributeExtra(
+                    status=res.status,
+                    indent=self.indent,
+                    startpos=self.pos,
+                    slices=[
+                        AttrSlice(
+                            startpos=self.pos,
+                            endpos=self.starteol,
+                        )
+                    ]
+                )))
                 container.attribute_parser = attribute_parser
-                container.extra['slices'] = [
-                    {'startpos': self.pos, 'endpos': self.starteol}
-                ]
                 self.pos = self.starteol
                 return True
         else:
             return False
         
     def _continue_attributes(self, container: Container) -> bool:
-        if container.extra['status'] == ParseStatus.DONE:
+        if container.attribute_extra is None:
             return False
-        if container.attribute_parser and self.indent > container.extra['indent']:
-            container.extra['slices'].append({
-                'startpos': self.pos,
-                'endpos': self.starteol
-            })
+        if container.attribute_extra.status == ParseStatus.DONE:
+            return False
+        if container.attribute_parser and self.indent > container.attribute_extra.indent:
+            container.attribute_extra.slices.append(AttrSlice(
+                startpos=self.pos,
+                endpos=self.starteol
+            ))
             res = container.attribute_parser.feed(self.pos, self.endeol)
-            container.extra['status'] = res.status
+            container.attribute_extra.status = res.status
             if res.status != ParseStatus.FAIL or find(self.subject, patt_endline, res.position + 1):
                 self.pos = self.starteol
                 return True
-        self.add_match(container.extra['startpos'], container.extra['startpos'], '+para')
+        self.add_match(
+            container.attribute_extra.startpos,
+            container.attribute_extra.startpos,
+            '+para'
+        )
         attr_container = self.containers.pop()
-        para = self.add_container(Container(self.para_spec, {}))
+        para = self.add_container(Container(self.para_spec))
         if not para.inline_parser or not attr_container:
             raise ValueError('Missing inline_parser or attr_container')
-        para.inline_parser.attribute_slices = attr_container.extra['slices']
+
+        if attr_container.attribute_extra is None:
+            return False
+        para.inline_parser.attribute_slices = attr_container.attribute_extra.slices
         para.inline_parser.reparse_attributes()
         self.pos = para.inline_parser.lastpos + 1
         return True
@@ -878,29 +903,30 @@ class EventParser:
         container = self.containers.pop()
         if not self.containers:
             return
-        if container.extra['status'] == ParseStatus.CONTINUE:
-            self.add_match(
-                container.extra['startpos'],
-                container.extra['startpos'],
-                '+para'
-            )
-            para = self.add_container(Container(self.para_spec, {}), True)
-            if not para or not para.inline_parser:
-                raise ValueError('Cound not add paragraph')
-            para.inline_parser.attribute_slices = container.extra['slices']
-            para.inline_parser.reparse_attributes()
-        else:
-            self.add_match(
-                container.extra['startpos'],
-                container.extra['startpos'],
-                '+block_attributes'
-            )
-            if container.attribute_parser:
-                attr_matches = container.attribute_parser.matches
-                for m in attr_matches:
-                    self.matches.append(m)
+        if container.attribute_extra:
+            if container.attribute_extra.status == ParseStatus.CONTINUE:
+                self.add_match(
+                    container.attribute_extra.startpos,
+                    container.attribute_extra.startpos,
+                    '+para'
+                )
+                para = self.add_container(Container(self.para_spec), True)
+                if not para or not para.inline_parser:
+                    raise ValueError('Cound not add paragraph')
+                para.inline_parser.attribute_slices = container.attribute_extra.slices
+                para.inline_parser.reparse_attributes()
+            else:
+                self.add_match(
+                    container.attribute_extra.startpos,
+                    container.attribute_extra.startpos,
+                    '+block_attributes'
+                )
+                if container.attribute_parser:
+                    attr_matches = container.attribute_parser.matches
+                    for m in attr_matches:
+                        self.matches.append(m)
 
-            self.add_match(self.pos, self.pos, '-block_attributes')
+                self.add_match(self.pos, self.pos, '-block_attributes')
 
     def _open_fenced_div(self, spec: BlockSpec) -> bool:
         """
@@ -1038,7 +1064,7 @@ class EventParser:
 
         self.add_match(sp, ep, '-code_block')
         if sp == ep:
-            self.options.warn(Warning('Unclose code block', self.pos))
+            self.options.warn(Warning('Unclosed code block', self.pos))
 
     def find(self, patt: re.Pattern) -> FindResult | None:
         return find(self.subject, patt, self.pos)
@@ -1080,6 +1106,7 @@ class EventParser:
         if last_matched is None:
             return
         tip = self.tip()
+        # stop at last_matched index.
         while tip and last_matched < (len(self.containers) - 1):
             tip.close_fn()
             tip = self.tip()
@@ -1095,7 +1122,7 @@ class EventParser:
             tip.close_fn()
             tip = self.tip()
 
-        
+        # If content is inline, create a inline parser.
         if container.content == ContentType.Inline:
             container.inline_parser = InlineParser(
                 subject=self.subject,
@@ -1249,6 +1276,13 @@ class EventParser:
         return True
     
     def __iter__(self) -> Iterator[Event]:
+        """
+        This is generall a line-based parser.
+        Identify each line by each line starting token.
+        Once found out the current line contains inline elements only,
+        delete to inline parser; otherwise continue to find block
+        parser until inline elements are found.
+        """
         while self.pos < len(self.subject):
             while len(self.matches) > 0 and self.returned < len(self.matches):
                 self.returned = self.returned + 1
@@ -1266,6 +1300,7 @@ class EventParser:
             while idx < len(self.containers):
                 container = self.containers[idx]
                 self.skip_space()
+                # A very strange design to pass container to its own method
                 if container.continue_fn(container):
                     self.last_matched_container = idx # latest container matching current line.
                 else:
@@ -1275,21 +1310,17 @@ class EventParser:
             # if we hit a close fence, we can move to next line.
             if self.finished_line:
                 matched_idx = self.last_matched_container if self.last_matched_container is not None else -1
+                # Close all containers after last_matched_container
                 while self.containers and matched_idx < (len(self.containers) - 1):
                     tip = self.tip()
                     if tip:
                         tip.close_fn()
 
             if not self.finished_line:
-                self.skip_space()
-                is_blank = self.pos == self.starteol
+                self.skip_space() # cursor
+                is_blank = self.pos == self.starteol # cursor
                 new_starts = False
                 
-                # If self.last_matched_container is not modified in the above while loop,
-                # it remains -1.
-                # In JS, self.containers[-1] returned undefined since 
-                # JavaScript treats -1 as a property key, not an index, 
-                # and returns undefined unless explicitly defined
                 last_match = self.containers[self.last_matched_container] if self.containers and self.last_matched_container is not None else None
 
                 # If current position is not start of end of line,
@@ -1313,8 +1344,8 @@ class EventParser:
                             if spec.open_fn(spec): # now we find a parser for current element.
                                 tip = self.tip() # it should be be the parser we just added.
                                 if tip:
-                                    self.last_matched_container = len(self.containers) - 1
-                                    last_match = self.containers[self.last_matched_container]
+                                    self.last_matched_container = len(self.containers) - 1 # last container index.
+                                    last_match = self.containers[self.last_matched_container] # this should be tip itself, why the repeat?
                                     if self.finished_line:
                                         check_starts = False # stop recursion for fenced div and code block opening tag.
                                     else:
@@ -1348,7 +1379,7 @@ class EventParser:
                         # containers between last matched and tip()
                         self.close_unmatched_containers()
 
-                    tip = self.tip()
+                    tip = self.tip() # Repeat because close_unmatched_containers might have changed the stack
 
                     # add para by default if there's text.
                     if not tip or tip.content == ContentType.Block:
@@ -1357,8 +1388,9 @@ class EventParser:
                                 self.add_match(self.pos, self.endeol, 'blankline')
                         else:
                             self.para_spec.open_fn(self.para_spec)
-                            tip = self.tip()
+                            tip = self.tip() # repeat because open_fn might have pushed a Container.
                             if tip:
+                                # open_fn calls add_container, add_container already sets InlineParser, why repeat again?
                                 tip.inline_parser = InlineParser(self.subject, self.options)
 
                     if tip and tip.content == ContentType.Text:
@@ -1371,9 +1403,9 @@ class EventParser:
                     elif (tip and tip.content == ContentType.Inline and 
                           (not is_blank) and 
                           tip.inline_parser):
-                        tip.inline_parser.feed(self.pos, self.endeol)
+                        tip.inline_parser.feed(self.pos, self.endeol) # populate inline parse with Event for the rest of the current line.
 
-            self.pos = (self.endeol or self.pos) + 1
+            self.pos = (self.endeol or self.pos) + 1 # move to next line.
         # end while
 
         # close all remaining containers.
