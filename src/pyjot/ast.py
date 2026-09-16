@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum, StrEnum
-from typing import ClassVar, Dict, List, Literal, Protocol, Tuple, TypeGuard, TypeVar, runtime_checkable
+from typing import Dict, List, Protocol, Tuple, TypeGuard, TypeVar, runtime_checkable
 
 
 
@@ -18,8 +18,9 @@ class Pos:
 
 type Attributes = Dict[str, str]
 
+@dataclass
 class AstNode(ABC):
-    tag: ClassVar[str] # put tag here as class var since in render_ast_node we need to know this field. However, in python we use class typing to determine a node type rather than using string.
+    tag: str # put tag here as class var since in render_ast_node we need to know this field. However, in python we use class typing to determine a node type rather than using string.
 
 
 @dataclass
@@ -46,25 +47,25 @@ class InlineNode(AstNode):
 
 @dataclass
 class Str(HasAttributes, HasText, InlineNode):
-    tag = 'str'
+    tag: str = 'str'
 
 @dataclass
 class SoftBreak(HasAttributes, InlineNode):
-    tag = 'soft_break'
+    tag: str = 'soft_break'
 
 @dataclass
 class HardBreak(HasAttributes, InlineNode):
-    tag = 'hard_break'
+    tag: str = 'hard_break'
 
 @dataclass
 class NonBreakingSpace(HasAttributes, InlineNode):
-    tag = 'non_breaking_space'
+    tag: str = 'non_breaking_space'
 
 @dataclass
 class Symb(HasAttributes, InlineNode):
-    tag = 'symb'
     alias: str
-
+    tag: str = 'symb'
+    
 @dataclass
 class Verbatim(HasAttributes, HasText, InlineNode):
     """
@@ -72,7 +73,7 @@ class Verbatim(HasAttributes, HasText, InlineNode):
     ends with an equal-lengthed string of consecutive backtick characters.
     `` Verbatim with a backtick ` character``
     """
-    tag = 'verbatim'
+    tag: str = 'verbatim'
 
 @dataclass
 class RawInline(HasAttributes, HasText, InlineNode):
@@ -82,43 +83,44 @@ class RawInline(HasAttributes, HasText, InlineNode):
 
     This is `<?php echo 'Hello world! ?>`{=html}.
     """
-    tag = 'raw_inline'
+
     format: str
+    tag: str = 'raw_inline'
 
 @dataclass
 class InlineMath(HasAttributes, HasText, InlineNode):
     """
     Einstein derived $`e=mc^2`
     """
-    tag = 'inline_math'
+    tag: str = 'inline_math'
 
 @dataclass
 class DisplayMath(HasAttributes, HasText, InlineNode):
     """
     $$` x^n + y^n = z^n `
     """
-    tag = 'display_math'
+    tag: str = 'display_math'
 
 @dataclass
 class Url(HasAttributes, HasText, InlineNode):
     """
     <https://pandoc.org/lua-filters>
     """
-    tag = 'url'
+    tag: str = 'url'
 
 @dataclass
 class Email(HasAttributes, HasText, InlineNode):
     """
     <me@example.com>
     """
-    tag = 'email'
+    tag: str = 'email'
 
 @dataclass
 class FootnoteReference(HasAttributes, HasText, InlineNode):
     """
     Here is the reference.[^foo]
     """
-    tag = 'footnote_reference'
+    tag: str = 'footnote_reference'
 
 class SmartPunctuationType(Enum):
     LEFT_SINGLE_QUOTE = 0
@@ -131,18 +133,18 @@ class SmartPunctuationType(Enum):
 
 @dataclass
 class SmartPunctuation(HasAttributes, HasText, InlineNode):
-    tag = 'smart_punctuation'
     type: SmartPunctuationType
+    tag: str = 'smart_punctuation'
 
 @dataclass
 class Emph(HasAttributes, InlineNode):
-    tag = 'emph'
     children: List[InlineNode]
+    tag: str = 'emph'
 
 @dataclass
 class Strong(HasAttributes, InlineNode):
-    tag = 'strong'
     children: List[InlineNode]
+    tag: str = 'strong'
 
 @dataclass
 class Link(HasAttributes, InlineNode):
@@ -154,10 +156,11 @@ class Link(HasAttributes, InlineNode):
     [My link text][]
     [My link text]: /url
     """
-    tag = 'link'
+    
     destination: str | None
     reference: str | None
     children: List[InlineNode]
+    tag: str = 'link'
 
 @dataclass
 class Image(HasAttributes, InlineNode):
@@ -173,65 +176,71 @@ class Image(HasAttributes, InlineNode):
 
     [cat]: feline.jpg
     """
-    tag = 'image'
+    
     destination: str | None
     reference: str | None
     children: List[InlineNode]
+    tag: str = 'image'
 
 @dataclass
 class Span(HasAttributes, InlineNode):
     """
     I can be helpful to [read the manual]{.big .red}.
     """
-    tag = 'span'
+    
     children: List[InlineNode]
+    tag: str = 'span'
 
 @dataclass
 class Mark(HasAttributes, InlineNode):
-    tag = 'mark'
     children: List[InlineNode]
+    tag: str = 'mark'
 
 @dataclass
 class Superscript(HasAttributes, InlineNode):
     """
     djot^TM^
     """
-    tag = 'superscript'
+    
     children: List[InlineNode]
+    tag: str = 'superscript'
 
 @dataclass
 class Subscript(HasAttributes, InlineNode):
     """
     H~2~O
     """
-    tag = 'subscript'
+    
     children: List[InlineNode]
+    tag: str = 'subscript'
 
 @dataclass
 class Insert(HasAttributes, InlineNode):
     """
     {+nice+}
     """
-    tag = 'insert'
+    
     children: List[InlineNode]
+    tag: str = 'insert'
 
 @dataclass
 class Delete(HasAttributes, InlineNode):
     """
     {-mean-}
     """
-    tag = 'delete'
+    
     children: List[InlineNode]
+    tag: str = 'delete'
 
 @dataclass
 class DoubleQuoted(HasAttributes, InlineNode):
-    tag = 'double_quoted'
     children: List[InlineNode]
+    tag: str = 'double_quoted'
 
 @dataclass
 class SingleQuoted(HasAttributes, InlineNode):
-    tag = 'single_quoted'
     children: List[InlineNode]
+    tag: str = 'single_quoted'
 
 # === Block ===
 
@@ -240,43 +249,43 @@ class BlockNode(AstNode):
 
 @dataclass
 class Para(HasAttributes, BlockNode):
-    tag = 'para'
     children: List[BlockNode]
+    tag: str = 'para'
 
 @dataclass
 class Heading(HasAttributes, BlockNode):
-    tag = 'heading'
     level: int
     children: List[InlineNode]
+    tag: str = 'heading'
 
 @dataclass
 class ThematicBreak(HasAttributes, BlockNode):
-    tag = 'thematic_break'
+    tag: str = 'thematic_break'
 
 @dataclass
 class Section(HasAttributes, BlockNode):
-    tag = 'section'
     children: List[BlockNode]
+    tag: str = 'section'
 
 @dataclass
 class Div(HasAttributes, BlockNode):
-    tag = 'div'
     children: List[BlockNode]
+    tag: str = 'div'
 
 @dataclass
 class BlockQuote(HasAttributes, BlockNode):
-    tag = 'block_quote'
     children: List[BlockNode]
+    tag: str = 'block_quote'
 
 @dataclass
 class CodeBlock(HasAttributes, HasText, BlockNode):
-    tag = 'code_block'
     lang: str | None
+    tag: str = 'code_block'
 
 @dataclass
 class RawBlock(HasAttributes, HasText, BlockNode):
-    tag = 'raw_block'
     format: str
+    tag: str = 'raw_block'
 
 
 # === List ===
@@ -286,15 +295,15 @@ class BulletListStyle(StrEnum):
     STAR = '*'
 
 class ListItem(HasAttributes, AstNode):
-    tag = 'list_item'
     children: List[BlockNode]
+    tag: str = 'list_item'
 
 @dataclass
 class BulletList(HasAttributes, BlockNode):
-    tag = 'bullet_list'
     tight: bool
     style: BulletListStyle
     children: List[ListItem]
+    tag: str = 'bullet_list'
 
 class OrderedListStyle(StrEnum):
     NUMBER = '1.'
@@ -315,11 +324,11 @@ class OrderedListStyle(StrEnum):
 
 @dataclass
 class OrderedList(HasAttributes, BlockNode):
-    tag = 'ordered_list'
     style: OrderedListStyle
     tight: bool
     start: int | None
     children: List[ListItem]
+    tag: str = 'ordered_list'
 
 class CheckboxStatus(Enum):
     CHECKED = 0
@@ -327,89 +336,89 @@ class CheckboxStatus(Enum):
 
 @dataclass
 class TaskListItem(HasAttributes, AstNode):
-    tag = 'task_list_item'
     status: CheckboxStatus
     children: List[BlockNode]
+    tag: str = 'task_list_item'
 
 @dataclass
 class TaskList(HasAttributes, BlockNode):
-    tag = 'task_list'
     tight: bool
     children: List[TaskListItem]
+    tag: str = 'task_list'
 
 # === Definition List ===
 
 @dataclass
 class Term(HasAttributes, AstNode):
-    tag = 'term'
     children: List[InlineNode]
+    tag: str = 'term'
 
 @dataclass
 class Definition(HasAttributes, AstNode):
-    tag = 'definition'
     children: List[InlineNode]
+    tag: str = 'definition'
 
 @dataclass
 class DefinitionListItem(HasAttributes, AstNode):
-    tag = 'definition_list_item'
     children: Tuple[Term, Definition]
+    tag: str = 'definition_list_item'
 
 @dataclass
 class DefinitionList(HasAttributes, BlockNode):
-    tag = 'definition_list'
     children: List[DefinitionListItem]
+    tag: str = 'definition_list'
 
 # === Table ===
-class Alignment(Enum):
-    Default = 0
-    Left = 1
-    Right = 2
-    Center = 3
+class Alignment(StrEnum):
+    DEFAULT = 'default'
+    LEFT = 'left'
+    RIGHT = 'right'
+    CENTER = 'center'
 
 @dataclass
 class Cell(HasAttributes, AstNode):
-    tag = 'cell'
     head: bool
     align: Alignment
     children: List[InlineNode]
+    tag: str = 'cell'
 
 @dataclass
 class Row(HasAttributes, AstNode):
-    tag = 'row'
     head: bool
     children: List[Cell]
+    tag: str = 'row'
 
 @dataclass
 class Caption(HasAttributes):
-    tag = 'caption'
     children: List[InlineNode]
+    tag: str = 'caption'
 
 @dataclass
 class Table(HasAttributes, BlockNode):
-    tag = 'table'
     caption: Caption
     children: List[Row]
+    tag: str = 'table'
 
 
 @dataclass
 class Reference(HasAttributes, AstNode):
-    tag = 'reference'
     label: str
     destination: str
+    tag: str = 'reference'
 
 @dataclass
 class Footnote(HasAttributes, AstNode):
-    tag = 'footnote'
     label: str
     children: List[BlockNode]
+    tag: str = 'footnote'
 
 @dataclass
 class Doc(HasAttributes, AstNode):
-    tag = 'doc'
     references: Dict[str, Reference]
     auto_references: Dict[str, Reference]
     footnotes: Dict[str, Footnote]
     children: List[BlockNode]
+    tag: str = 'doc'
 
 
 C = TypeVar('C')
@@ -670,7 +679,7 @@ def is_inline(node: AstNode) -> bool:
 
 def is_row(node: Row | Caption) -> TypeGuard[Row]:
     match node:
-        case Row(head=_):  # 只要 Row 有 head 属性就匹配
+        case Row(head=_):
             return True
         case _:
             return False
@@ -679,5 +688,5 @@ def is_caption(node: Row | Caption) -> TypeGuard[Caption]:
     match node:
         case Row(head=_):
             return False
-        case _:  # 不是 Row 就一定是 Caption
+        case _:
             return True
