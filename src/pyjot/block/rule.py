@@ -16,9 +16,9 @@ from ..event import (
 )
 from ..common import Range, ParseStatus
 from ..find import find
-from ..list import get_list_styles
 from ..options import Options
 
+from .list import get_list_styles
 from .container import (
     ContainerCap,
     Container,
