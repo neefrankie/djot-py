@@ -15,11 +15,22 @@ from ..common import Range
 from .rule import (
     ContainerCap,
     Container,
-    BlockRule,
-    ParaRule,
-    HeadingRule,
     FlowControl,
     RuleResult,
+    BlockRule,
+    ParaRule,
+    BlockquoteRule,
+    HeadingRule,
+    CaptionRule,
+    FootnoteRule,
+    ReferenceDefinitionRule,
+    ThematicBreakRule,
+    ListRule,
+    ListItemRule,
+    TableRule,
+    AttributeRule,
+    FencedDivRule,
+    CodeBlockRule,
 )
 
 
@@ -48,7 +59,18 @@ class EventParser:
         self.container_stack: List[Container[Any]] = []
         self.para_rule = ParaRule()
         self.block_rules: List[BlockRule] = [
-            HeadingRule()
+            BlockquoteRule(),
+            HeadingRule(),
+            CaptionRule(),
+            FootnoteRule(),
+            ReferenceDefinitionRule(),
+            ThematicBreakRule(),
+            ListRule(),
+            ListItemRule(),
+            TableRule(options=self.options),
+            AttributeRule(),
+            FencedDivRule(),
+            CodeBlockRule()
         ]
 
     @property
