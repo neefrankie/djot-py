@@ -72,9 +72,14 @@ class ParaRule(BlockRule):
         self, 
         cursor: InputText, 
         container: Container, 
-        last_event: Optional[Event]
+        last_span_end: Optional[int],
     ) -> RuleResult:
-        ep = last_event.span.end + 1 if last_event else cursor.pos
+        # Actions performed in djot.js
+        # 1. transfer inline matches
+        # 2. pop container
+        # 3. query last event's endpos
+        # 4. emit exit para event.
+        ep = last_span_end + 1 if last_span_end else cursor.pos
         return RuleResult(
             status=FlowControl.CLOSE,
             events=[
@@ -120,7 +125,7 @@ class BlockquoteRule(BlockRule):
 
     def try_continue(self, cursor: InputText, container: Container) -> RuleResult:
         if cursor.find_blockquote_prefix():
-            cursor.advance() # first non-space char.
+            cursor.advance() # Eat starting >
             return RuleResult.continue_ok()
         else:
             return RuleResult.fail()
@@ -129,7 +134,7 @@ class BlockquoteRule(BlockRule):
         self, 
         cursor: InputText, 
         container: Container, 
-        last_event: Optional[Event]
+        last_span_end: Optional[int],
     ) -> RuleResult:
         return RuleResult(
             status=FlowControl.CLOSE,
@@ -145,10 +150,44 @@ class BlockquoteRule(BlockRule):
 
 @dataclass
 class HeadingRule(BlockRule):
+    """Heading
+
+    A heading starts with a sequence of one or more `#` characters,
+    followed by whitespace. The number of characters defines the
+    heading level.
+
+    The heading text may spill over onto following lines,
+    which may also be preceded by the same number of `#` characters.
+    (but these can also be left off).
+
+    The heading ends when a blank line is encountered.
+
+    ```djot
+    # A Heading that
+    # takes up
+    # three lines
+
+    A paragraph, finally
+
+    # A heading that
+    takes up
+    three lines
+
+    A paragraph, finally.
+    ```
+    
+    Here's how a heading is parsed:
+    1. Apply each rule's try_open method on the # element, and this one works;
+    2. try_open pushes a container on stack;
+    3. cursor eat the hash symbol and stops at first space;
+    4. Skip spaces;
+    5. In next round, no rule applies
+    6. Since HeadingRule.accepts_content is INLINE, so use InlineParser to parse the rest.
+    7. When it comes to the next line, grab the container from stack;
+    8. try_continue finds the smame pattern of hash symbols;
+    """
     kind: ContainerCap = ContainerCap.BLOCK
     accepts_content: ContainerCap = ContainerCap.INLINE
-
-    _PATT_WHITESPACE = re.compile(r'[ \t\r\n]')
 
     def try_open(self, cursor: InputText) -> RuleResult:
         m = cursor.find_bangs()
@@ -188,11 +227,18 @@ class HeadingRule(BlockRule):
             return RuleResult.fail()
         if not isinstance(container.data, HeadingData):
             return RuleResult.fail()
-        if container.data.level != (m.end - m.start + 1):
+
+        # TODO: this seems unreasonable since the specification says 
+        # you can split heading over multiple lines. 
+        # The following lines do not need to have starting #.
+        # In my opinion, the multi-line heading should not be allowed in the first place.
+        if container.data.level != (m.end - m.start + 1): 
             return RuleResult.fail()
 
-        if not find(cursor.src, self._PATT_WHITESPACE, m.end + 1):
+        if not cursor.find_whitespace(m.end + 1):
             return RuleResult.fail()
+
+        cursor.advance_to(m.end + 1) # eat the leading #s
 
         return RuleResult.continue_ok()
 
@@ -200,10 +246,10 @@ class HeadingRule(BlockRule):
         self, 
         cursor: InputText, 
         container: Container, 
-        last_event: Optional[Event]
+        last_span_end: Optional[int],
     ) -> RuleResult:
         
-        ep = last_event.span.end + 1 if last_event else cursor.pos
+        ep = last_span_end + 1 if last_span_end else cursor.pos
         return RuleResult(
             status=FlowControl.CLOSE,
             events=[Event(
@@ -241,10 +287,10 @@ class CaptionRule(BlockRule):
             action=Action.ENTER,
             kind=ElementKind.CAPTION,
             span=Range(
-                start=cursor.pos,
+                start=cursor.pos, # ^ is ignored. Start from first non-space char.
                 end=cursor.pos
             )
-        ) # ^ is ignored. Start from first non-space char.
+        ) 
         return RuleResult(
             status=FlowControl.OPEN,
             container=container,
@@ -252,6 +298,7 @@ class CaptionRule(BlockRule):
         )
 
     def try_continue(self, cursor: InputText, container: Container) -> RuleResult:
+        # Check if the line is indented.
         if cursor.find_whitespace() is None:
             return RuleResult.continue_ok()
 
@@ -261,7 +308,7 @@ class CaptionRule(BlockRule):
         self, 
         cursor: InputText, 
         container: Container, 
-        last_event: Optional[Event]
+        last_span_end: Optional[int],
     ) -> RuleResult:
         return RuleResult(
             status=FlowControl.CLOSE,
@@ -355,7 +402,7 @@ class FootnoteRule(BlockRule):
         self, 
         cursor: InputText, 
         container: Container, 
-        last_event: Optional[Event]
+        last_span_end: Optional[int],
     ) -> RuleResult:
         return RuleResult(
             status=FlowControl.CLOSE,
@@ -431,6 +478,7 @@ class ReferenceDefinitionRule(BlockRule):
             ))
 
         cursor.advance_to(cursor.eol_start - 1) # move to EOL
+        # TODO: why not flag finished_line = True since the whole line is gobbled.
         return RuleResult(
             status=FlowControl.OPEN,
             container=container,
@@ -441,7 +489,7 @@ class ReferenceDefinitionRule(BlockRule):
         if not isinstance(container.data, RefDefData):
             return RuleResult.fail()
 
-        if container.data.indent >= cursor.indent: # previous line was indented less than this line
+        if container.data.indent >= cursor.indent: # previous line was indented more than this line
             return RuleResult.fail()
 
         # Find URL split over multiple lines.
@@ -473,7 +521,7 @@ class ReferenceDefinitionRule(BlockRule):
         self, 
         cursor: InputText, 
         container: Container, 
-        last_event: Optional[Event]
+        last_span_end: Optional[int],
     ) -> RuleResult:
         return RuleResult(
             status=FlowControl.CLOSE,
@@ -523,6 +571,7 @@ class ThematicBreakRule(BlockRule):
             )
         )
         cursor.advance_to(m.end)
+        # TODO: why not flag finished_line here since it of course gobbled the whole line.
         return RuleResult(
             status=FlowControl.OPEN,
             container=container,
@@ -536,26 +585,11 @@ class ThematicBreakRule(BlockRule):
         self, 
         cursor: InputText, 
         container: Container, 
-        last_event: Optional[Event]
+        last_span_end: Optional[int],
     ) -> RuleResult:
         return RuleResult(
             status=FlowControl.CLOSE
         )
-
-_PATT_LIST_MARKER = re.compile(
-    r'(:?[-*+:]'
-    r'|\([0-9]+\)'
-    r'|[0-9]+[.)]'
-    r'|[ivxlcdmIVXLCDM]+[.)]'
-    r'|\([ivxlcdmIVXLCDM]+\)'
-    r'|[a-zA-Z][.)]'
-    r'|\([a-zA-Z]\)'
-    r')'
-    r'[ \t\r\n]'
-)
-_PATT_TASK_LIST_MARKER = re.compile(
-    r'[*+-] \[[Xx ]\][ \t\r\n]'
-)
 
 @dataclass
 class ListRule(BlockRule):
@@ -626,17 +660,17 @@ class ListRule(BlockRule):
             return RuleResult.fail()
 
         if cursor.indent > container.data.indent:
-            return RuleResult.open()
+            return RuleResult.continue_ok()
 
         if cursor.pos == cursor.eol_start:
-            return RuleResult.open()
+            return RuleResult.continue_ok()
 
-        m = cursor.find(_PATT_LIST_MARKER)
+        m = cursor.find_list_marker()
         if m is None:
             return RuleResult.fail()
 
         marker = cursor.src[m.start:m.end]
-        mtask = cursor.find(_PATT_TASK_LIST_MARKER)
+        mtask = cursor.find_task_list_marker()
         if mtask is not None:
             marker = cursor.src[mtask.start:mtask.start + 5]
 
@@ -651,13 +685,13 @@ class ListRule(BlockRule):
             return RuleResult.fail()
 
         container.data.styles = newstyles
-        return RuleResult.open()
+        return RuleResult.continue_ok()
 
     def on_close(
         self, 
         cursor: InputText, 
         container: Container, 
-        last_event: Optional[Event]
+        last_span_end: Optional[int],
     ) -> RuleResult:
         return RuleResult(
             status=FlowControl.CLOSE,
@@ -765,7 +799,7 @@ class ListItemRule(BlockRule):
         self, 
         cursor: InputText, 
         container: Container, 
-        last_event: Optional[Event]
+        last_span_end: Optional[int],
     ) -> RuleResult:
         return RuleResult(
             status=FlowControl.CLOSE,
@@ -982,7 +1016,7 @@ class TableRule(BlockRule):
         Parse one cell of a table row.
         """
         inline_parser = InlineParser(
-            subject=cursor.src,
+            cursor=cursor,
             options=self.options,
         )
         cell_complete = False
@@ -1109,7 +1143,7 @@ class TableRule(BlockRule):
     
 
     def try_continue(self, cursor: InputText, container: Container) -> RuleResult:
-        m = cursor.find(self._PATT_TABLE_ROW)
+        m = cursor.find_table_row()
         if not m:
             return RuleResult.fail()
 
@@ -1132,8 +1166,8 @@ class TableRule(BlockRule):
     def on_close(
         self, 
         cursor: InputText, 
-        container: Container, 
-        last_event: Optional[Event]
+        container: Container,
+        last_span_end: Optional[int],
     ) -> RuleResult:
         return RuleResult(
             status=FlowControl.CLOSE,
@@ -1161,6 +1195,15 @@ class AttributeRule(BlockRule):
     {#water}
     {.important .large}
     Don't forget to turn off the water.
+
+    In my opinion, there is a repetition of this specification.
+    Repeated attribute specifiers play the same role as multiple indented lines,
+    which is harder to implement.
+    If we really want to support continuation to another line, why not use
+    another `{ }` on a new line? Multiple lines of `{ }` is much easier to parse.
+
+    Or more strictly, just allow block attribute on one line, and only one line of attribute
+    above a block.
     """
 
     kind: ContainerCap = ContainerCap.BLOCK
@@ -1183,9 +1226,10 @@ class AttributeRule(BlockRule):
             return RuleResult.fail()
 
         if res.is_done():
-            # After attributes are parse, the line should only be left
+            # After attributes are parsed, the line should only be left
             # with optional spaces followed by newline.
             if cursor.find_endline(res.position + 1) is None:
+                # Why finished_line is not set here?
                 return RuleResult.fail()
 
         container = Container(
@@ -1215,93 +1259,15 @@ class AttributeRule(BlockRule):
         cursor: InputText,
         container: Container
     ) -> RuleResult:
-        if not isinstance(container.data, AttributeData):
-            return RuleResult.fail()
-        
-        if container.data.status == ParseStatus.DONE:
-            return RuleResult.fail()
-
-        if container.attribute_parser and cursor.indent > container.data.indent:
-            # Append the span of new line.
-            container.data.spans.append(Range(
-                start=cursor.pos,
-                end=cursor.eol_start
-            ))
-            # Continue parsing a new line of attributes.
-            res = container.attribute_parser.feed(cursor.pos, cursor.eol_end)
-            container.data.status = res.status
-            if res.status != ParseStatus.FAIL or cursor.find_from(self._PATT_ENDLINE, res.position + 1):
-                cursor.advance_to_eol()
-                return RuleResult.continue_ok()
-
-        # If we get to here, we don't continue; either we
-        # reached the end of the indentation or we failed in
-        # parsing attributes.
-        # attribute parsing failed; convert to para and continue with that
-        event = Event(
-            action=Action.ENTER,
-            kind=ElementKind.PARA,
-            span=cursor.new_span(
-                start=container.data.startpos,
-                end=container.data.startpos,
-            )
-        )
-
-        return RuleResult(
-            status=FlowControl.FALLBACK,
-            container=Container(
-                rule=ParaRule()
-            ),
-            events=[event], # TODO: caller coulld use FALLBACK and events[0].kind to query how to fallback.
-        )
+        # Since I don't permit newline inside attribute block,
+        # we don've even have to check this.
+        return RuleResult.fail()
 
     def on_close(
         self, 
         cursor: InputText, 
         container: Container, 
-        last_event: Optional[Event]
+        last_span_end: Optional[int]
     ) -> RuleResult:
-        if not isinstance(container.data, AttributeData):
-            return RuleResult.fail()
-        
-        if container.data.status != ParseStatus.CONTINUE:
-            events = [Event(
-                action=Action.ENTER,
-                kind=ElementKind.BLOCK_ATTRIBUTE,
-                span=cursor.new_span(
-                    start=container.data.startpos,
-                    end=container.data.startpos,
-                )
-            )]
-            if container.attribute_parser: # should always be true
-                attr_events = container.attribute_parser.events
-                events.extend(attr_events)
 
-            events.append(Event(
-                action=Action.EXIT,
-                kind=ElementKind.BLOCK_ATTRIBUTE,
-                span=cursor.current_span()
-            ))
-            return RuleResult(
-                status=FlowControl.CLOSE,
-                events=events,
-            )
-
-        event = Event(
-            action=Action.ENTER,
-            kind=ElementKind.PARA,
-            span=cursor.new_span(
-                start=container.data.startpos,
-                end=container.data.startpos,
-            )
-        )
-
-        container.data.spans
-
-        return RuleResult(
-            status=FlowControl.FALLBACK,
-            container=Container(
-                rule=ParaRule(),
-            ),
-            events=[event]
-        )
+        return RuleResult.close()
