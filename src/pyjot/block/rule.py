@@ -1437,6 +1437,7 @@ class CodeBlockRule(BlockRule):
         return RuleResult(
             status=FlowControl.OPEN,
             events=events,
+            container=container,
             finished_line=True
         )
 
