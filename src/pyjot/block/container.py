@@ -82,16 +82,24 @@ class Container(Generic[T]):
 
     @property
     def can_child_be_block(self) -> bool:
-        return self.rule.accepts_block_only()
+        return self.rule.accepts_blocks()
 
-    def allow_child(self, rule: 'BlockRule') -> bool:
+    def can_nest(self, other: 'Container') -> bool:
+        return self.children_type == other.node_type
+
+    def allow_nest(self, rule: 'BlockRule') -> bool:
         return self.children_type == rule.kind
 
     def try_continue(self, cursor: InputText) -> 'RuleResult':
         return self.rule.try_continue(cursor, self)
 
-    def close(self, cursor: InputText, last_event: Optional[Event]) -> 'RuleResult':
-        return self.rule.on_close(cursor, self, last_event)
+    def close(self, cursor: InputText, last_span_end: Optional[int]) -> 'RuleResult':
+        events: List[Event] = []
+        if self.inline_parser:
+            events.extend(self.inline_parser.iter_merged_events())
+        result = self.rule.on_close(cursor, self, last_span_end)
+        result.events = events + result.events
+        return result
         
 
 class FlowControl(Enum):
@@ -144,6 +152,12 @@ class RuleResult:
             finished_line=finished_line,
         )
 
+    @classmethod
+    def close(cls) -> 'RuleResult':
+        return cls(
+            status=FlowControl.CLOSE,
+        )
+
 # In djot.js it is called BlockSpec.
 @dataclass
 class BlockRule(ABC):
@@ -157,21 +171,26 @@ class BlockRule(ABC):
     accepts_content: ContainerCap # 
 
     def can_be_root_or_nested(self, container: Optional[Container]) -> bool:
+        """Whether current node can be root or be nested
+        
+        If there's no parent node, and current rule is block, then it can be a root node.
+        If parent node exists, parent node's allowed children type must agree with current rule.
+        """
         if not container:
-            return self.kind == ContainerCap.BLOCK
+            return ContainerCap.BLOCK == self.kind
 
         return self.kind == container.children_type
 
-    def accepts_block_only(self) -> bool:
+    def accepts_blocks(self) -> bool:
         return self.accepts_content in (ContainerCap.BLOCK, ContainerCap.LIST_ITEM)
 
-    def accepts_inline(self) -> bool:
+    def accepts_inline_only(self) -> bool:
         return self.accepts_content == ContainerCap.INLINE
 
-    def accepts_block(self) -> bool:
+    def accepts_block_only(self) -> bool:
         return self.accepts_content == ContainerCap.BLOCK
 
-    def accepts_text(self) -> bool:
+    def accepts_text_only(self) -> bool:
         return self.accepts_content == ContainerCap.TEXT
 
     @abstractmethod
@@ -187,7 +206,7 @@ class BlockRule(ABC):
         self, 
         cursor: InputText, 
         container: Container, 
-        last_event: Optional[Event]
+        last_span_end: Optional[int]
     ) -> RuleResult:
         """关闭块，出栈并做收尾工作"""
         pass
