@@ -32,8 +32,11 @@ class ElementKind(Enum):
     BLOCK_ATTRIBUTE = auto()
     FENCED_DIV = auto()
     CODE_BLOCK = auto()
+    CODE_LANGUAGE = auto()
     STR = auto()
     BLANKLINE = auto()
+    DIV = auto()
+    CLASS = auto()
 
     ANNOTATION = auto()
     DISPLAY_MATH = auto()
