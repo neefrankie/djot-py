@@ -42,6 +42,10 @@ class InputText:
     _PATT_NEXT_BAR_OR_TICK = re.compile(r'[^`|\r\n]*(?:[|]|`+)')
     _PATT_WORD = re.compile(r'\w+\s')
     _PATT_ENDLINE = re.compile(r'[ \t]*\r?\n')
+    _PATT_DIV_FENCE_START = re.compile(r'(::::*)[ \t]*')
+    _PATT_DIV_FENCE_END = re.compile(r'([\w_-]*)[ \t]*\r?\n')
+    _PATT_DIV_FENCE = re.compile(r'(::::*)[ \t]*\r?\n')
+    _PATT_CODE_FENCE = re.compile(r'(~~~~*|````*)([ \t]*)([^ \t\r\n`]*)[ \t]*\r?\n')
 
 
     # TODO: should we collect all the match logic in InputText?
@@ -216,6 +220,19 @@ class InputText:
 
     def find_endline(self, start: int) -> Optional[MatchedRange]:
         return find(self.src, self._PATT_ENDLINE, start)
+
+    def find_div_fence_start(self) -> Optional[MatchedRange]:
+        return find(self.src, self._PATT_DIV_FENCE_START, self.pos)
+
+    def find_div_fence_end(self, start: int) -> Optional[MatchedRange]:
+        return find(self.src, self._PATT_DIV_FENCE_END, start)
+
+    def find_div_fence(self):
+        return find(self.src, self._PATT_DIV_FENCE, self.pos)
+
+    def find_code_fence(self):
+        return find(self.src, self._PATT_CODE_FENCE, self.pos)
+
 
     def next_char(self) -> Optional[str]:
         if self.pos > self.maxoffset:
