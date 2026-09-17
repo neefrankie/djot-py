@@ -1181,7 +1181,7 @@ class TableRule(BlockRule):
             )]
         )
 
-
+@dataclass
 class AttributeRule(BlockRule):
     """Block attributes
     
@@ -1271,3 +1271,219 @@ class AttributeRule(BlockRule):
     ) -> RuleResult:
 
         return RuleResult.close()
+
+@dataclass
+class FencedDivRule(BlockRule):
+    """
+    A div begins with a line of three or more colons,
+    optionally followed by white space and a class name
+    (but nothing else).
+    It ends with a line of consecutive colons at least
+    as long as the opening fence, or with the end of the document
+    or containing block.
+    The contents of a div are interpreted as block-level content.
+
+    ::: waning
+    Here is a paragraph.
+
+    And here is another.
+    :::
+    """
+
+    kind: ContainerCap = ContainerCap.BLOCK
+    accepts_content: ContainerCap = ContainerCap.BLOCK
+
+    def try_open(self, cursor: InputText) -> RuleResult:
+
+        # Find at least 3 colons, following by optional space.
+        m = cursor.find_div_fence_start() # :::
+        if not m:
+            return RuleResult.fail()
+
+        colons = m.captures[0]
+
+        # After space, try to find any optional word (captured),
+        # followed by optinal space, followying by newline.
+        m2 = cursor.find_div_fence_end(m.end+1)
+        if not m2:
+            return RuleResult.fail()
+
+        clsp = m2.start
+        lang = m2.captures[0]
+
+        container = Container(
+            rule=self,
+            data=FencedDivData(
+                colons=len(colons),
+                span=None
+            )
+        )
+
+        events = [
+            Event.enter(m.start, m.end, ElementKind.DIV)
+        ]
+        if len(lang) > 0:
+            events.append(
+                Event.new(clsp, clsp + len(lang) - 1, ElementKind.CLASS)
+            )
+
+        cursor.advance_to(m2.end + 1) # after \n
+
+        return RuleResult(
+            status=FlowControl.OPEN,
+            events=events,
+            container=container,
+            finished_line=True,
+        )
+
+    def try_continue(self, cursor: InputText, container: Container) -> RuleResult:
+        if isinstance(container.rule, CodeBlockRule): # in code block?
+            return RuleResult.continue_ok() # see #109
+
+        m = cursor.find_div_fence()
+
+        if not m:
+            return RuleResult.continue_ok()
+
+        if not isinstance(container.data, FencedDivData):
+            return RuleResult.continue_ok()
+
+        colons = m.captures[0]
+        if len(colons) >= container.data.colons:
+            container.data.span = Range(
+                start=m.start,
+                end=m.start + len(colons) - 1
+            )
+            cursor.advance_to(m.end) # \n
+            return RuleResult.fail() # TODO: why?
+
+        return RuleResult.continue_ok()
+
+    def on_close(
+        self, 
+        cursor: InputText, 
+        container: Container, 
+        last_span_end: int | None
+    ) -> RuleResult:
+        sp = cursor.pos
+        ep = cursor.pos
+        if isinstance(container.data, FencedDivData):
+            if container.data.span:
+                sp = container.data.span.start
+                ep = container.data.span.end
+
+        event = Event.exit(sp, ep, ElementKind.DIV)
+
+        if sp == ep:
+            print('Unclosed div', cursor.pos)
+
+        return RuleResult(
+            status=FlowControl.CLOSE,
+            events=[event],
+        )
+
+
+@dataclass
+class CodeBlockRule(BlockRule):
+    kind: ContainerCap = ContainerCap.BLOCK
+    accepts_content: ContainerCap = ContainerCap.TEXT
+
+    def try_open(self, cursor: InputText) -> RuleResult:
+        # Find at least three ~ or ` (capture 0), followed by
+        # optional space (capture 1), followed by
+        # anything but whitespace or ` (capture 2),
+        # followed by opitonal space, followed by newline.
+        m = cursor.find_code_fence()
+        if not m:
+            return RuleResult.fail()
+
+        border = m.captures[0]
+        ws = m.captures[1]
+        lang = m.captures[2]
+        is_raw = lang.startswith('=')
+        close_pattern = re.compile(r'(' + border + border[0:1] + r'*)' + r'[ \t]*[\r\n]')
+
+        container = Container(
+            rule=self,
+            indent=cursor.indent,
+            data=CodeBlockData(
+                close_pattern=close_pattern,
+            )
+        )
+
+        events = [Event.enter(m.start, m.start + len(border) - 1, ElementKind.CODE_BLOCK)]
+
+        if len(lang) > 0:
+            langstart = m.start + len(border) + len(ws)
+
+            if is_raw:
+                events.append(
+                    Event.new(
+                        langstart,
+                        langstart + len(lang) -1,
+                        ElementKind.RAW_FORMAT,
+                    )
+                )
+            else:
+                events.append(
+                    Event.new(
+                        langstart,
+                        langstart + len(lang) - 1,
+                        ElementKind.CODE_LANGUAGE,
+                    )
+                )
+
+        cursor.advance_to(m.end)
+        return RuleResult(
+            status=FlowControl.OPEN,
+            events=events,
+            finished_line=True
+        )
+
+    def try_continue(self, cursor: InputText, container: Container) -> RuleResult:
+        if not isinstance(container.data, CodeBlockData):
+            return RuleResult.fail()
+
+        m = cursor.find(container.data.close_pattern)
+        if not m:
+            return RuleResult.fail()
+
+        container.data.span = Range(
+            start=m.start,
+            end=m.start + len(m.captures[0]) - 1
+        )
+
+        cursor.advance_to(m.end) # \n
+
+        return RuleResult(
+            status=FlowControl.CONTINUE,
+            finished_line=True
+        )
+
+    def on_close(
+        self,
+        cursor: InputText,
+        container: Container,
+        last_span_end: int | None
+    ) -> RuleResult:
+        sp = cursor.pos
+        ep = cursor.pos
+
+        if isinstance(container.data, CodeBlockData):
+            if container.data.span:
+                sp = container.data.span.start
+                ep = container.data.span.end
+
+        event = Event.exit(sp, ep, ElementKind.CODE_BLOCK)
+
+        if sp == ep:
+            print('Unclosed code block', cursor.pos)
+
+        return RuleResult(
+            status=FlowControl.CLOSE,
+            events=[event]
+        )
+
+        
+
+        
