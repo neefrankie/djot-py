@@ -1,4 +1,4 @@
-from .ast import SourceLoc
+from .common import SourceLoc
 
 class Warning:
     def __init__(self, message: str, pos: int | SourceLoc | None):
