@@ -158,12 +158,14 @@ class InputText:
         )
 
     def current_span(self) -> Range:
+        """Create a Range at curent position"""
         return Range(
             start=min(self.pos, self.maxoffset),
             end=min(self.pos, self.maxoffset)
         )
 
-    def current_line_span(self) -> Range:
+    def rest_line_span(self) -> Range:
+        """Create a Range from current position to end of line."""
         return Range(
             start=min(self.pos, self.maxoffset),
             end=min(self.eol_end, self.maxoffset)
