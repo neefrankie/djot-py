@@ -63,6 +63,24 @@ class AttributeData:
     startpos: int
     spans: List[Range]
 
+@dataclass(frozen=True)
+class ParsingContext:
+    """Data passed to a rule's methods
+    
+    Attributes:
+        cursor: The input text and its current reading position
+        is_covered: Is a container shadowned by innner container?
+        last_span_end: last event's ending position
+            
+    Notes:
+        `is_covered` indicates top containers in a stack have higher precedence over a lower one. 
+        For example, if a fenced div wraps code block, 
+        the code block should claim the owership of any line starting with ::: rather than letting the containing fenced div to take it as ending markup.
+    """
+    cursor: InputText
+    is_covered: bool = False
+    last_span_end: Optional[int] = None
+
 T = TypeVar('T')
 
 @dataclass
@@ -91,14 +109,17 @@ class Container(Generic[T]):
     def allow_nest(self, rule: 'BlockRule') -> bool:
         return self.children_type == rule.kind
 
-    def try_continue(self, cursor: InputText) -> 'RuleResult':
-        return self.rule.try_continue(cursor, self)
+    def accepts_raw_text(self):
+        return self.rule.accepts_content == ContainerCap.TEXT
 
-    def close(self, cursor: InputText, last_span_end: Optional[int]) -> 'RuleResult':
+    def on_continue(self, ctx: ParsingContext) -> 'RuleResult':
+        return self.rule.on_continue(self, ctx)
+
+    def on_close(self, ctx: ParsingContext) -> 'RuleResult':
         events: List[Event] = []
         if self.inline_parser:
             events.extend(self.inline_parser.iter_merged_events())
-        result = self.rule.on_close(cursor, self, last_span_end)
+        result = self.rule.on_close(self, ctx)
         result.events = events + result.events
         return result
         
@@ -108,7 +129,7 @@ class FlowControl(Enum):
     CONTINUE = auto()
     CLOSE = auto()
     FAIL = auto()
-    FALLBACK = auto()
+    FALLBACK = auto() # avoid this. djot.js has a fallback approach which breaks consistency. It's a flaw in markup design.
 
 
 @dataclass
@@ -120,11 +141,6 @@ class RuleResult:
         events: the events generated in a rule's operation
         container: Open operation usually creates a new container. However, continue/close operation could fallback to a new container.
         finished_line: Flag indicating whether an operation gobbles the whole line so that we stop early.
-
-    Cases of result returned
-    ------------------------
-    
-    
     """
     status: FlowControl
     events: List[Event] = field(default_factory=list)
@@ -168,8 +184,8 @@ class BlockRule(ABC):
         kind: The type of current node in a tree.
         accepts_content: what kind of nodes are allowed to be attached to current node..
     """
-    kind: ContainerCap # 
-    accepts_content: ContainerCap # 
+    kind: ContainerCap
+    accepts_content: ContainerCap
 
     def can_be_root_or_nested(self, container: Optional[Container]) -> bool:
         """Whether current node can be root or be nested
@@ -199,15 +215,9 @@ class BlockRule(ABC):
         pass
 
     @abstractmethod
-    def try_continue(self, cursor: InputText, container: Container) -> RuleResult:
+    def on_continue(self, container: Container, ctx: ParsingContext) -> RuleResult:
         pass
 
     @abstractmethod
-    def on_close(
-        self, 
-        cursor: InputText, 
-        container: Container, 
-        last_span_end: Optional[int]
-    ) -> RuleResult:
-        """关闭块，出栈并做收尾工作"""
+    def on_close(self, container: Container, ctx: ParsingContext) -> RuleResult:
         pass
