@@ -32,6 +32,9 @@ from .rule import (
     FencedDivRule,
     CodeBlockRule,
 )
+from .container import (
+    ParsingContext,
+)
 
 
 class ContinueContainerResult(NamedTuple):
@@ -57,6 +60,10 @@ class EventParser:
         # A container stack describes a path in a tree from root to a leaf.
         # When we push a new container, we are exiting a node and switch to a sibling.
         self.container_stack: List[Container[Any]] = []
+        # Index of container with opaque content, a block of raw text
+        # with higher precedence shadowing outer container.
+        # -1 mean the stack does not have such a container.
+        self.raw_barrier_idx: int = -1
         self.para_rule = ParaRule()
         self.block_rules: List[BlockRule] = [
             BlockquoteRule(),
@@ -106,9 +113,6 @@ class EventParser:
         container: Container, 
     ) -> Container:
 
-        # Clear all siblings and their children before attaching a new child.
-        closed_events = self._close_siblings_of(container)
-
         if container.children_type == ContainerCap.INLINE:
             # Why not attach the InlineParser when the container is created?
             # Or attach it lazily when it is first accessed?
@@ -119,7 +123,26 @@ class EventParser:
             )
 
         self.container_stack.append(container)
+
+        # If new container is opaquee like CodeBlock,
+        # and there is no record of such container, remember its index.
+        if container.accepts_raw_text() and self.raw_barrier_idx == -1:
+            self.raw_barrier_idx = len(self.container_stack) - 1
+
         return container
+
+    def _pop_containier(self) -> Optional[Container]:
+        if not self.container_stack:
+            return None
+
+        top = self.container_stack.pop()
+
+        # If the popped container happens to be the shadowing container,
+        # reset index.
+        if len(self.container_stack) <= self.raw_barrier_idx:
+            self.raw_barrier_idx = -1
+
+        return top
 
     def _close_siblings_of(self, new_container: Container) -> List[Event]:
         events: List[Event] = []
@@ -128,9 +151,14 @@ class EventParser:
             if self.container_stack[-1].can_nest(new_container):
                 break
 
-            top = self.container_stack.pop()
+            top = self._pop_containier()
+            if not top:
+                break
 
-            close_result = top.close(self.input, self.last_event_endpos)
+            close_result = top.on_close(ParsingContext(
+                cursor=self.input,
+                last_span_end=self.last_event_endpos
+            ))
             events.extend(close_result.events)
 
 
@@ -153,10 +181,15 @@ class EventParser:
 
         events: List[Event] = []
 
-        while self.container_stack and len(self.container_stack)-1 > last_matched_idx:
-            top = self.container_stack.pop()
+        while len(self.container_stack)-1 > last_matched_idx:
+            top = self._pop_containier()
+            if not top:
+                break
 
-            close_result = top.close(self.input, self.last_event_endpos)
+            close_result = top.on_close(ParsingContext(
+                cursor=self.input,
+                last_span_end=self.last_event_endpos
+            ))
             events.extend(close_result.events)
 
         return events
@@ -211,11 +244,22 @@ class EventParser:
         events: List[Event] = []
         line_is_finished = False
 
+        # 1. Determine if the top of curent stack has a raw block like CodeBlock.
+        has_raw_barrierr = (self.raw_barrier_idx != -1)
+
         for idx, container in enumerate(self.container_stack):
             # 1. Prepare cursor for rule
             self.input.skip_space()
 
-            res = container.try_continue(self.input)
+            # 2. If current container contains a raw text block,
+            # flag it as is_covered, indicating that you are shadowed
+            # by inner containers, yield your right to children.
+            is_covered = has_raw_barrierr and (idx < self.raw_barrier_idx)
+
+            res = container.on_continue(ParsingContext(
+                cursor=self.input,
+                is_covered=is_covered,
+            ))
 
             if res == FlowControl.CONTINUE:
                 last_matched_idx = idx
