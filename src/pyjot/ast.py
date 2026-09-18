@@ -14,7 +14,7 @@ type Attributes = Dict[str, str]
 
 @dataclass
 class AstNode(ABC):
-    tag: str # put tag here as class var since in render_ast_node we need to know this field. However, in python we use class typing to determine a node type rather than using string.
+    tag: str
 
 
 @dataclass
