@@ -19,5 +19,9 @@ class ParseStatus(Enum):
     CONTINUE = 2
 
 
-
+@dataclass
+class SourceLoc:
+    line: int
+    col: int
+    offset: int
 

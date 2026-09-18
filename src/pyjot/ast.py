@@ -3,13 +3,7 @@ from dataclasses import dataclass
 from enum import Enum, StrEnum
 from typing import Dict, List, Protocol, Tuple, TypeGuard, TypeVar, runtime_checkable
 
-
-
-@dataclass
-class SourceLoc:
-    line: int
-    col: int
-    offset: int
+from .common import SourceLoc
 
 @dataclass
 class Pos:
