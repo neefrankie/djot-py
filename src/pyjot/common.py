@@ -3,9 +3,8 @@ from enum import Enum
 from typing import List
 
 
-@dataclass
+@dataclass(slots=True)
 class Range:
-    __slots__ = ('start', 'end')
     start: int
     end: int
 
