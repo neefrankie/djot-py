@@ -14,7 +14,7 @@ from ..event import (
     Alignment,
     TableSepPayload
 )
-from ..common import Range, ParseStatus
+from ..common import Range
 from ..find import find
 from ..options import Options
 
@@ -33,6 +33,7 @@ from .container import (
     FlowControl,
     BlockRule,
     RuleResult,
+    ParsingContext,
 )
 
 
@@ -62,24 +63,27 @@ class ParaRule(BlockRule):
             container=container,
         )
 
-    def try_continue(self, cursor: InputText, container: Container) -> RuleResult:
-        if cursor.find_whitespace() is None:
+    def on_continue(
+        self,
+        container: Container,
+        ctx: ParsingContext
+    ) -> RuleResult:
+        if ctx.cursor.find_whitespace() is None:
             return RuleResult.continue_ok()
 
         return RuleResult.fail()
 
     def on_close(
         self, 
-        cursor: InputText, 
         container: Container, 
-        last_span_end: Optional[int],
+        ctx: ParsingContext,
     ) -> RuleResult:
         # Actions performed in djot.js
         # 1. transfer inline matches
         # 2. pop container
         # 3. query last event's endpos
         # 4. emit exit para event.
-        ep = last_span_end + 1 if last_span_end else cursor.pos
+        ep = ctx.last_span_end + 1 if ctx.last_span_end else ctx.cursor.pos
         return RuleResult(
             status=FlowControl.CLOSE,
             events=[
@@ -123,18 +127,21 @@ class BlockquoteRule(BlockRule):
             events=[event]
         )
 
-    def try_continue(self, cursor: InputText, container: Container) -> RuleResult:
-        if cursor.find_blockquote_prefix():
-            cursor.advance() # Eat starting >
+    def on_continue(
+        self,
+        container: Container,
+        ctx: ParsingContext
+    ) -> RuleResult:
+        if ctx.cursor.find_blockquote_prefix():
+            ctx.cursor.advance() # Eat starting >
             return RuleResult.continue_ok()
         else:
             return RuleResult.fail()
 
     def on_close(
         self, 
-        cursor: InputText, 
         container: Container, 
-        last_span_end: Optional[int],
+        ctx: ParsingContext,
     ) -> RuleResult:
         return RuleResult(
             status=FlowControl.CLOSE,
@@ -142,8 +149,8 @@ class BlockquoteRule(BlockRule):
                 action=Action.EXIT,
                 kind=ElementKind.BLOCK_QUOTE,
                 span=Range(
-                    start=cursor.pos,
-                    end=cursor.pos
+                    start=ctx.cursor.pos,
+                    end=ctx.cursor.pos
                 )
             )]
         )
@@ -221,8 +228,12 @@ class HeadingRule(BlockRule):
             events=[event]
         )
 
-    def try_continue(self, cursor: InputText, container: Container) -> RuleResult:
-        m = cursor.find_bangs()
+    def on_continue(
+        self,
+        container: Container,
+        ctx: ParsingContext
+    ) -> RuleResult:
+        m = ctx.cursor.find_bangs()
         if not m:
             return RuleResult.fail()
         if not isinstance(container.data, HeadingData):
@@ -235,21 +246,20 @@ class HeadingRule(BlockRule):
         if container.data.level != (m.end - m.start + 1): 
             return RuleResult.fail()
 
-        if not cursor.find_whitespace(m.end + 1):
+        if not ctx.cursor.find_whitespace(m.end + 1):
             return RuleResult.fail()
 
-        cursor.advance_to(m.end + 1) # eat the leading #s
+        ctx.cursor.advance_to(m.end + 1) # eat the leading #s
 
         return RuleResult.continue_ok()
 
     def on_close(
         self, 
-        cursor: InputText, 
         container: Container, 
-        last_span_end: Optional[int],
+        ctx: ParsingContext,
     ) -> RuleResult:
         
-        ep = last_span_end + 1 if last_span_end else cursor.pos
+        ep = ctx.last_span_end + 1 if ctx.last_span_end else ctx.cursor.pos
         return RuleResult(
             status=FlowControl.CLOSE,
             events=[Event(
@@ -297,18 +307,21 @@ class CaptionRule(BlockRule):
             events=[event]
         )
 
-    def try_continue(self, cursor: InputText, container: Container) -> RuleResult:
+    def on_continue(
+        self,
+        container: Container,
+        ctx: ParsingContext
+    ) -> RuleResult:
         # Check if the line is indented.
-        if cursor.find_whitespace() is None:
+        if ctx.cursor.find_whitespace() is None:
             return RuleResult.continue_ok()
 
         return RuleResult.fail()
 
     def on_close(
         self, 
-        cursor: InputText, 
         container: Container, 
-        last_span_end: Optional[int],
+        ctx: ParsingContext,
     ) -> RuleResult:
         return RuleResult(
             status=FlowControl.CLOSE,
@@ -316,8 +329,8 @@ class CaptionRule(BlockRule):
                 action=Action.EXIT,
                 kind=ElementKind.CAPTION,
                 span=Range(
-                    start=cursor.pos-1, # TODO: figure out why subtract 1
-                    end=cursor.pos-1
+                    start=ctx.cursor.pos-1, # TODO: figure out why subtract 1
+                    end=ctx.cursor.pos-1
                 )
             )]
         )
@@ -386,23 +399,26 @@ class FootnoteRule(BlockRule):
             events=events,
         )
 
-    def try_continue(self, cursor: InputText, container: Container) -> RuleResult:
+    def on_continue(
+        self,
+        container: Container,
+        ctx: ParsingContext
+    ) -> RuleResult:
         if not isinstance(container.data, FootnoteData):
             return RuleResult.fail()
 
-        if cursor.indent > container.data.indent: # line start
+        if ctx.cursor.indent > container.data.indent: # line start
             return RuleResult.continue_ok()
 
-        if cursor.pos == cursor.eol_start: # line end
+        if ctx.cursor.pos == ctx.cursor.eol_start: # line end
             return RuleResult.continue_ok()
 
         return RuleResult.fail()
 
     def on_close(
         self, 
-        cursor: InputText, 
         container: Container, 
-        last_span_end: Optional[int],
+        ctx: ParsingContext,
     ) -> RuleResult:
         return RuleResult(
             status=FlowControl.CLOSE,
@@ -410,8 +426,8 @@ class FootnoteRule(BlockRule):
                 action=Action.EXIT,
                 kind=ElementKind.FOOTNOTE,
                 span=Range(
-                    start=cursor.pos,
-                    end=cursor.pos
+                    start=ctx.cursor.pos,
+                    end=ctx.cursor.pos
                 )
             )]
         )
@@ -485,33 +501,37 @@ class ReferenceDefinitionRule(BlockRule):
             events=events,
         )
 
-    def try_continue(self, cursor: InputText, container: Container) -> RuleResult:
+    def on_continue(
+        self,
+        container: Container,
+        ctx: ParsingContext
+    ) -> RuleResult:
         if not isinstance(container.data, RefDefData):
             return RuleResult.fail()
 
-        if container.data.indent >= cursor.indent: # previous line was indented more than this line
+        if container.data.indent >= ctx.cursor.indent: # previous line was indented more than this line
             return RuleResult.fail()
 
         # Find URL split over multiple lines.
-        nws = cursor.find_whitespace()
+        nws = ctx.cursor.find_whitespace()
         if not nws:
             return RuleResult.fail()
         # Current position should not exceed the end of the line,
         # and content should be ended with a newline.
-        if cursor.pos >= cursor.eol_start:
+        if ctx.cursor.pos >= ctx.cursor.eol_start:
             return RuleResult.fail()
-        if nws.end != cursor.eol_start - 1:
+        if nws.end != ctx.cursor.eol_start - 1:
             return RuleResult.fail()
         
         event = Event(
             action=Action.NONE,
             kind=ElementKind.REFERENCE_VALUE,
             span=Range(
-                start=cursor.pos,
-                end=cursor.eol_start - 1,
+                start=ctx.cursor.pos,
+                end=ctx.cursor.eol_start - 1,
             )
         )
-        cursor.advance_to(cursor.eol_start) # \n
+        ctx.cursor.advance_to(ctx.cursor.eol_start) # \n
         return RuleResult(
             status=FlowControl.CONTINUE,
             events=[event],
@@ -519,9 +539,8 @@ class ReferenceDefinitionRule(BlockRule):
 
     def on_close(
         self, 
-        cursor: InputText, 
         container: Container, 
-        last_span_end: Optional[int],
+        ctx: ParsingContext,
     ) -> RuleResult:
         return RuleResult(
             status=FlowControl.CLOSE,
@@ -529,8 +548,8 @@ class ReferenceDefinitionRule(BlockRule):
                 action=Action.EXIT,
                 kind=ElementKind.REFERENCE_DEFINITION,
                 span=Range(
-                    start=cursor.pos,
-                    end=cursor.pos,
+                    start=ctx.cursor.pos,
+                    end=ctx.cursor.pos,
                 )
             )]
         )
@@ -578,14 +597,17 @@ class ThematicBreakRule(BlockRule):
             events=[event],
         )
 
-    def try_continue(self, cursor: InputText, container: Container) -> RuleResult:
+    def on_continue(
+        self,
+        container: Container,
+        ctx: ParsingContext
+    ) -> RuleResult:
         return RuleResult.fail()
 
     def on_close(
         self, 
-        cursor: InputText, 
         container: Container, 
-        last_span_end: Optional[int],
+        ctx: ParsingContext,
     ) -> RuleResult:
         return RuleResult(
             status=FlowControl.CLOSE
@@ -655,24 +677,28 @@ class ListRule(BlockRule):
             events=[event],
         )
 
-    def try_continue(self, cursor: InputText, container: Container) -> RuleResult:
+    def on_continue(
+        self,
+        container: Container,
+        ctx: ParsingContext
+    ) -> RuleResult:
         if not isinstance(container.data, ListData):
             return RuleResult.fail()
 
-        if cursor.indent > container.data.indent:
+        if ctx.cursor.indent > container.data.indent:
             return RuleResult.continue_ok()
 
-        if cursor.pos == cursor.eol_start:
+        if ctx.cursor.pos == ctx.cursor.eol_start:
             return RuleResult.continue_ok()
 
-        m = cursor.find_list_marker()
+        m = ctx.cursor.find_list_marker()
         if m is None:
             return RuleResult.fail()
 
-        marker = cursor.src[m.start:m.end]
-        mtask = cursor.find_task_list_marker()
+        marker = ctx.cursor.src[m.start:m.end]
+        mtask = ctx.cursor.find_task_list_marker()
         if mtask is not None:
-            marker = cursor.src[mtask.start:mtask.start + 5]
+            marker = ctx.cursor.src[mtask.start:mtask.start + 5]
 
         styles = get_list_styles(marker)
         
@@ -689,9 +715,8 @@ class ListRule(BlockRule):
 
     def on_close(
         self, 
-        cursor: InputText, 
         container: Container, 
-        last_span_end: Optional[int],
+        ctx: ParsingContext,
     ) -> RuleResult:
         return RuleResult(
             status=FlowControl.CLOSE,
@@ -699,8 +724,8 @@ class ListRule(BlockRule):
                 action=Action.EXIT,
                 kind=ElementKind.LIST,
                 span=Range(
-                    start=cursor.pos,
-                    end=cursor.pos
+                    start=ctx.cursor.pos,
+                    end=ctx.cursor.pos
                 )
             )]
         )
@@ -783,23 +808,26 @@ class ListItemRule(BlockRule):
             events=events,
         )
 
-    def try_continue(self, cursor: InputText, container: Container) -> RuleResult:
+    def on_continue(
+        self,
+        container: Container,
+        ctx: ParsingContext
+    ) -> RuleResult:
         if not isinstance(container.data, ListData):
             return RuleResult.fail()
 
-        if cursor.indent > container.data.indent:
+        if ctx.cursor.indent > container.data.indent:
             return RuleResult.continue_ok()
 
-        if cursor.pos == cursor.eol_start:
+        if ctx.cursor.pos == ctx.cursor.eol_start:
             return RuleResult.continue_ok()
 
         return RuleResult.fail()
 
     def on_close(
         self, 
-        cursor: InputText, 
         container: Container, 
-        last_span_end: Optional[int],
+        ctx: ParsingContext,
     ) -> RuleResult:
         return RuleResult(
             status=FlowControl.CLOSE,
@@ -807,8 +835,8 @@ class ListItemRule(BlockRule):
                 action=Action.EXIT,
                 kind=ElementKind.LIST_ITEM,
                 span=Range(
-                    start=cursor.pos - 1,
-                    end=cursor.pos - 1,
+                    start=ctx.cursor.pos - 1,
+                    end=ctx.cursor.pos - 1,
                 )
             )]
         )
@@ -1142,14 +1170,18 @@ class TableRule(BlockRule):
         ) # Returns event and current match end index.
     
 
-    def try_continue(self, cursor: InputText, container: Container) -> RuleResult:
-        m = cursor.find_table_row()
+    def on_continue(
+        self,
+        container: Container,
+        ctx: ParsingContext
+    ) -> RuleResult:
+        m = ctx.cursor.find_table_row()
         if not m:
             return RuleResult.fail()
 
         rawrow = m.captures[0] # | fruit  | price |
         parsed_row = self.parse_row(
-            cursor=cursor,
+            cursor=ctx.cursor,
             start_pipe=m.start,
             end_pipe=m.start + len(rawrow) - 1
         )
@@ -1165,9 +1197,8 @@ class TableRule(BlockRule):
 
     def on_close(
         self, 
-        cursor: InputText, 
-        container: Container,
-        last_span_end: Optional[int],
+        container: Container, 
+        ctx: ParsingContext,
     ) -> RuleResult:
         return RuleResult(
             status=FlowControl.CLOSE,
@@ -1175,8 +1206,8 @@ class TableRule(BlockRule):
                 action=Action.EXIT,
                 kind=ElementKind.TABLE,
                 span=Range(
-                    start=cursor.pos,
-                    end=cursor.pos,
+                    start=ctx.cursor.pos,
+                    end=ctx.cursor.pos,
                 )
             )]
         )
@@ -1254,10 +1285,10 @@ class AttributeRule(BlockRule):
             container=container,
         ) # No event is returned. They are kept in AttributeParser for easy rewind. Why finished_line is not turned to True here?
 
-    def try_continue(
+    def on_continue(
         self,
-        cursor: InputText,
-        container: Container
+        container: Container,
+        ctx: ParsingContext
     ) -> RuleResult:
         # Since I don't permit newline inside attribute block,
         # we don've even have to check this.
@@ -1265,9 +1296,8 @@ class AttributeRule(BlockRule):
 
     def on_close(
         self, 
-        cursor: InputText, 
         container: Container, 
-        last_span_end: Optional[int]
+        ctx: ParsingContext,
     ) -> RuleResult:
 
         return RuleResult.close()
@@ -1296,7 +1326,7 @@ class FencedDivRule(BlockRule):
     def try_open(self, cursor: InputText) -> RuleResult:
 
         # Find at least 3 colons, following by optional space.
-        m = cursor.find_div_fence_start() # :::
+        m = cursor.find_div_fence_start()
         if not m:
             return RuleResult.fail()
 
@@ -1308,7 +1338,7 @@ class FencedDivRule(BlockRule):
         if not m2:
             return RuleResult.fail()
 
-        clsp = m2.start
+        clsp = m2.start # class name start position
         lang = m2.captures[0]
 
         container = Container(
@@ -1320,7 +1350,7 @@ class FencedDivRule(BlockRule):
         )
 
         events = [
-            Event.enter(m.start, m.end, ElementKind.DIV)
+            Event.enter(m.start, m.end, ElementKind.DIV) # :::
         ]
         if len(lang) > 0:
             events.append(
@@ -1336,37 +1366,95 @@ class FencedDivRule(BlockRule):
             finished_line=True,
         )
 
-    def try_continue(self, cursor: InputText, container: Container) -> RuleResult:
-        if isinstance(container.rule, CodeBlockRule): # in code block?
+    def on_continue(
+        self,
+        container: Container,
+        ctx: ParsingContext
+    ) -> RuleResult:
+        """The lifecycle of state-driven vs syntax-drive elements
+        
+        Fenced div (or code block) is syntactically difference from other elements.
+
+        Containers likes table, list, paragraph do not have explicit closure symbol. 
+        You don't know they are terminated until you see a new element. 
+        That is, they don't know they are dead until new element is born.
+        That's why then are closed mostly in `on_close` method: you have
+        no way to figure out whether a container reached its end of life
+        until you are ready to push a new sibling container.
+        It's similar to how UI view works on iOS (or Android): a view does
+        not know it might be destroyed until a new view is pushed on stack,
+        hence `viewWillDisappear` triggered.
+        For such elmenents, `try_continue` (or `continue`) of the container 
+        could only tell whether it should yield to inner element or
+        stop immediately.
+        They could never tell whether they reached the end of life because
+        there are no such markup for such hints.
+
+        However, fenced div and code block are one of few exceptions with
+        a clear physical border declaring itself "I find myself reaching the end of life". `try_continue` could detect whether it should
+        close itself in addition to yielding to inner element or stopping immediately:
+
+        - CONTINUE means go ahead to search for inner containers
+        - FAIL means you cannot go deeper
+        - CLOSE means a clear ending markup is found
+
+        However, the FAIL state could actually never happen based on
+        the fenced div syntax: once a fenced div opens, it could reach
+        the EOF if no explicit close markup is found.
+        This is why the `on_close` method is still needed.
+        """
+        # If ::: is inside a clode block.
+        # isinstance(container.rule, CodeBlockRule) is not the corret way
+        # if you follow the djot.js implementation.
+        # In djot.js, the receiver and parameter might be different containers.
+        # Here the archetecture has fixed this language-specific issue:
+        # the passed in `container` is always used for fenced div.
+        # What we are actaully trying to figure out is if current container
+        # is fenced div, and it contains a deeper container code block,
+        # current container find a ::: symbol, it should yield to code block.
+        if ctx.is_covered:
             return RuleResult.continue_ok() # see #109
 
-        m = cursor.find_div_fence()
+        # Now you do not have code block as innner node.
+        # Go ahead as usuall.
+        m = ctx.cursor.find_div_fence()
 
+        # If ending ::: is not found, go to deeper nodes.
+        # This is contray to elements without closing syntax,
+        # which fails to continue as soon as the match fails.
+        # Here, it the match failed, it means we havn't found
+        # any closing markup for current fenced div.
+        # So we should yield to inner nodes.
         if not m:
             return RuleResult.continue_ok()
 
+        # If data attached is not FencedDivData.
+        # This should not happen but typing needs the guard.
         if not isinstance(container.data, FencedDivData):
             return RuleResult.continue_ok()
 
         colons = m.captures[0]
+        # Why do we save the ending symbol span?
+        # Because here we should actually signal that the fence div is closed!
+        # However, in original djot.js implementation, it always delegate
+        # to the close method for cleanup.
         if len(colons) >= container.data.colons:
             container.data.span = Range(
                 start=m.start,
                 end=m.start + len(colons) - 1
             )
-            cursor.advance_to(m.end) # \n
-            return RuleResult.fail() # TODO: why?
+            ctx.cursor.advance_to(m.end) # \n
+            return RuleResult.fail() # TODO: change to FlowControl.CLOSE?
 
         return RuleResult.continue_ok()
 
     def on_close(
-        self, 
-        cursor: InputText, 
+        self,
         container: Container, 
-        last_span_end: int | None
+        ctx: ParsingContext,
     ) -> RuleResult:
-        sp = cursor.pos
-        ep = cursor.pos
+        sp = ctx.cursor.pos
+        ep = ctx.cursor.pos
         if isinstance(container.data, FencedDivData):
             if container.data.span:
                 sp = container.data.span.start
@@ -1375,7 +1463,7 @@ class FencedDivRule(BlockRule):
         event = Event.exit(sp, ep, ElementKind.DIV)
 
         if sp == ep:
-            print('Unclosed div', cursor.pos)
+            print('Unclosed div', ctx.cursor.pos)
 
         return RuleResult(
             status=FlowControl.CLOSE,
@@ -1441,11 +1529,15 @@ class CodeBlockRule(BlockRule):
             finished_line=True
         )
 
-    def try_continue(self, cursor: InputText, container: Container) -> RuleResult:
+    def on_continue(
+        self,
+        container: Container,
+        ctx: ParsingContext
+    ) -> RuleResult:
         if not isinstance(container.data, CodeBlockData):
             return RuleResult.fail()
 
-        m = cursor.find(container.data.close_pattern)
+        m = ctx.cursor.find(container.data.close_pattern)
         if not m:
             return RuleResult.fail()
 
@@ -1454,7 +1546,7 @@ class CodeBlockRule(BlockRule):
             end=m.start + len(m.captures[0]) - 1
         )
 
-        cursor.advance_to(m.end) # \n
+        ctx.cursor.advance_to(m.end) # \n
 
         return RuleResult(
             status=FlowControl.CONTINUE,
@@ -1462,13 +1554,12 @@ class CodeBlockRule(BlockRule):
         )
 
     def on_close(
-        self,
-        cursor: InputText,
-        container: Container,
-        last_span_end: int | None
+        self, 
+        container: Container, 
+        ctx: ParsingContext,
     ) -> RuleResult:
-        sp = cursor.pos
-        ep = cursor.pos
+        sp = ctx.cursor.pos
+        ep = ctx.cursor.pos
 
         if isinstance(container.data, CodeBlockData):
             if container.data.span:
@@ -1478,7 +1569,7 @@ class CodeBlockRule(BlockRule):
         event = Event.exit(sp, ep, ElementKind.CODE_BLOCK)
 
         if sp == ep:
-            print('Unclosed code block', cursor.pos)
+            print('Unclosed code block', ctx.cursor.pos)
 
         return RuleResult(
             status=FlowControl.CLOSE,
