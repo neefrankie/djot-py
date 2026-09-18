@@ -1537,10 +1537,13 @@ class CodeBlockRule(BlockRule):
         if not isinstance(container.data, CodeBlockData):
             return RuleResult.fail()
 
+        # Similar to fenced div, if we didn't find ending markup,
+        # yield to inner nodes.
         m = ctx.cursor.find(container.data.close_pattern)
         if not m:
-            return RuleResult.fail()
+            return RuleResult.continue_ok()
 
+        # If we find ending token, it should stop at this container.
         container.data.span = Range(
             start=m.start,
             end=m.start + len(m.captures[0]) - 1
@@ -1549,7 +1552,7 @@ class CodeBlockRule(BlockRule):
         ctx.cursor.advance_to(m.end) # \n
 
         return RuleResult(
-            status=FlowControl.CONTINUE,
+            status=FlowControl.FAIL, # TODO: change to CLOSE
             finished_line=True
         )
 
