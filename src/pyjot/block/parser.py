@@ -6,8 +6,8 @@ from ..inline import InlineParser
 from ..input import InputText
 from ..event import (
     Event,
-    Action,
-    ElementKind
+    LeafEvent,
+    LeafKind
 )
 from ..options import Options
 from ..common import Range
@@ -393,10 +393,9 @@ class EventParser:
                 if not new_starts_created:
                     # need to track these for tight/loose lists.
                     events.append(
-                        Event(
-                            action=Action.NONE,
-                            kind=ElementKind.BLANKLINE,
-                            span=self.input.current_line_span()
+                        LeafEvent(
+                            kind=LeafKind.BLANKLINE,
+                            span=self.input.rest_line_span()
                         )
                     )
                 return events
@@ -417,9 +416,8 @@ class EventParser:
         if tip.rule.accepts_text_only(): # if child node is text only.
             start_pos = self.input.get_adjusted_text_start(tip.indent)
             events.append(
-                Event(
-                    action=Action.NONE,
-                    kind=ElementKind.STR,
+                LeafEvent(
+                    kind=LeafKind.STR,
                     span=Range(
                         start=start_pos,
                         end=self.input.eol_start,
@@ -431,9 +429,6 @@ class EventParser:
                 tip.inline_parser.feed(self.input.pos, self.input.eol_start)
 
         return events
-
-
-
 
     def parse(self) -> Iterator[Event]:
         while not self.input.is_eof():
