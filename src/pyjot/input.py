@@ -208,8 +208,10 @@ class InputText:
     def find_task_list_marker(self):
         return find(self.src, self._PATT_TASK_LIST_MARKER, self.pos)
 
-    def find_table_row(self):
-        return find(self.src, self._PATT_TABLE_ROW, self.pos)
+    def find_table_row(self, start: Optional[int] = None):
+        if start is None:
+            start = self.pos
+        return find(self.src, self._PATT_TABLE_ROW, start)
 
     def find_row_sep(self):
         return find(self.src, self._PATT_ROW_SEP, self.pos)
