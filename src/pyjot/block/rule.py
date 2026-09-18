@@ -7,12 +7,15 @@ from ..inline import InlineParser
 from ..attributes import AttributeParser
 from ..event import (
     Action,
-    ElementKind,
-    Event,
-    ListPayload,
-    CheckboxPayload,
+    ContainerKind,
+    LeafKind,
     Alignment,
-    TableSepPayload
+    Event,
+    TagEvent,
+    ListEvent,
+    LeafEvent,
+    CheckboxEvent,
+    TableSeparatorEvent,
 )
 from ..common import Range
 from ..find import find
@@ -51,13 +54,9 @@ class ParaRule(BlockRule):
         return RuleResult(
             status=FlowControl.OPEN,
             events=[
-                Event(
-                    action=Action.ENTER,
-                    kind=ElementKind.PARA,
-                    span=Range(
-                        start=cursor.pos,
-                        end=cursor.pos
-                    )
+                TagEvent.enter(
+                    kind=ContainerKind.PARA,
+                    span=cursor.current_span()
                 )
             ],
             container=container,
@@ -87,13 +86,9 @@ class ParaRule(BlockRule):
         return RuleResult(
             status=FlowControl.CLOSE,
             events=[
-                Event(
-                    action=Action.EXIT,
-                    kind=ElementKind.PARA,
-                    span=Range(
-                        start=ep,
-                        end=ep,
-                    )
+                TagEvent.enter(
+                    kind=ContainerKind.PARA,
+                    span=ctx.cursor.new_span(ep, ep)
                 )
             ]
         )
@@ -107,13 +102,9 @@ class BlockquoteRule(BlockRule):
         if not cursor.find_blockquote_prefix():
             return RuleResult.fail()
 
-        event = Event(
-            action=Action.ENTER,
-            kind=ElementKind.BLOCK_QUOTE,
-            span=Range(
-                start=cursor.pos,
-                end=cursor.pos,
-            )
+        event = TagEvent.enter(
+            kind=ContainerKind.BLOCK_QUOTE,
+            span=cursor.current_span()
         )
         container = Container(
             rule=self,
@@ -145,14 +136,12 @@ class BlockquoteRule(BlockRule):
     ) -> RuleResult:
         return RuleResult(
             status=FlowControl.CLOSE,
-            events=[Event(
-                action=Action.EXIT,
-                kind=ElementKind.BLOCK_QUOTE,
-                span=Range(
-                    start=ctx.cursor.pos,
-                    end=ctx.cursor.pos
+            events=[
+                TagEvent.exit(
+                    kind=ContainerKind.BLOCK_QUOTE,
+                    span=ctx.cursor.current_span()
                 )
-            )]
+            ]
         )
 
 @dataclass
@@ -209,13 +198,9 @@ class HeadingRule(BlockRule):
 
         level = m.end - m.start + 1 # m.end point to ending #, so length has to plus 1.
 
-        event = Event(
-            action=Action.ENTER,
-            kind=ElementKind.HEADING,
-            span=Range(
-                start=m.start,
-                end=m.end
-            )
+        event = TagEvent.enter(
+            kind=ContainerKind.HEADING,
+            span=cursor.new_span(m.start, m.end),
         )
         container = Container(
             rule=self,
@@ -262,14 +247,12 @@ class HeadingRule(BlockRule):
         ep = ctx.last_span_end + 1 if ctx.last_span_end else ctx.cursor.pos
         return RuleResult(
             status=FlowControl.CLOSE,
-            events=[Event(
-                action=Action.EXIT,
-                span=Range(
-                    start=ep,
-                    end=ep
-                ),
-                kind=ElementKind.HEADING
-            )]
+            events=[
+                TagEvent.exit(
+                    span=ctx.cursor.new_span(ep, ep),
+                    kind=ContainerKind.HEADING
+                )
+            ]
         )
 
 @dataclass
@@ -293,13 +276,9 @@ class CaptionRule(BlockRule):
             rule=self,
             data=None
         )
-        event = Event(
-            action=Action.ENTER,
-            kind=ElementKind.CAPTION,
-            span=Range(
-                start=cursor.pos, # ^ is ignored. Start from first non-space char.
-                end=cursor.pos
-            )
+        event = TagEvent.enter(
+            kind=ContainerKind.CAPTION,
+            span=cursor.current_span(), # ^ is ignored. Start from first non-space char.
         ) 
         return RuleResult(
             status=FlowControl.OPEN,
@@ -325,10 +304,9 @@ class CaptionRule(BlockRule):
     ) -> RuleResult:
         return RuleResult(
             status=FlowControl.CLOSE,
-            events=[Event(
-                action=Action.EXIT,
-                kind=ElementKind.CAPTION,
-                span=Range(
+            events=[TagEvent.exit(
+                kind=ContainerKind.CAPTION,
+                span=ctx.cursor.new_span(
                     start=ctx.cursor.pos-1, # TODO: figure out why subtract 1
                     end=ctx.cursor.pos-1
                 )
@@ -375,18 +353,16 @@ class FootnoteRule(BlockRule):
             )
         )
         events = [
-            Event(
-                action=Action.ENTER,
-                kind=ElementKind.FOOTNOTE,
-                span=Range(
+            TagEvent.enter(
+                kind=ContainerKind.FOOTNOTE,
+                span=cursor.new_span(
                     start=start_pos,
                     end=start_pos,
                 ),
             ), # for [
-            Event(
-                action=Action.NONE,
-                kind=ElementKind.NOTE_LABEL,
-                span=Range(
+            LeafEvent(
+                kind=LeafKind.NOTE_LABEL,
+                span=cursor.new_span(
                     start=start_pos+2, # skip [^
                     end=end_pos-3, # skip the last ]:\s
                 )
@@ -422,13 +398,9 @@ class FootnoteRule(BlockRule):
     ) -> RuleResult:
         return RuleResult(
             status=FlowControl.CLOSE,
-            events=[Event(
-                action=Action.EXIT,
-                kind=ElementKind.FOOTNOTE,
-                span=Range(
-                    start=ctx.cursor.pos,
-                    end=ctx.cursor.pos
-                )
+            events=[TagEvent.exit(
+                kind=ContainerKind.FOOTNOTE,
+                span=ctx.cursor.current_span()
             )]
         )
 
@@ -466,28 +438,22 @@ class ReferenceDefinitionRule(BlockRule):
             )
         )
         events = [
-            Event(
-                action=Action.ENTER,
-                kind=ElementKind.REFERENCE_DEFINITION,
-                span=Range(
-                    start=m.start,
-                    end=m.start
-                )
+            TagEvent.enter(
+                kind=ContainerKind.REFERENCE_DEFINITION,
+                span=cursor.current_span()
             ),
-            Event(
-                action=Action.NONE,
-                kind=ElementKind.REFERENCE_KEY,
-                span=Range(
+            LeafEvent(
+                kind=LeafKind.REFERENCE_KEY,
+                span=cursor.new_span(
                     start=m.start,
                     end=m.start + len(label) + 1
                 )
             )
         ]
         if len(value) > 0:
-            events.append(Event(
-                action=Action.NONE,
-                kind=ElementKind.REFERENCE_VALUE,
-                span=Range(
+            events.append(LeafEvent(
+                kind=LeafKind.REFERENCE_VALUE,
+                span=cursor.new_span(
                     start=cursor.eol_start - len(value), # start position of value
                     end=cursor.eol_start - 1 # end position of value
                 )
@@ -523,10 +489,9 @@ class ReferenceDefinitionRule(BlockRule):
         if nws.end != ctx.cursor.eol_start - 1:
             return RuleResult.fail()
         
-        event = Event(
-            action=Action.NONE,
-            kind=ElementKind.REFERENCE_VALUE,
-            span=Range(
+        event = LeafEvent(
+            kind=LeafKind.REFERENCE_VALUE,
+            span=ctx.cursor.new_span(
                 start=ctx.cursor.pos,
                 end=ctx.cursor.eol_start - 1,
             )
@@ -544,9 +509,8 @@ class ReferenceDefinitionRule(BlockRule):
     ) -> RuleResult:
         return RuleResult(
             status=FlowControl.CLOSE,
-            events=[Event(
-                action=Action.EXIT,
-                kind=ElementKind.REFERENCE_DEFINITION,
+            events=[TagEvent.exit(
+                kind=ContainerKind.REFERENCE_DEFINITION,
                 span=Range(
                     start=ctx.cursor.pos,
                     end=ctx.cursor.pos,
@@ -581,10 +545,9 @@ class ThematicBreakRule(BlockRule):
             rule=self,
             data=None
         )
-        event = Event(
-            action=Action.NONE,
-            kind=ElementKind.THEMATIC_BREAK,
-            span=Range(
+        event = LeafEvent(
+            kind=LeafKind.THEMATIC_BREAK,
+            span=cursor.new_span(
                 start=m.start,
                 end=m.end,
             )
@@ -659,16 +622,14 @@ class ListRule(BlockRule):
             )
         )
 
-        event = Event(
+        event = ListEvent(
             action=Action.ENTER,
-            kind=ElementKind.LIST,
-            span=Range(
+            kind=ContainerKind.LIST,
+            span=cursor.new_span(
                 start=start_pos,
                 end=end_pos - 1, # ignore trailing space.
             ),
-            payload=ListPayload(
-                styles=styles
-            )
+            styles=styles
         )
         # NOTE: cursor is not moved.
         return RuleResult(
@@ -720,13 +681,10 @@ class ListRule(BlockRule):
     ) -> RuleResult:
         return RuleResult(
             status=FlowControl.CLOSE,
-            events=[Event(
+            events=[ListEvent(
                 action=Action.EXIT,
-                kind=ElementKind.LIST,
-                span=Range(
-                    start=ctx.cursor.pos,
-                    end=ctx.cursor.pos
-                )
+                kind=ContainerKind.LIST,
+                span=ctx.cursor.current_span()
             )]
         )
 
@@ -772,32 +730,28 @@ class ListItemRule(BlockRule):
             )
         )
         
-        events = [
-            Event(
+        events: List[Event] = [
+            ListEvent(
                 action=Action.ENTER,
-                kind=ElementKind.LIST_ITEM,
-                span=Range(
+                kind=ContainerKind.LIST_ITEM,
+                span=cursor.new_span(
                     start=sp,
                     end=ep-1 # For checkbox, ep only points to the space after one of -, * or +
                 ),
-                payload=ListPayload(
-                    styles=styles,
-                )
+                styles=styles,
             )
         ]
         cursor.advance_to(ep)
 
         if checkbox is not None:
             # For checkbox, its range only includes [X]
-            Event(
-                action=Action.NONE,
-                kind=ElementKind.CHECKBOX,
-                span=Range(
-                    start=sp+2,
-                    end=sp+4 # the number of chars in checkbox is fixed, so we don't have to be bothered with recording mtask.end.
-                ),
-                payload=CheckboxPayload(
-                    checked=checkbox==' '
+            events.append(
+                CheckboxEvent(
+                    span=cursor.new_span(
+                        start=sp+2,
+                        end=sp+4 # the number of chars in checkbox is fixed, so we don't have to be bothered with recording mtask.end.
+                    ),
+                    checked=(checkbox==' ')
                 )
             )
             cursor.advance_to(sp+5)
@@ -831,10 +785,10 @@ class ListItemRule(BlockRule):
     ) -> RuleResult:
         return RuleResult(
             status=FlowControl.CLOSE,
-            events=[Event(
+            events=[ListEvent(
                 action=Action.EXIT,
-                kind=ElementKind.LIST_ITEM,
-                span=Range(
+                kind=ContainerKind.LIST_ITEM,
+                span=ctx.cursor.new_span(
                     start=ctx.cursor.pos - 1,
                     end=ctx.cursor.pos - 1,
                 )
@@ -891,11 +845,10 @@ class TableRule(BlockRule):
             )
         )
 
-        events = [
-            Event(
-                action=Action.ENTER,
-                kind=ElementKind.TABLE,
-                span=Range(
+        events: List[Event] = [
+            TagEvent.enter(
+                kind=ContainerKind.TABLE,
+                span=cursor.new_span(
                     start=m.start, # point to starting pipe.
                     end=m.start
                 )
@@ -946,11 +899,10 @@ class TableRule(BlockRule):
         rewind_point = cursor.pos # save current position to revert
 
         # | fruit  | price |
-        events = [
-            Event(
-                action=Action.ENTER,
-                kind=ElementKind.TABLE_ROW,
-                span=Range(
+        events: List[Event] = [
+            TagEvent.enter(
+                kind=ContainerKind.TABLE_ROW,
+                span=cursor.new_span(
                     start=start_pipe,
                     end=start_pipe,
                 )
@@ -976,13 +928,9 @@ class TableRule(BlockRule):
 
         # if we get here, we've parsed a table row.
         events.append(
-            Event(
-                action=Action.EXIT,
-                kind=ElementKind.TABLE_ROW,
-                span=Range(
-                    start=cursor.pos,
-                    end=cursor.pos
-                )
+            TagEvent.exit(
+                kind=ContainerKind.TABLE_ROW,
+                span=cursor.current_span()
             )
         )
         cursor.advance_to_eol()
@@ -1004,10 +952,9 @@ class TableRule(BlockRule):
 
             # cursor.pos points to ending pipe of a cell.
             events.append(
-                Event(
-                    action=Action.ENTER,
-                    kind=ElementKind.TABLE_CELL,
-                    span=Range(
+                TagEvent.enter(
+                    kind=ContainerKind.TABLE_CELL,
+                    span=cursor.new_span(
                         start=cell.span.start, # the start pipe of a cell
                         end=cell.span.start,
                     )
@@ -1016,7 +963,7 @@ class TableRule(BlockRule):
 
             last = cell.events[-1]
             # if last cell is str
-            if last.kind == ElementKind.STR:
+            if last.kind == LeafKind.STR:
                 e = last.span.end
                 # strip trailing space
                 while ord(cursor.src[e]) == 32 and e >= last.span.start:
@@ -1026,9 +973,8 @@ class TableRule(BlockRule):
             events.extend(cell.events)
 
             events.append(
-                Event(
-                    action=Action.EXIT,
-                    kind=ElementKind.TABLE_CELL,
+                TagEvent.exit(
+                    kind=ContainerKind.TABLE_CELL,
                     span=Range(
                         start=cell.span.end, # The end pipe of a cell.
                         end=cell.span.end
@@ -1123,10 +1069,9 @@ class TableRule(BlockRule):
         if not sep_found:
             return None
 
-        seps.append(Event(
-            action=Action.EXIT,
-            kind=ElementKind.TABLE_ROW,
-            span=Range(
+        seps.append(TagEvent.exit(
+            kind=ContainerKind.TABLE_ROW,
+            span=cursor.new_span(
                 start=cursor.eol_start - 1,
                 end=cursor.eol_start - 1
             ),
@@ -1136,7 +1081,7 @@ class TableRule(BlockRule):
         return seps
 
     def parse_separator_cell(self, cursor: InputText, search_start: int) -> ParsedSeparatorCell | None:
-        m = find(cursor.src, self._PATT_ROW_SEP, search_start)
+        m = cursor.find_table_row(search_start)
         if m is None:
             return None
 
@@ -1152,16 +1097,12 @@ class TableRule(BlockRule):
             align = Alignment.LEFT
 
         # Each cell produces an event.
-        event = Event(
-            action=Action.NONE,
-            kind=ElementKind.TABLE_SEPARATOR,
-            span=Range(
+        event = TableSeparatorEvent(
+            span=cursor.new_span(
                 start=m.start,
                 end=m.end - len(trailing) # Piple is dropped. Keep only the :---: portion
             ),
-            payload=TableSepPayload(
-                alignment=align
-            )
+            alignment=align
         )
 
         return ParsedSeparatorCell(
@@ -1202,13 +1143,9 @@ class TableRule(BlockRule):
     ) -> RuleResult:
         return RuleResult(
             status=FlowControl.CLOSE,
-            events=[Event(
-                action=Action.EXIT,
-                kind=ElementKind.TABLE,
-                span=Range(
-                    start=ctx.cursor.pos,
-                    end=ctx.cursor.pos,
-                )
+            events=[TagEvent.exit(
+                kind=ContainerKind.TABLE,
+                span=ctx.cursor.current_span()
             )]
         )
 
@@ -1349,12 +1286,21 @@ class FencedDivRule(BlockRule):
             )
         )
 
-        events = [
-            Event.enter(m.start, m.end, ElementKind.DIV) # :::
+        events: List[Event] = [
+            TagEvent.enter(
+                ContainerKind.DIV,
+                cursor.new_span(m.start, m.end,)
+            ) # :::
         ]
         if len(lang) > 0:
             events.append(
-                Event.new(clsp, clsp + len(lang) - 1, ElementKind.CLASS)
+                LeafEvent(
+                    kind=LeafKind.CLASS,
+                    span=cursor.new_span(
+                        clsp,
+                        clsp + len(lang) - 1, 
+                    )
+                )
             )
 
         cursor.advance_to(m2.end + 1) # after \n
@@ -1460,7 +1406,10 @@ class FencedDivRule(BlockRule):
                 sp = container.data.span.start
                 ep = container.data.span.end
 
-        event = Event.exit(sp, ep, ElementKind.DIV)
+        event = TagEvent.exit(
+            kind=ContainerKind.DIV,
+            span=ctx.cursor.new_span(sp, ep)
+        )
 
         if sp == ep:
             print('Unclosed div', ctx.cursor.pos)
@@ -1499,25 +1448,38 @@ class CodeBlockRule(BlockRule):
             )
         )
 
-        events = [Event.enter(m.start, m.start + len(border) - 1, ElementKind.CODE_BLOCK)]
+        events: List[Event] = [
+            TagEvent.enter(
+                kind=ContainerKind.CODE_BLOCK,
+                span=cursor.new_span(
+                    m.start,
+                    m.start + len(border) - 1, 
+                )
+            )
+        ]
 
         if len(lang) > 0:
             langstart = m.start + len(border) + len(ws)
 
             if is_raw:
                 events.append(
-                    Event.new(
-                        langstart,
-                        langstart + len(lang) -1,
-                        ElementKind.RAW_FORMAT,
+                    LeafEvent(
+                        kind=LeafKind.RAW_FORMAT,
+                        span=cursor.new_span(
+                            langstart,
+                            langstart + len(lang) -1,
+                        )
                     )
                 )
             else:
                 events.append(
-                    Event.new(
-                        langstart,
-                        langstart + len(lang) - 1,
-                        ElementKind.CODE_LANGUAGE,
+                    LeafEvent(
+                        kind=LeafKind.CODE_LANGUAGE,
+                        span=cursor.new_span(
+                            langstart,
+                            langstart + len(lang) - 1,
+                        )
+                        
                     )
                 )
 
@@ -1569,7 +1531,7 @@ class CodeBlockRule(BlockRule):
                 sp = container.data.span.start
                 ep = container.data.span.end
 
-        event = Event.exit(sp, ep, ElementKind.CODE_BLOCK)
+        event = TagEvent.exit(ContainerKind.CODE_BLOCK, ctx.cursor.new_span(sp, ep))
 
         if sp == ep:
             print('Unclosed code block', ctx.cursor.pos)
