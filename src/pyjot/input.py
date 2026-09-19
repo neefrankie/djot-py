@@ -5,7 +5,6 @@ from .common import MatchedRange
 from .find import find
 from .common import Range
 
-
 class InputText:
     _PATT_BANGS = re.compile(r'#+')
     _PATT_WHITESPACE = re.compile(r'[ \t\r\n]')
@@ -46,6 +45,15 @@ class InputText:
     _PATT_DIV_FENCE_END = re.compile(r'([\w_-]*)[ \t]*\r?\n')
     _PATT_DIV_FENCE = re.compile(r'(::::*)[ \t]*\r?\n')
     _PATT_CODE_FENCE = re.compile(r'(~~~~*|````*)([ \t]*)([^ \t\r\n`]*)[ \t]*\r?\n')
+
+    # Inline
+    _RE_SPECIAL = re.compile(
+        r'''[\r\n"'()*+.:<=\[\\\]^_`${}~-]'''
+    )
+
+    _PATT_BACKTICKS1 = re.compile(r'`+')
+    # {=FORMAT}
+    _PATT_RAW_ATTRIBUTE = re.compile(r'\{=[^\s{}`]+\}')
 
 
     # TODO: should we collect all the match logic in InputText?
@@ -140,16 +148,11 @@ class InputText:
         """
         newpos = self.pos
 
-        while self.is_space_or_tab_at(newpos):
+        while newpos < self.length and self.src[newpos] == ' ' or self.src[newpos] == '\t':
             newpos += 1
 
         self.indent = newpos - self.line_start
         self.pos = newpos
-
-    def is_space_or_tab_at(self, i: int) -> bool:
-        if i >= self.length:
-            return False
-        return ord(self.src[i]) == 32 or ord(self.src[i]) == 9
 
     def new_span(self, start: int, end: int) -> Range:
         return Range(
@@ -237,6 +240,21 @@ class InputText:
     def find_code_fence(self):
         return find(self.src, self._PATT_CODE_FENCE, self.pos)
 
+    def find_special(self, start: int, end: int) -> Optional[int]:
+        """Find special characters"""
+        m = self._RE_SPECIAL.search(self.src, start, end)
+
+        if m:
+            return m.start()
+
+        return None
+
+    def find_backtick_at_least_one(self, pos: int, endpos: int) -> Optional[MatchedRange]:
+        return find(self.src, self._PATT_BACKTICKS1, pos, endpos)
+
+    def find_raw_attribute(self, pos: int, endpos: int) -> Optional[MatchedRange]:
+        return find(self.src, self._PATT_RAW_ATTRIBUTE, pos, endpos)
+
 
     def next_char(self) -> Optional[str]:
         if self.pos > self.maxoffset:
@@ -244,10 +262,16 @@ class InputText:
 
         return self.src[self.pos]
 
+    def char_at(self, i: int) -> Optional[str]:
+        if i > self.maxoffset:
+            return None
+
+        return self.src[i]
+
     def is_crlf(self, i: int):
         """
         Check if the char at i is \r and the next is \n.
         """
-        if i >= self.length:
+        if i+1 >= self.maxoffset:
             return False
-        return ord(self.src[i]) == 13 and ord(self.src[i+1]) == 10
+        return self.src[i] == '\r' and self.src[i+1] == '\n'
