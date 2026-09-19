@@ -8,6 +8,7 @@ from ..attributes import AttributeParser
 from ..event import (
     ContainerKind,
     LeafKind,
+    AttrKind,
     Alignment,
     Event,
 )
@@ -1282,8 +1283,8 @@ class FencedDivRule(BlockRule):
         ]
         if len(lang) > 0:
             events.append(
-                Event.leaf(
-                    kind=LeafKind.CLASS,
+                Event.attr(
+                    kind=AttrKind.CLASS,
                     span=cursor.new_span(
                         clsp,
                         clsp + len(lang) - 1, 
