@@ -3,7 +3,7 @@ from enum import Enum
 import re
 from typing import List
 
-from .event import Event, ContainerKind, LeafKind
+from .event import Event, AttrKind
 from .input import InputText
 from .common import Range
 
@@ -151,7 +151,10 @@ class AttributeParser:
             return State.SCANNING
         elif c == ' ' or c == '\t':
             self.add_event(
-                Event.leaf(Range(pos, pos), LeafKind.ATTR_SPACE)
+                Event.attr(
+                    Range(pos, pos),
+                    AttrKind.SPACE
+                )
             )
             return State.SCANNING
         elif c == '}':
@@ -160,7 +163,7 @@ class AttributeParser:
             # self.begin point to #
             self.begin = pos
             self.add_event(
-                Event.leaf(Range(pos, pos), LeafKind.ATTR_ID_START)
+                Event.attr(Range(pos, pos), AttrKind.ID_START)
             )
             return State.SCANNING_ID
         elif c == '%':
@@ -170,7 +173,7 @@ class AttributeParser:
         elif c == '.':
             self.begin = pos
             self.add_event(
-                Event.leaf(Range(pos, pos), LeafKind.ATTR_CLASS_START)
+                Event.attr(Range(pos, pos), AttrKind.CLASS_START)
             )
             return State.SCANNING_CLASS
         elif is_key_char(c):
@@ -197,7 +200,10 @@ class AttributeParser:
             # If pos is at the start of comment, begin == pos.
             if self.begin is not None and pos > self.begin:
                 self.add_event(
-                    Event.leaf(Range(self.begin, pos), LeafKind.COMMENT)
+                    Event.attr(
+                        Range(self.begin, pos),
+                        AttrKind.COMMENT
+                    )
                 )
             return State.SCANNING
         elif c == '}':
@@ -228,7 +234,10 @@ class AttributeParser:
         elif c == '}':
             if self.begin and self.lastpos and self.lastpos > self.begin:
                 self.add_event(
-                    Event.leaf(Range(self.begin + 1, self.lastpos), LeafKind.ID)
+                    Event.attr(
+                        Range(self.begin + 1, self.lastpos),
+                        AttrKind.ID
+                    )
                 )
             self.begin = None
             return State.DONE
@@ -237,12 +246,18 @@ class AttributeParser:
             # the id is ended.
             if self.begin and self.lastpos and self.lastpos > self.begin:
                 self.add_event(
-                    Event.leaf(Range(self.begin + 1, self.lastpos), LeafKind.ID)
+                    Event.attr(
+                        Range(self.begin + 1, self.lastpos),
+                        AttrKind.ID
+                    )
                 )
             # if current character is space but not newline.
             if not (c == '\r' or c == '\n'):
                 self.add_event(
-                    Event.leaf(Range(pos, pos), LeafKind.ATTR_SPACE)
+                    Event.attr(
+                        Range(pos, pos), 
+                        AttrKind.SPACE
+                    )
                 )
             # Prepare to scan next attribute.
             self.begin = None
@@ -265,10 +280,9 @@ class AttributeParser:
         elif c == '}':
             if self.begin and self.lastpos and self.lastpos > self.begin:
                 self.add_event(
-                    Event.leaf(
-                        Range(start=self.begin + 1,
-                        end=self.lastpos),
-                        kind=LeafKind.CLASS
+                    Event.attr(
+                        Range(self.begin + 1, self.lastpos),
+                        kind=AttrKind.CLASS
                     )
                 )
             self.begin = None
@@ -276,18 +290,16 @@ class AttributeParser:
         elif _re_leading_space.search(c) is not None: # space
             if self.begin and self.lastpos and self.lastpos > self.begin:
                 self.add_event(
-                    Event.leaf(
-                        Range(start=self.begin + 1,
-                        end=self.lastpos),
-                        kind=LeafKind.CLASS,
+                    Event.attr(
+                        Range(self.begin + 1, self.lastpos),
+                        kind=AttrKind.CLASS,
                     )
                 )
             if not (c == '\r' or c == '\n'):
                 self.add_event(
-                    Event.leaf(
-                        Range(start=pos,
-                        end=pos),
-                        kind=LeafKind.ATTR_SPACE
+                    Event.attr(
+                        Range(pos, pos),
+                        kind=AttrKind.SPACE
                     )
                 )
             self.begin = None
@@ -308,17 +320,15 @@ class AttributeParser:
         c = self.subject[pos]
         if c == '=' and self.begin and self.lastpos:
             self.add_event(
-                Event.leaf(
-                    Range(start=self.begin,
-                    end=self.lastpos),
-                    kind=LeafKind.KEY
+                Event.attr(
+                    Range(self.begin, self.lastpos),
+                    kind=AttrKind.KEY
                 )
             )
             self.add_event(
-                Event.leaf(
-                    Range(start=pos,
-                    end=pos),
-                    kind=LeafKind.ATTR_EQUAL_MARKER
+                Event.attr(
+                    Range(pos, pos),
+                    kind=AttrKind.EQUAL_MARKER
                 )
             )
             self.begin = None
@@ -333,10 +343,9 @@ class AttributeParser:
         if c == '"':
             self.begin = pos
             self.add_event(
-                Event.leaf(
-                    Range(start=pos,
-                    end=pos),
-                    kind=LeafKind.ATTR_QUOTE_MARKER
+                Event.attr(
+                    Range(pos, pos),
+                    kind=AttrKind.QUOTE_MARKER
                 )
             )
             return State.SCANNING_QUOTED_VALUE
@@ -352,28 +361,25 @@ class AttributeParser:
             return State.SCANNING_BARE_VALUE
         elif c == '}' and self.begin and self.lastpos:
             self.add_event(
-                Event.leaf(
-                    Range(start=self.begin,
-                    end=self.lastpos),
-                    kind=LeafKind.VALUE
+                Event.attr(
+                    Range(self.begin, self.lastpos),
+                    kind=AttrKind.VALUE
                 )
             )
             self.begin = None
             return State.DONE
         elif _re_leading_space.search(c) and self.begin and self.lastpos:
             self.add_event(
-                Event.leaf(
-                    Range(start=self.begin,
-                    end=self.lastpos),
-                    kind=LeafKind.VALUE
+                Event.attr(
+                    Range(self.begin, self.lastpos),
+                    kind=AttrKind.VALUE
                 )
             )
             if not (c == '\r' or c == '\n'):
                 self.add_event(
-                    Event.leaf(
-                        Range(start=pos,
-                        end=pos),
-                        kind=LeafKind.ATTR_SPACE
+                    Event.attr(
+                        Range(pos, pos),
+                        kind=AttrKind.SPACE
                     )
                 )
             self.begin = None
@@ -394,17 +400,15 @@ class AttributeParser:
         c = self.subject[pos]
         if c == '"' and self.begin and self.lastpos:
             self.add_event(
-                Event.leaf(
-                    Range(start=self.begin+1,
-                    end=self.lastpos),
-                    kind=LeafKind.VALUE
+                Event.attr(
+                    Range(self.begin+1, self.lastpos),
+                    kind=AttrKind.VALUE
                 )
             )
             self.add_event(
-                Event.leaf(
-                    Range(start=pos,
-                    end=pos),
-                    kind=LeafKind.ATTR_QUOTE_MARKER
+                Event.attr(
+                    Range(pos, pos),
+                    kind=AttrKind.QUOTE_MARKER
                 )
             )
             self.begin = None
@@ -412,10 +416,9 @@ class AttributeParser:
         
         elif c == '\n' and self.begin and self.lastpos:
             self.add_event(
-                Event.leaf(
-                    Range(start=self.begin+1,
-                    end=self.lastpos),
-                    kind=LeafKind.VALUE
+                Event.attr(
+                    Range(self.begin+1, self.lastpos),
+                    kind=AttrKind.VALUE
                 )
             )
             self.begin = None
@@ -435,27 +438,25 @@ class AttributeParser:
 
         if c == '"' and self.begin and self.lastpos:
             self.add_event(
-                Event.leaf(
-                    Range(start=self.begin,
-                    end=self.lastpos),
-                    kind=LeafKind.VALUE
+                Event.attr(
+                    Range(self.begin, self.lastpos),
+                    kind=AttrKind.VALUE
                 )
             )
             self.add_event(
-                Event.leaf(
-                    Range(start=pos,
-                    end=pos),
-                    kind=LeafKind.ATTR_QUOTE_MARKER
+                Event.attr(
+                    Range(pos, pos),
+                    kind=AttrKind.QUOTE_MARKER
                 )
             )
             self.begin = None
             return State.SCANNING
         elif c == '\n' and self.begin and self.lastpos:
             self.add_event(
-                Event.leaf(
+                Event.attr(
                     Range(start=self.begin,
                     end=self.lastpos),
-                    kind=LeafKind.VALUE
+                    kind=AttrKind.VALUE
                 )
             )
             self.begin = None
