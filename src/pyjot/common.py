@@ -8,17 +8,11 @@ class Range:
     start: int
     end: int
 
-@dataclass
+@dataclass(slots=True)
 class MatchedRange(Range):
     captures: List[str]
-    
-class ParseStatus(Enum):
-    DONE = 0
-    FAIL = 1
-    CONTINUE = 2
 
-
-@dataclass
+@dataclass(slots=True)
 class SourceLoc:
     line: int
     col: int
