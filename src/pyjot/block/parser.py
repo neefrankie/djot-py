@@ -6,7 +6,6 @@ from ..inline import InlineParser
 from ..input import InputText
 from ..event import (
     Event,
-    LeafEvent,
     LeafKind
 )
 from ..options import Options
@@ -393,7 +392,7 @@ class EventParser:
                 if not new_starts_created:
                     # need to track these for tight/loose lists.
                     events.append(
-                        LeafEvent(
+                        Event.leaf(
                             kind=LeafKind.BLANKLINE,
                             span=self.input.rest_line_span()
                         )
@@ -416,7 +415,7 @@ class EventParser:
         if tip.rule.accepts_text_only(): # if child node is text only.
             start_pos = self.input.get_adjusted_text_start(tip.indent)
             events.append(
-                LeafEvent(
+                Event.leaf(
                     kind=LeafKind.STR,
                     span=Range(
                         start=start_pos,
