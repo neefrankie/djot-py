@@ -6,11 +6,11 @@ from typing import Any, Generic, List, Optional, TypeVar
 
 from ..input import InputText
 from ..inline import InlineParser
-from ..attributes import AttributeParser
+from ..attributes import AttributeParser, AttrFlowControl
 from ..event import (
     Event,
 )
-from ..common import Range, ParseStatus
+from ..common import Range
 
 
 # In djot.js, this is called ContentType.
@@ -58,7 +58,7 @@ class CodeBlockData:
 
 @dataclass
 class AttributeData:
-    status: ParseStatus
+    status: AttrFlowControl
     indent: int
     startpos: int
     spans: List[Range]
