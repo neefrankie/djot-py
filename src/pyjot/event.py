@@ -40,26 +40,16 @@ class VerbatimKind(Enum):
 
 
 class LeafKind(Enum):
-    ATTR_SPACE = auto()
-    ATTR_ID_START = auto()
-    ATTR_CLASS_START = auto()
-    ATTR_EQUAL_MARKER = auto()
-    ATTR_QUOTE_MARKER = auto()
-    ATTRIBUTE = auto()
     BLANKLINE = auto()
     CHECKBOX = auto()
-    CLASS = auto()
     CODE_LANGUAGE = auto()
-    COMMENT = auto()
     ELLIPSES = auto()
     EM_DASH = auto()
     EN_DASH = auto()
     ESCAPE = auto()
     FOOTNOTE_REF = auto()
     HARD_BREAK = auto()
-    ID = auto()
     IMAGE_MARKER = auto()
-    KEY = auto()
     NBSP = auto()
     NOTE_LABEL = auto()
     OPEN_MARKER = auto()
@@ -71,7 +61,19 @@ class LeafKind(Enum):
     SYMBOL = auto()
     THEMATIC_BREAK = auto()
     TABLE_SEPARATOR = auto()
+
+class AttrKind(Enum):
+    COMMENT = auto()
+    CLASS = auto()
+    CLASS_START = auto()
+    EQUAL_MARKER = auto()
+    ID = auto()
+    ID_START = auto()
+    KEY = auto()
+    QUOTE_MARKER = auto()
+    SPACE = auto()
     VALUE = auto()
+    
 
 class Alignment(Enum):
     DEFAULT = auto()
@@ -82,7 +84,8 @@ class Alignment(Enum):
 EventKind = Union[
     ContainerKind,
     LeafKind,
-    VerbatimKind
+    VerbatimKind,
+    AttrKind,
 ]
 
 @dataclass(slots=True)
@@ -179,6 +182,14 @@ class Event:
 
     @classmethod
     def leaf(cls, span: Range, kind: LeafKind) -> 'Event':
+        return cls(
+            span=span,
+            kind=kind,
+            action=None
+        )
+
+    @classmethod
+    def attr(cls, span: Range, kind: AttrKind) -> 'Event':
         return cls(
             span=span,
             kind=kind,
