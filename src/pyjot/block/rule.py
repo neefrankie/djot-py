@@ -807,19 +807,6 @@ class TableRule(BlockRule):
     kind: ContainerCap = ContainerCap.BLOCK
     accepts_content: ContainerCap = ContainerCap.CELLS
 
-    # Match the whole line:
-    # A pipe, followed by anything but new line, ended with a pipe.
-    _PATT_TABLE_ROW = re.compile(r'(\|[^\r\n]*\|)[ \t]*\r?\n')
-    # Math optional :, followed by at least one or more -,
-    # followed by optional :, followed by optinal space/tab,
-    # followed by pipe, followed by optional space.
-    # :-: |
-    # :- |
-    # -: |
-    # - |
-    _PATT_ROW_SEP = re.compile(r'(:?)--*(:?)([ \t]*\|[ \t]*)')
-    _PATT_NEXT_BAR_OR_TICK = re.compile(r'[^`|\r\n]*(?:[|]|`+)')
-
     def try_open(self, cursor: InputText) -> RuleResult:
         # Try to find a row.
         # m.start points to starting `|`, m.end points to EOL `\n`
@@ -991,7 +978,7 @@ class TableRule(BlockRule):
         cursor.skip_space()
         while not cell_complete:
             # The match starts after previous |
-            m = cursor.find(self._PATT_NEXT_BAR_OR_TICK)
+            m = cursor.find_next_bar_or_tick()
             if m is None:
                 cell_complete = False
                 break
