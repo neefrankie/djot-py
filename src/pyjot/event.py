@@ -125,6 +125,10 @@ class Event:
     def is_leaf(self) -> bool:
         return self.action is None
 
+    @property
+    def is_open_marker(self) -> bool:
+        return self.kind == LeafKind.OPEN_MARKER
+
     def with_list_styles(self, styles: List[str]):
         if self.kind != ContainerKind.LIST or self.kind != ContainerKind.LIST_ITEM:
             return self
