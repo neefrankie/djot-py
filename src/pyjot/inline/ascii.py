@@ -1,0 +1,55 @@
+class ASCII:
+    TAB = "\t"
+    LF = "\n"
+    CR = "\r"
+    SPACE = " "
+    BANG = "!"
+    DOUBLE_QUOTE = '"'
+    SINGLE_QUOTE = "'"
+    HASH = "#"
+    DOLLAR = "$"
+    LEFT_PAREN = "("
+    RIGHT_PAREN = ")"
+    ASTERISK = "*"
+    PLUS = "+"
+    HYPHEN = "-"
+    PERIOD = "."
+    COLON = ":"
+    LESSTHAN = "<"
+    EQUALS = "="
+    LEFT_BRACKET = "["
+    BACKSLASH = "\\"
+    RIGHT_BRACKET = "]"
+    HAT = "^"
+    UNDERSCORE = "_"
+    BACKTICK = "`"
+    LEFT_BRACE = "{"
+    RIGHT_BRACE = "}"
+    TILDE = "~"
+
+C_TAB = 9 # \t
+C_LF = 10 # \n
+C_CR = 13 # \r
+C_SPACE = 32
+C_BANG = 33 # !
+C_DOUBLE_QUOTE = 34 # "
+C_DOLLARS = 36 # $
+C_SINGLE_QUOTE = 39 # '
+C_LEFT_PAREN = 40 # (
+C_RIGHT_PAREN = 41 # )
+C_ASTERISK = 42 # *
+C_PLUS = 43 # +
+C_HYPHEN = 45 # -
+C_PERIOD = 46 # .
+C_COLON = 58 # :
+C_LESSTHAN = 60 # <
+C_EQUALS = 61 # =
+C_LEFT_BRACKET = 91 # []
+C_BACKSLASH = 92 # \
+C_RIGHT_BRACKET = 93 # ]
+C_HAT = 94 # ^
+C_UNDERSCORE = 95 # _
+C_BACKTICK = 96 # `
+C_LEFT_BRACE = 123 # {
+C_RIGHT_BRACE = 125 # }
+C_TILDE = 126 # ~
