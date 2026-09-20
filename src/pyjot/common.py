@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from enum import Enum
 from typing import List
 
 
@@ -7,6 +6,9 @@ from typing import List
 class Range:
     start: int
     end: int
+
+    def shrink_end(self, end: int):
+        self.start = end
 
 @dataclass(slots=True)
 class MatchedRange(Range):
