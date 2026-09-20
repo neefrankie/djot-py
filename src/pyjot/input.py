@@ -63,6 +63,7 @@ class InputText:
     _PATT_SYMBOL = re.compile(r':[\w_+-]+:')
     _PATT_TWO_PERIODS = re.compile(r'\.\.')
     _PATT_NOTE_REFERENCE = re.compile(r'\^([^\]]+)\]')
+    _PATT_NON_SPACE = re.compile(r'[^ \t\r\n]')
     
 
     # TODO: should we collect all the match logic in InputText?
@@ -193,9 +194,12 @@ class InputText:
         return find(self.src, self._PATT_BANGS, self.pos)
 
     def find_whitespace(self, start: Optional[int] = None) -> Optional[MatchedRange]:
-        if not start:
-            return find(self.src, self._PATT_WHITESPACE, self.pos)
+        if start is None:
+            start = self.pos
 
+        return find(self.src, self._PATT_WHITESPACE, start)
+
+    def find_non_space(self, start: int) -> Optional[MatchedRange]:
         return find(self.src, self._PATT_WHITESPACE, start)
 
     def find_blockquote_prefix(self) -> Optional[MatchedRange]:
@@ -364,5 +368,23 @@ class InputText:
 
     def is_space(self, i: int) -> bool:
         return self.src[i] == ' '
+
+    def is_bang(self, i: int) -> bool:
+        return self.src[i] == '!'
+
+    def is_backslash(self, i: int) -> bool:
+        return self.src[i] == '\\'
+
+    def is_left_bracket(self, i: int) -> bool:
+        return self.src[i] == '['
+
+    def is_left_paren(self, i: int) -> bool:
+        return self.src[i] == '('
+
+    def is_left_brace(self, i: int) -> bool:
+        return self.src[i] == '{'
+
+    def is_right_brace(self, i: int) -> bool:
+        return self.src[i] == '}'
 
     
