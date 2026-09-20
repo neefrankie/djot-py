@@ -30,13 +30,9 @@ class InputText:
     # Match the whole line:
     # A pipe, followed by anything but new line, ended with a pipe.
     _PATT_TABLE_ROW = re.compile(r'(\|[^\r\n]*\|)[ \t]*\r?\n')
-    # Math optional :, followed by at least one or more -,
+    # Match optional :, followed by at least one or more -,
     # followed by optional :, followed by optinal space/tab,
     # followed by pipe, followed by optional space.
-    # :-: |
-    # :- |
-    # -: |
-    # - |
     _PATT_ROW_SEP = re.compile(r'(:?)--*(:?)([ \t]*\|[ \t]*)')
     _PATT_NEXT_BAR_OR_TICK = re.compile(r'[^`|\r\n]*(?:[|]|`+)')
     _PATT_WORD = re.compile(r'\w+\s')
@@ -50,11 +46,24 @@ class InputText:
     _RE_SPECIAL = re.compile(
         r'''[\r\n"'()*+.:<=\[\\\]^_`${}~-]'''
     )
-
-    _PATT_BACKTICKS1 = re.compile(r'`+')
     # {=FORMAT}
     _PATT_RAW_ATTRIBUTE = re.compile(r'\{=[^\s{}`]+\}')
-
+    _PATT_BACKTICKS0 = re.compile(r'`*')
+    _PATT_BACKTICKS1 = re.compile(r'`+')
+    _PATT_DOUBLE_DOLLARS = re.compile(r'\$\$')
+    _PATT_SINGLE_DOLLAR = re.compile(r'\$')
+    _PATT_BACKSLASH = re.compile(r'\\')
+    _PATT_PUNCTUATION = re.compile(
+        r'''['!"#%&\\'()*+,\-./:;<=>?@\[\]^`{|}~']'''
+    )
+    # <https://pandoc.org/lua-filters>
+    # <me@example.com>
+    _PATT_AUTOLINK = re.compile(r'<([^<>\s]+)>')
+    _PATT_DELIM = re.compile(r'''[_*~^+='"-]''')
+    _PATT_SYMBOL = re.compile(r':[\w_+-]+:')
+    _PATT_TWO_PERIODS = re.compile(r'\.\.')
+    _PATT_NOTE_REFERENCE = re.compile(r'\^([^\]]+)\]')
+    
 
     # TODO: should we collect all the match logic in InputText?
     # If so, does it actually play the role of a Lexer?
@@ -217,16 +226,20 @@ class InputText:
         return find(self.src, self._PATT_TABLE_ROW, start)
 
     def find_row_sep(self):
+        # :-: |
+        # :- |
+        # -: |
+        # - |
         return find(self.src, self._PATT_ROW_SEP, self.pos)
 
-    def ind_next_bar_or_tick(self):
+    def find_next_bar_or_tick(self):
         return find(self.src, self._PATT_NEXT_BAR_OR_TICK, self.pos)
 
     def find_word(self) -> Optional[MatchedRange]:
         return find(self.src, self._PATT_WORD, self.pos)
 
-    def find_endline(self, start: int) -> Optional[MatchedRange]:
-        return find(self.src, self._PATT_ENDLINE, start)
+    def find_endline(self, start: int, endpos: Optional[int] = None) -> Optional[MatchedRange]:
+        return find(self.src, self._PATT_ENDLINE, start, endpos)
 
     def find_div_fence_start(self) -> Optional[MatchedRange]:
         return find(self.src, self._PATT_DIV_FENCE_START, self.pos)
@@ -252,8 +265,81 @@ class InputText:
     def find_backtick_at_least_one(self, pos: int, endpos: int) -> Optional[MatchedRange]:
         return find(self.src, self._PATT_BACKTICKS1, pos, endpos)
 
+    def find_opening_backtick(self, pos: int, endpos: int) -> Optional[MatchedRange]:
+        # Find zero or more backtick
+        return find(self.src, self._PATT_BACKTICKS0, pos, endpos)
+
     def find_raw_attribute(self, pos: int, endpos: int) -> Optional[MatchedRange]:
         return find(self.src, self._PATT_RAW_ATTRIBUTE, pos, endpos)
+
+    def find_double_dollar(self, pos: int) -> Optional[MatchedRange]:
+        return find(self.src, self._PATT_DOUBLE_DOLLARS, pos)
+
+    def find_single_dollar(self, pos: int) -> Optional[MatchedRange]:
+        return find(self.src, self._PATT_BACKSLASH, pos)
+
+    def find_backslash(self, pos: int) -> Optional[MatchedRange]:
+        return find(self.src, self._PATT_BACKSLASH, pos)
+
+    def find_punctuation(self, pos: int, endpos: int) -> Optional[MatchedRange]:
+        return find(self.src, self._PATT_PUNCTUATION, pos, endpos)
+
+    def find_trailing_space(self, span: Range) -> int:
+        """Find out trailing space starting position
+        
+        Returns:
+            int: the position of first non-space char from backward
+        """
+        start = span.start
+        end = span.end
+
+        while end >= start and self.src[end] in ' \t':
+            end = end - 1
+
+        return end
+
+    def find_autolink(self, pos: int, endpos: int) -> Optional[MatchedRange]:
+        # <([^<>\s]+)>
+        # <https://pandoc.org/lua-filters>
+        # <me@example.com>
+        return find(self.src, self._PATT_AUTOLINK, pos, endpos)
+
+    def find_delimiter(self, pos: int, endpos: int) -> Optional[MatchedRange]:
+        return find(self.src, self._PATT_DELIM, pos, endpos)
+
+    def find_symbol(self, pos: int, endpos: int) -> Optional[MatchedRange]:
+        return find(self.src, self._PATT_SYMBOL, pos, endpos)
+
+    def find_two_periods(self, pos: int, endpos: int) -> Optional[MatchedRange]:
+        return find(self.src, self._PATT_TWO_PERIODS, pos, endpos)
+
+    def find_note_reference(self, pos: int, endpos: int) -> Optional[MatchedRange]:
+        return find(self.src, self._PATT_NOTE_REFERENCE, pos, endpos)
+
+    def has_brace(self, i: int) -> bool:
+
+        if 1 <= i < self.length and self.src[i-1] == '{':
+            return True
+
+        if 0 <= i < self.length - 1 and self.src[i+1] == '}':
+            return True
+
+        return False
+
+    def can_open_single_quote(self, pos: int) -> bool:
+        if pos < 0: # do not allow negative number
+            return False
+        
+        if pos == 0: # start
+            return True
+
+        # <space/tab/cr/lf>'
+        # "'
+        # ''
+        # -'
+        # ('
+        # ['
+        return self.src[pos-1] in ' \t\r\n"\'-(['
 
 
     def next_char(self) -> Optional[str]:
@@ -275,3 +361,8 @@ class InputText:
         if i+1 >= self.maxoffset:
             return False
         return self.src[i] == '\r' and self.src[i+1] == '\n'
+
+    def is_space(self, i: int) -> bool:
+        return self.src[i] == ' '
+
+    
