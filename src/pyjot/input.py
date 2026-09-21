@@ -336,18 +336,24 @@ class InputText:
         return False
 
     def can_open_single_quote(self, pos: int) -> bool:
+        """Checks if char at pos can be followed by single quote.
+
+        - ` '`
+        - `\t'`
+        - `\r'`
+        - `\n'`
+        - `"'`
+        - `''`
+        - `-'`
+        - `('`
+        - `['`
+        """
         if pos < 0: # do not allow negative number
             return False
         
         if pos == 0: # start
             return True
 
-        # <space/tab/cr/lf>'
-        # "'
-        # ''
-        # -'
-        # ('
-        # ['
         return self.src[pos-1] in ' \t\r\n"\'-(['
 
 
