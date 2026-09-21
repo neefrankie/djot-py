@@ -77,6 +77,10 @@ class InlineState:
         self.attribute_spans: Optional[List[Range]] = None # spans we've tried to parse as attributes
         self.pending_span: Optional[PendingSpan] = None
 
+    @property
+    def last_event(self) -> Optional[Event]:
+        return self.events[-1] if self.events else None
+
     def replace_event(self, event: Event, idx: int):
         if idx < len(self.events):
             self.events[idx] = event
