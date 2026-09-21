@@ -9,6 +9,7 @@ from ..event import (
     Event,
     VerbatimKind,
     LeafKind,
+    InlineLeaf,
 )
 from ..attributes import AttributeParser
 
@@ -46,7 +47,7 @@ class Opener:
     event_index: int # Index in Event list.
     startpos: int # point to the first [
     endpos: int
-    annot: str | None
+    kind: OpenerKind | None # cannot be determined upon creation. Only clear when sub_startpos is seen
     sub_event_index: int
     sub_startpos: int | None # point to first ]
     sub_endpos: int | None # point to second [
@@ -69,7 +70,7 @@ class InlineState:
         self.verbatim_len = 0 # length of verbatim markers.
         self.verbatim_type: VerbatimKind = VerbatimKind.VERBATIM
 
-        self.destination = False # True when we see ]( in [My link text](http://example.com)
+        self.destination = False # If inside link destination
 
         self.allow_attributes = True # allow parsing of attributes.
         self.attribute_parser: Optional[AttributeParser] = None
@@ -84,6 +85,9 @@ class InlineState:
     def replace_event(self, event: Event, idx: int):
         if idx < len(self.events):
             self.events[idx] = event
+
+    def push_event(self, event: Event):
+        self.events.append(event)
 
     def trim_last_str_span_trailing(self):
         if not self.events:
@@ -102,6 +106,31 @@ class InlineState:
     def in_verbatim(self) -> bool:
         return self.verbatim_len > 0
 
+    def is_cross_link_boudnary(self, opener_startpos: int) -> bool:
+        """Check if opener crossed link boundary.
+
+        If a delimiter is opened before a link, but a closing delimiter
+        is found inside link destination, this closing delimiter
+        should taken as plain text.
+
+        For example, `_here [My link text](http://example_site.org)`.
+        When the underscore in link destination is found, we check
+        that there's an opener appeared early than [, so we can not close it.
+        The second underscore is treated as plain text.
+        """
+
+        if not self.destination:
+            return False
+
+        link_openers = self.openers.get('[', [])
+        if not link_openers:
+            return False
+
+        last_link_opener = link_openers[-1]
+        # If the opener starts early than link's '[' symbol
+        return opener_startpos < last_link_opener.startpos
+
+
     def add_opener(self, name: str, default_event: Event):
         if name not in self.openers:
             self.openers[name] = []
@@ -111,7 +140,7 @@ class InlineState:
                 event_index=len(self.events),
                 startpos=default_event.span.start,
                 endpos=default_event.span.end,
-                annot=None, # TODO: Event.action, Event.kind
+                kind=None, # TODO: Event.action, Event.kind
                 sub_event_index=len(self.events),
                 sub_startpos=None,
                 sub_endpos=None,
@@ -119,6 +148,34 @@ class InlineState:
         )
 
         self.events.append(default_event)
+
+    def add_opener_2(self, name: str, startpos: int, endpos: int, kind: LeafKind | InlineLeaf):
+        if name not in self.openers:
+            self.openers[name] = []
+        
+            self.openers[name].append(
+                Opener(
+                    event_index=len(self.events),
+                    startpos=startpos,
+                    endpos=endpos,
+                    kind=None,
+                    sub_event_index=len(self.events),
+                    sub_startpos=None,
+                    sub_endpos=None,
+                )
+            )
+
+            self.events.append(
+                Event.leaf(
+                    Range(startpos, endpos),
+                    kind,
+                )
+            )
+        
+
+
+    def get_openers(self, name: str) -> List[Opener]:
+        return self.openers.get(name, [])
 
     def clear_openers(self, startpos: int, endpos: int):
         """
@@ -139,7 +196,7 @@ class InlineState:
                     # If opener substartps to subendpos falls into startpos and endpos
                     v[i].sub_startpos = None
                     v[i].sub_endpos = None
-                    v[i].annot = None
+                    v[i].kind = None
                 else:
                     break
 
