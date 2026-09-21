@@ -8,6 +8,11 @@ class Action(Enum):
     ENTER = auto()
     EXIT = auto()
 
+class VerbatimKind(Enum):
+    DISPLAY_MATH = auto() # +/-
+    INLINE_MATH = auto() # +/-
+    VERBATIM = auto() # +/-
+
 class ContainerKind(Enum):
     ATTRIBUTES = auto() # +/-
     ANNOTATION = auto() # +/-
@@ -33,12 +38,6 @@ class ContainerKind(Enum):
     TABLE_CELL = auto() # +/-
     URL = auto() # +/-
 
-class VerbatimKind(Enum):
-    DISPLAY_MATH = auto() # +/-
-    INLINE_MATH = auto() # +/-
-    VERBATIM = auto() # +/-
-
-
 class LeafKind(Enum):
     BLANKLINE = auto()
     CHECKBOX = auto()
@@ -62,6 +61,26 @@ class LeafKind(Enum):
     THEMATIC_BREAK = auto()
     TABLE_SEPARATOR = auto()
 
+class InlineContainer(Enum):
+    SUBSCRIPT = auto() # +/-
+    SUPERSCRIPT = auto() # +/-
+    EMPH = auto() # _ _
+    STRONG = auto() # * *
+    INSERT = auto() # {+ +}
+    DELETE = auto() # {- -}
+    MARK = auto() # {= =}
+    SINGLE_QUOTED = auto() # '  '
+    DOUBLE_QUOTED = auto() # "  "
+
+class InlineLeaf(Enum):
+    STR = auto()
+    LEFT_SINGLE_QUOTE = auto()
+    RIGHT_SINGLE_QUOTE = auto()
+    LEFT_DOUBLE_QUOTE = auto()
+    RIGHT_DOUBLE_QUOTE = auto()
+
+
+# Atributes are all leaves.
 class AttrKind(Enum):
     COMMENT = auto()
     CLASS = auto()
@@ -85,6 +104,8 @@ EventKind = Union[
     ContainerKind,
     LeafKind,
     VerbatimKind,
+    InlineContainer,
+    InlineLeaf,
     AttrKind,
 ]
 
@@ -169,7 +190,7 @@ class Event:
         return False
 
     @classmethod
-    def enter(cls, span: Range, kind: ContainerKind | VerbatimKind) -> 'Event':
+    def enter(cls, span: Range, kind: ContainerKind | VerbatimKind | InlineContainer) -> 'Event':
         return cls(
             span=span,
             kind=kind,
@@ -177,7 +198,7 @@ class Event:
         )
 
     @classmethod
-    def exit(cls, span: Range, kind: ContainerKind | VerbatimKind) -> 'Event':
+    def exit(cls, span: Range, kind: ContainerKind | VerbatimKind | InlineContainer) -> 'Event':
         return cls(
             span=span,
             kind=kind,
@@ -185,7 +206,7 @@ class Event:
         )
 
     @classmethod
-    def leaf(cls, span: Range, kind: LeafKind) -> 'Event':
+    def leaf(cls, span: Range, kind: LeafKind | InlineLeaf) -> 'Event':
         return cls(
             span=span,
             kind=kind,
