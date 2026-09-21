@@ -63,7 +63,12 @@ class InputText:
     _PATT_SYMBOL = re.compile(r':[\w_+-]+:')
     _PATT_TWO_PERIODS = re.compile(r'\.\.')
     _PATT_NOTE_REFERENCE = re.compile(r'\^([^\]]+)\]')
-    _PATT_NON_SPACE = re.compile(r'[^ \t\r\n]')
+    _PATT_NON_SPACE = re.compile(r'[^ \t\r\n]') # not start with space
+
+    # Replace `const pattNonspace = pattern("[^ \t\r\n]")` in djot.js.
+    # When you want to determine if a single char is space,
+    # use short plain str is always optimal in Python.
+    _WHITESPACE = ' \t\r\n'
     
 
     # TODO: should we collect all the match logic in InputText?
@@ -199,8 +204,8 @@ class InputText:
 
         return find(self.src, self._PATT_WHITESPACE, start)
 
-    def find_non_space(self, start: int) -> Optional[MatchedRange]:
-        return find(self.src, self._PATT_WHITESPACE, start)
+    def find_no_leading_space(self, start: int) -> Optional[MatchedRange]:
+        return find(self.src, self._PATT_NON_SPACE, start)
 
     def find_blockquote_prefix(self) -> Optional[MatchedRange]:
         return find(self.src, self._PATT_BLOCKQUOTE_PREFIX, self.pos)
@@ -369,6 +374,11 @@ class InputText:
     def is_space(self, i: int) -> bool:
         return self.src[i] == ' '
 
+    def is_whitespace(self, i: int) -> bool:
+        if i < 0 or i >= self.length:
+            return True
+        return self.src[i] in self._WHITESPACE
+
     def is_bang(self, i: int) -> bool:
         return self.src[i] == '!'
 
@@ -386,5 +396,7 @@ class InputText:
 
     def is_right_brace(self, i: int) -> bool:
         return self.src[i] == '}'
+
+    
 
     
