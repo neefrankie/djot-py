@@ -7,7 +7,7 @@ from ..common import (
 )
 from ..event import (
     Event,
-    LeafKind,
+    BlockLeaf,
     InlineContainer,
     InlineLeaf,
 )
@@ -154,11 +154,12 @@ class BetweenMatcher(Matcher):
         if ctx.has_open_marker:
             e = '{' + e
 
-        state.add_opener_2(
+        state.add_opener(
             name=e,
-            startpos=ctx.startopener,
-            endpos=pos,
-            kind=self.get_fallback_kind(ctx),
+            default_event=Event.leaf(
+                span=Range(pos, pos),
+                kind=self.get_fallback_kind(ctx),
+            )
         )
 
         return pos+1
