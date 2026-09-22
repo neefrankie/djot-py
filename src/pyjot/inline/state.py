@@ -215,7 +215,7 @@ class InlineState:
         # Change events between startpos and endpos to STR. Why?
         while i < len(self.events) and self.events[i].span.end <= endpos:
             m = self.events[i]
-            if m.kind != LeafKind.ESCAPE and m.kind != LeafKind.STR:
+            if m.kind != InlineLeaf.ESCAPE and m.kind != InlineLeaf.STR:
                 m.demote_to_str()
 
             i += 1
