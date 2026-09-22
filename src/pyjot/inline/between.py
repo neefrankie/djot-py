@@ -73,7 +73,7 @@ class BetweenMatcher(Matcher):
     def get_fallback_kind(self, ctx: MatchContext) -> InlineLeaf:
         return self.fallback_leaf
 
-    def __call___(self, state: InlineState, pos: int, endpos: int) -> Optional[int]:
+    def __call__(self, state: InlineState, pos: int, endpos: int) -> Optional[int]:
         ctx = self.match_context(state, pos, endpos)
 
         d = self.ch
