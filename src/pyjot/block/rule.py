@@ -403,11 +403,12 @@ class FootnoteRule(BlockRule):
 class ReferenceDefinitionRule(BlockRule):
     """
     A reference link definition consists of the reference label in square brackets,
-    followed by a colon, followdd by whitespace (or a newline)
+    followed by a colon, followed by whitespace (or a newline)
     and the URL.
 
     Example:
-        [google]: https://google.com
+
+    [ google ]: https://google.com
     """
 
     kind: ContainerCap = ContainerCap.BLOCK
@@ -436,11 +437,11 @@ class ReferenceDefinitionRule(BlockRule):
                 kind=BlockContainer.REFERENCE_DEFINITION,
                 span=cursor.current_span()
             ),
-            Event.leaf( # google in [google]
+            Event.leaf( # [foo]
                 kind=InlineLeaf.REFERENCE_KEY,
                 span=cursor.new_span(
                     start=m.start,
-                    end=m.start + len(label) - 1 # TODO: check this.
+                    end=m.start + len(label) + 1
                 )
             )
         ]
