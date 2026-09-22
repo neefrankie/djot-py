@@ -7,10 +7,10 @@ from ..input import InputText
 from ..event import (
     Event,
     VerbatimKind,
-    BlockLeaf,
     InlineLeaf,
 )
 from ..attributes import AttributeParser
+from ..options import Options, Warning
 
 class OpenerKind(Enum):
     REFERENCE_LINK = auto()
@@ -51,14 +51,24 @@ class Opener:
     sub_startpos: int | None # point to first ]
     sub_endpos: int | None # point to second [
 
+    def is_within(self, startpos: int, endpos: int) -> bool:
+        return startpos <= self.startpos and endpos >= endpos
+
+    def is_subrange_within(self, startpos: int, endpos: int) -> bool:
+        if self.sub_startpos is None or self.sub_endpos is None:
+            return False
+        return startpos <= self.sub_startpos and self.sub_endpos <= endpos
+
 @dataclass(slots=True, frozen=True)
 class PendingSpan:
     open_event_idx: int
     close_event_idx: int
 
 class InlineState:
-    def __init__(self, cursor: InputText):
+    def __init__(self, cursor: InputText, options: Options):
         self.cursor = cursor
+        self.options = options
+
         self.events: List[Event] = []
 
         # map from opener type to Opener[] in reverse order
@@ -81,6 +91,10 @@ class InlineState:
     def last_event(self) -> Optional[Event]:
         return self.events[-1] if self.events else None
 
+    @property
+    def in_verbatim(self) -> bool:
+        return self.verbatim_len > 0
+
     def replace_event(self, event: Event, idx: int):
         if idx < len(self.events):
             self.events[idx] = event
@@ -101,9 +115,6 @@ class InlineState:
             self.events.pop() # space only
         else:
             last_match.span.shrink_end(ep) # change end position to first non-space char.
-
-    def in_verbatim(self) -> bool:
-        return self.verbatim_len > 0
 
     def is_cross_link_boudnary(self, opener_startpos: int) -> bool:
         """Check if opener crossed link boundary.
@@ -153,20 +164,16 @@ class InlineState:
 
     def clear_openers(self, startpos: int, endpos: int):
         """
-        Delete openered created inside an opener.
+        Delete opener created inside an opener.
         """
-        for k, v in self.openers.items():
+        for v in self.openers.values():
             i = len(v) - 1 # last index
-            # Here Python differs from JS implementation.
-            # JS uses `while v[i]` which is fine when i goes out of range
-            # as undefined will be returned.
-            # In Python v[-1] will return the last element.
             while i >= 0: # last opener
                 opener = v[i]
                 # If opener falls into the range of startpos to endpos
-                if opener.startpos >= startpos and opener.endpos <= endpos:
+                if opener.is_within(startpos, endpos):
                     del v[i]
-                elif (opener.sub_startpos and opener.sub_startpos >= startpos) and (opener.sub_endpos and opener.sub_endpos <= endpos):
+                elif opener.is_subrange_within(startpos, endpos):
                     # If opener substartps to subendpos falls into startpos and endpos
                     v[i].sub_startpos = None
                     v[i].sub_endpos = None
@@ -210,3 +217,52 @@ class InlineState:
         self.attribute_start = None
         self.attribute_spans = None
         self.pending_span = None
+
+    def get_matches(self) -> List[Event]:
+        """Get parsed events.
+        
+        Remove trailing softbreak and any spaces.
+
+        If verbatim is not closed, it will be closed.
+        """
+        # if self.attribute_parser:
+        #     self.reparse_attributes()
+        if not self.events:
+            return []
+
+        # remove trailing softbreak and any spaces
+        if self.events[-1].is_soft_break:
+            self.events.pop() # removed last one
+            if not self.events:
+                return []
+
+            last_event = self.events[-1]
+            
+            if last_event.is_str and self.cursor.is_space(last_event.span.end):
+
+                last_event.span.end = self.cursor.find_trailing_space(last_event.span)
+
+                if last_event.span.end < last_event.span.start:
+                    self.events.pop()
+
+        if not self.events:
+            return []
+        
+        if self.verbatim_len > 0:
+            # unclosed verbatim
+            last = self.events[-1]
+            self.options.warn(Warning(
+                message='Unclosed verbatim',
+                pos=last.span.end,
+            ))
+            self.events.append(
+                Event.exit(
+                    span=Range(
+                        last.span.end,
+                        last.span.end,
+                    ),
+                    kind=self.verbatim_type,
+                )
+            )
+
+        return self.events
