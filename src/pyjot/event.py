@@ -62,17 +62,17 @@ class InlineLeaf(Enum):
     EN_DASH = auto() # --
     ELLIPSES = auto() # ...
     ESCAPE = auto() # \
-    FOOTNOTE_REF = auto()
-    HARD_BREAK = auto()
+    FOOTNOTE_REF = auto() # [^foo]
+    HARD_BREAK = auto() # \+\n
     IMAGE_MARKER = auto() # !
     LEFT_SINGLE_QUOTE = auto() # ', {'
     LEFT_DOUBLE_QUOTE = auto() # ", {"
-    NBSP = auto()
+    NBSP = auto() # \ + space
     NOTE_LABEL = auto() # foo inside [^foo]
     OPEN_MARKER = auto() # { in braced delimiter
     RAW_FORMAT = auto() # =FORMAT
-    REFERENCE_KEY = auto() # google in [google]
-    REFERENCE_VALUE = auto()
+    REFERENCE_KEY = auto() # reference link key [foo]: https://example.com
+    REFERENCE_VALUE = auto() # reference link value
     RIGHT_SINGLE_QUOTE = auto() # ', '}
     RIGHT_DOUBLE_QUOTE = auto() # ", "}
     SOFT_BREAK = auto() # line break in inline content
