@@ -5,7 +5,7 @@ from ..common import (
 )
 from ..event import (
     Event,
-    LeafKind,
+    InlineLeaf,
 )
 from .matcher import Matcher
 from .state import InlineState
@@ -23,8 +23,13 @@ class LeftBraceMatcher(Matcher):
         # {""}
         # {- -}
         # Implicit precedence: delimiter > attribute > plain text
-        if state.cursor.find_delimiter(pos+1, endpos):
-            state.events.append(Event.leaf(Range(pos, pos), LeafKind.OPEN_MARKER)) # {
+        if state.cursor.find_delimiter(pos+1, endpos):  # if next char is one of delimiters
+            state.events.append( # current { is open marker
+                Event.leaf(
+                    Range(pos, pos), 
+                    InlineLeaf.OPEN_MARKER
+                )
+            )
             return pos+1
         elif state.allow_attributes:
             # Prepar to parse attributes from {
@@ -36,5 +41,10 @@ class LeftBraceMatcher(Matcher):
             state.init_attribute_parser(pos)
             return pos 
         else:
-            state.events.append(Event.leaf(Range(pos, pos), LeafKind.STR)) # literal {
+            state.events.append(
+                Event.leaf(
+                    Range(pos, pos),
+                    InlineLeaf.STR
+                )
+            ) # literal {
             return pos+1
