@@ -63,12 +63,12 @@ class InputText:
     _PATT_SYMBOL = re.compile(r':[\w_+-]+:')
     _PATT_TWO_PERIODS = re.compile(r'\.\.')
     _PATT_NOTE_REFERENCE = re.compile(r'\^([^\]]+)\]')
-    _PATT_NON_SPACE = re.compile(r'[^ \t\r\n]') # not start with space
 
     # Replace `const pattNonspace = pattern("[^ \t\r\n]")` in djot.js.
     # When you want to determine if a single char is space,
     # use short plain str is always optimal in Python.
     _WHITESPACE = ' \t\r\n'
+    _SPACE_TAB = ' \t'
     
 
     # TODO: should we collect all the match logic in InputText?
@@ -107,8 +107,8 @@ class InputText:
         """
         if i >= self.length:
             return False
-        
-        return ord(self.src[i]) == 10 or ord(self.src[i]) == 13 # \n or \r
+
+        return self.src[i] in '\r\n'
 
     def _calculate_eol(self):
         i = self.pos
@@ -163,7 +163,7 @@ class InputText:
         """
         newpos = self.pos
 
-        while newpos < self.length and self.src[newpos] == ' ' or self.src[newpos] == '\t':
+        while newpos < self.length and self.src[newpos] in self._SPACE_TAB:
             newpos += 1
 
         self.indent = newpos - self.line_start
@@ -203,9 +203,6 @@ class InputText:
             start = self.pos
 
         return find(self.src, self._PATT_WHITESPACE, start)
-
-    def find_no_leading_space(self, start: int) -> Optional[MatchedRange]:
-        return find(self.src, self._PATT_NON_SPACE, start)
 
     def find_blockquote_prefix(self) -> Optional[MatchedRange]:
         return find(self.src, self._PATT_BLOCKQUOTE_PREFIX, self.pos)
@@ -293,19 +290,7 @@ class InputText:
     def find_punctuation(self, pos: int, endpos: int) -> Optional[MatchedRange]:
         return find(self.src, self._PATT_PUNCTUATION, pos, endpos)
 
-    def find_trailing_space(self, span: Range) -> int:
-        """Find out trailing space starting position
-        
-        Returns:
-            int: the position of first non-space char from backward
-        """
-        start = span.start
-        end = span.end
-
-        while end >= start and self.src[end] in ' \t':
-            end = end - 1
-
-        return end
+    
 
     def find_autolink(self, pos: int, endpos: int) -> Optional[MatchedRange]:
         # <([^<>\s]+)>
@@ -369,13 +354,27 @@ class InputText:
 
         return self.src[i]
 
-    def is_crlf(self, i: int):
+    def find_trailing_space_tab(self, span: Range) -> int:
+        """Find out trailing space starting position
+        
+        Returns:
+            int: the position of first non-space char from backward
         """
-        Check if the char at i is \r and the next is \n.
-        """
-        if i+1 >= self.maxoffset:
-            return False
-        return self.src[i] == '\r' and self.src[i+1] == '\n'
+        start = span.start
+        end = span.end
+
+        while end >= start and self.src[end] in self._SPACE_TAB:
+            end = end - 1
+
+        return end
+
+    def find_trailing_space(self, span: Range) -> int:
+        start = span.start
+        end = span.end
+        while end >= start  and self.src[end] == ' ':
+            end = end - 1
+
+        return end
 
     def is_space(self, i: int) -> bool:
         return self.src[i] == ' '
@@ -384,6 +383,14 @@ class InputText:
         if i < 0 or i >= self.length:
             return True
         return self.src[i] in self._WHITESPACE
+
+    def is_crlf(self, i: int):
+        """
+        Check if the char at i is \r and the next is \n.
+        """
+        if i+1 >= self.maxoffset:
+            return False
+        return self.src[i] == '\r' and self.src[i+1] == '\n'
 
     def is_bang(self, i: int) -> bool:
         return self.src[i] == '!'
