@@ -5,7 +5,8 @@ from ..common import (
 )
 from ..event import (
     Event,
-    LeafKind,
+    BlockLeaf,
+    InlineLeaf,
 )
 from .matcher import Matcher
 from .state import InlineState
@@ -34,13 +35,16 @@ class BackslashMatcher(Matcher):
 
             # \ is escape
             state.events.append(
-                Event.leaf(Range(pos, pos), LeafKind.ESCAPE)
+                Event.leaf(
+                    Range(pos, pos),
+                    InlineLeaf.ESCAPE
+                )
             )
             # The following is hard break.
             state.events.append(
                 Event.leaf(
                     Range(pos+1, m_line_end.end),
-                    LeafKind.HARD_BREAK
+                    InlineLeaf.HARD_BREAK
                 )
             )
             return m_line_end.end + 1 # new pos starts after newline.
@@ -52,15 +56,40 @@ class BackslashMatcher(Matcher):
         
         if m_punct is not None:
             # \ is escape
-            state.events.append(Event.leaf(Range(pos, pos), LeafKind.ESCAPE))
-            state.events.append(Event.leaf(Range(m_punct.start, m_punct.end), LeafKind.STR))
+            state.events.append(
+                Event.leaf(
+                    Range(pos, pos), 
+                    InlineLeaf.ESCAPE
+                )
+            )
+            state.events.append(
+                Event.leaf(
+                    Range(m_punct.start, m_punct.end),
+                    InlineLeaf.STR
+                )
+            )
             return m_punct.end + 1
         elif pos + 1 <= endpos and state.cursor.is_space(pos+1):
             # \<space> is non-breaking space
-            state.events.append(Event.leaf(Range(pos, pos), LeafKind.ESCAPE))
-            state.events.append(Event.leaf(Range(pos+1, pos+1), LeafKind.NBSP))
+            state.events.append(
+                Event.leaf(
+                    Range(pos, pos),
+                    InlineLeaf.ESCAPE
+                )
+            )
+            state.events.append(
+                Event.leaf(
+                    Range(pos+1, pos+1),
+                    InlineLeaf.NBSP
+                )
+            )
             return pos+2
         else:
             # Plain \
-            state.events.append(Event.leaf(Range(pos, pos), LeafKind.STR))
+            state.events.append(
+                Event.leaf(
+                    Range(pos, pos),
+                    InlineLeaf.STR
+                )
+            )
             return pos+1
