@@ -1,12 +1,41 @@
+"""
+Parser for attributes, implemented as a state machine.
+
+attributes { id = "foo", class = "bar baz",
+             key1 = "val1", key2 = "val2" }
+
+syntax:
+
+attributes <- '{' whitespace* attribute (whitespace attribute)* whitespace* '}'
+
+attribute <- identifier | class | keyval
+
+identifier <- '#' name
+
+class <- '.' name
+
+name <- (nonspace, nonpunctuation other than ':', '_', '-')+
+
+key <- (ASCII_ALPHANUM } | ':' | '_' | '-')+
+
+val <- bareval | quotevdval
+
+bareval <- (ASCII_ALPHANUM | '.' | '-' | '_')+
+
+quotedval <- '"' ([^"] | '\"') '"'
+"""
+
+import string
 from dataclasses import dataclass
 from enum import Enum
 import re
-from typing import List
+from typing import Final, List
 
 from .event import Event, AttrKind
 from .input import InputText
 from .common import Range
 
+# states
 class State(Enum):
     SCANNING = 0
     SCANNING_ID = 1
@@ -23,28 +52,29 @@ class State(Enum):
     DONE = 12
     START = 13
 
-re_key_char = re.compile(r'[a-zA-Z0-9_:-]')
 
-def is_key_char(c: str) -> bool:
-    return bool(re_key_char.match(c))
+# In Python, str.isalnum() includes isalpha(), isdecimal(), isdigit().
+# They are not exactly identifical to regex defined in djot.js:
+# r'[a-zA-Z0-9_:-]'
+# For isalpha, 'µ'.isalpha() since non-ASCII characters can be considered alphabetical too
+# For isdecimal and isdigit, number in other language is also true
+# This actually equals string.ascii_letters + string.digits + '_:-'
+# Here's a strict version of ASCII char set permitted in key, bare value, id/class value.
+# Corresponds to regex r'[a-zA-Z0-9_:-]'
+_ASCII_ATTR_CHARS: Final = frozenset(string.ascii_letters + string.digits + "_:-")
 
-# Characters that should not appear in an id
-_re_forbidden_id_chars = re.compile(
-    r'^[^\]\[~!@#$%^&*(){}`,.<>\\|=+/?\s]'
-)
+def is_ascci_attr_char(c: str) -> bool:
+    return c in _ASCII_ATTR_CHARS
 
-_re_leading_space = re.compile(r'^\s')
-
-_re_leading_word = re.compile(r'^\w')
 
 class AttrFlowControl(Enum):
     DONE = 0
     FAIL = 1
-    CONTINUE = 2
+    CONTINUE = 2 # TODO: remove this to disable newline inside attributes.
 
-@dataclass(frozen=True)
-class ParseResult:
-    status: AttrFlowControl
+@dataclass(slots=True, frozen=True)
+class AttrParseResult:
+    status: AttrFlowControl # TODO: if AttrFlowControl has only DONE and FAIL, is this still needed?
     position: int
 
     def is_done(self) -> bool:
@@ -60,30 +90,29 @@ class ParseResult:
 class AttributeParser:
     def __init__(self, cursor: InputText):
         self.cursor = cursor
-        self.subject = cursor.src
         self.state = State.START
-        self.begin: int | None = None
-        self.lastpos: int | None = None
+        self.begin: int | None = None # the begin position of a token
+        self.lastpos: int | None = None # tracks the last position current char
         self.events: List[Event] = []
 
     def add_event(self, event: Event):
         self.events.append(event)
 
-    def feed(self, startpos: int, endpos: int) -> ParseResult:
+    def feed(self, startpos: int, endpos: int) -> AttrParseResult:
         """
         Equivalent to js version AttributeParser.feed
         """
         pos = startpos
         while pos <= endpos:
-            self.state = self.handle(self.state, pos)
+            self.state = self.step(self.state, pos)
             if self.state == State.DONE:
-                return ParseResult(
+                return AttrParseResult(
                     status=AttrFlowControl.DONE, 
                     position=pos
                 )
             elif self.state == State.FAIL:
                 self.lastpos = pos
-                return ParseResult(
+                return AttrParseResult(
                     status=AttrFlowControl.FAIL, 
                     position=pos
                 )
@@ -91,13 +120,18 @@ class AttributeParser:
                 self.lastpos = pos
                 pos += 1
 
-        return ParseResult(
-            status=AttrFlowControl.CONTINUE, 
+        # If state is neither DONE nor FAIL, and endpos is reached,
+        # return CONTINUE to tell main parser that parsing should continue
+        # to next line.
+        # However, I want don't want to support newline inside attribute.
+        # Keep attributes on one line.
+        return AttrParseResult(
+            status=AttrFlowControl.CONTINUE, # TODO: to forbid newline in attributes, should we return FAIL?
             position=endpos
         )
 
 
-    def handle(self, state: State, pos: int) -> State:
+    def step(self, state: State, pos: int) -> State:
         """
         Equivalent to js version handlers array.
         """
@@ -137,7 +171,7 @@ class AttributeParser:
         Equivalent to js version handlers[State.START]
         START -> SCANNING
         """
-        if self.subject[pos] == '{':
+        if self.cursor.src[pos] == '{':
             return State.SCANNING
         else:
             return State.FAIL
@@ -146,41 +180,48 @@ class AttributeParser:
         """
         Equivalent to js version handlers[State.SCANNING]
         """
-        c = self.subject[pos]
-        if c == '\n' or c == '\r':
-            return State.SCANNING
-        elif c == ' ' or c == '\t':
-            self.add_event(
-                Event.attr(
-                    Range(pos, pos),
-                    AttrKind.SPACE
+        ch = self.cursor.src[pos]
+        match ch:
+            case '\n' | '\r': # TODO: does this mean supporting newline? what if we disallow newline?
+                return State.SCANNING
+            case ' ' | '\t':
+                self.add_event(
+                    Event.attr(
+                        Range(pos, pos),
+                        AttrKind.SPACE
+                    )
                 )
-            )
-            return State.SCANNING
-        elif c == '}':
-            return State.DONE
-        elif c == '#':
-            # self.begin point to #
-            self.begin = pos
-            self.add_event(
-                Event.attr(Range(pos, pos), AttrKind.ID_START)
-            )
-            return State.SCANNING_ID
-        elif c == '%':
-            # self.begin point to %
-            self.begin = pos
-            return State.SCANNING_COMMENT
-        elif c == '.':
-            self.begin = pos
-            self.add_event(
-                Event.attr(Range(pos, pos), AttrKind.CLASS_START)
-            )
-            return State.SCANNING_CLASS
-        elif is_key_char(c):
-            self.begin = pos
-            return State.SCANNING_KEY
-        else:
-            return State.FAIL
+                return State.SCANNING # Current pos is space, continue scanning
+            case '}':
+                return State.DONE
+            case '#':
+                # self.begin point to #
+                self.begin = pos
+                self.events.append(
+                    Event.attr(
+                        Range(pos, pos), 
+                        AttrKind.ID_START
+                    )
+                )
+                return State.SCANNING_ID
+            case '%':
+                # self.begin point to %
+                self.begin = pos
+                return State.SCANNING_COMMENT
+            case '.':
+                self.begin = pos
+                self.add_event(
+                    Event.attr(
+                        Range(pos, pos),
+                        AttrKind.CLASS_START
+                    )
+                )
+                return State.SCANNING_CLASS
+            case _ if is_ascci_attr_char(ch):
+                self.begin = pos
+                return State.SCANNING_KEY
+            case _:
+                return State.FAIL
         
     def _scanning_comment(self, pos: int) -> State:
         """
@@ -194,24 +235,25 @@ class AttributeParser:
         SCANNING -> SCANNING_COMMENT -> DONE
           |<-----------|
         """
-        c = self.subject[pos]
-        # c might be start of comment or end of comment
-        if c == '%':
-            # If pos is at the start of comment, begin == pos.
-            if self.begin is not None and pos > self.begin:
-                self.add_event(
-                    Event.attr(
-                        Range(self.begin, pos),
-                        AttrKind.COMMENT
+        ch = self.cursor.src[pos]
+        # Already in comment, `%` or `}` mean end of comment
+        match ch:
+            case '%':
+                # If pos is at the start of comment, begin == pos.
+                if self.begin is not None and pos > self.begin:
+                    self.add_event(
+                        Event.attr(
+                            Range(self.begin, pos),
+                            AttrKind.COMMENT
+                        )
                     )
-                )
-            return State.SCANNING
-        elif c == '}':
-            # Comment extending to end of attribute list
-            return State.DONE
-        else:
-            # In the middle of comment
-            return State.SCANNING_COMMENT
+                return State.SCANNING
+            case '}':
+                # Comment extending to end of attribute list
+                return State.DONE
+            case _:
+                # In the middle of comment
+                return State.SCANNING_COMMENT
         
     def _scanning_id(self, pos: int) -> State:
         """
@@ -224,15 +266,15 @@ class AttributeParser:
         """
         # start from position after #
         # For exmaple, pos points to f in #foo
-        c = self.subject[pos]
+        ch = self.cursor.src[pos]
 
         # As long as the current character is in allowed characters, keep scanning.
-        if _re_forbidden_id_chars.search(c) is not None:
+        if is_ascci_attr_char(ch):
             return State.SCANNING_ID
-        # None-id characters
+
         # } indicates the end of attribute list.
-        elif c == '}':
-            if self.begin and self.lastpos and self.lastpos > self.begin:
+        if ch == '}':
+            if self.begin and self.lastpos and self.lastpos > self.begin: # has content
                 self.add_event(
                     Event.attr(
                         Range(self.begin + 1, self.lastpos),
@@ -241,18 +283,20 @@ class AttributeParser:
                 )
             self.begin = None
             return State.DONE
-        # Space indicates next attribute will appear.
-        elif _re_leading_space.search(c) is not None:
+
+        # Space indicates current id attrbute ends.
+        if ch.isspace():
             # the id is ended.
-            if self.begin and self.lastpos and self.lastpos > self.begin:
+            if self.begin and self.lastpos and self.lastpos > self.begin: # content
                 self.add_event(
                     Event.attr(
-                        Range(self.begin + 1, self.lastpos),
+                        Range(self.begin + 1, self.lastpos), # begin points to #
                         AttrKind.ID
                     )
                 )
-            # if current character is space but not newline.
-            if not (c == '\r' or c == '\n'):
+            # if current character is space but not newline. Why save space?
+            # TODO: How to handle it if we disallow newline?
+            if not (ch == '\r' or ch == '\n'):
                 self.add_event(
                     Event.attr(
                         Range(pos, pos), 
@@ -262,8 +306,8 @@ class AttributeParser:
             # Prepare to scan next attribute.
             self.begin = None
             return State.SCANNING
-        else:
-            return State.FAIL
+        
+        return State.FAIL
 
     def _scanning_class(self, pos: int) -> State:
         """
@@ -274,10 +318,12 @@ class AttributeParser:
         .foo .bar
         .foo }
         """
-        c = self.subject[pos] # c points to the position after dot.
-        if _re_leading_word.search(c) is not None or c == '_' or c == '-' or c == ':':
+        ch = self.cursor.src[pos] # c points to the position after dot.
+
+        if is_ascci_attr_char(ch):
             return State.SCANNING_CLASS
-        elif c == '}':
+
+        if ch == '}':
             if self.begin and self.lastpos and self.lastpos > self.begin:
                 self.add_event(
                     Event.attr(
@@ -287,7 +333,8 @@ class AttributeParser:
                 )
             self.begin = None
             return State.DONE
-        elif _re_leading_space.search(c) is not None: # space
+
+        if ch.isspace(): # space
             if self.begin and self.lastpos and self.lastpos > self.begin:
                 self.add_event(
                     Event.attr(
@@ -295,7 +342,7 @@ class AttributeParser:
                         kind=AttrKind.CLASS,
                     )
                 )
-            if not (c == '\r' or c == '\n'):
+            if not (ch == '\r' or ch == '\n'):
                 self.add_event(
                     Event.attr(
                         Range(pos, pos),
@@ -304,28 +351,23 @@ class AttributeParser:
                 )
             self.begin = None
             return State.SCANNING
-        else:
-            return State.FAIL
+        
+        return State.FAIL
 
     def _scanning_key(self, pos: int) -> State:
         """
         Equivalent to js version handlers[State.SCANNING_KEY]
-        
-        Example:
-        
-        foo=bar
-        foo=bar}
-        foo=bar
         """
-        c = self.subject[pos]
-        if c == '=' and self.begin and self.lastpos:
-            self.add_event(
+        ch = self.cursor.src[pos] # now pos to a ascii alphanumeric character.
+
+        if ch == '=' and self.begin and self.lastpos:
+            self.add_event( # before = it is key
                 Event.attr(
                     Range(self.begin, self.lastpos),
                     kind=AttrKind.KEY
                 )
             )
-            self.add_event(
+            self.add_event( # =
                 Event.attr(
                     Range(pos, pos),
                     kind=AttrKind.EQUAL_MARKER
@@ -333,33 +375,41 @@ class AttributeParser:
             )
             self.begin = None
             return State.SCANNING_VALUE
-        elif is_key_char(c):
+
+        if is_ascci_attr_char(ch):
             return State.SCANNING_KEY
-        else:
-            return State.FAIL
+        
+        return State.FAIL
         
     def _scanning_value(self, pos: int) -> State:
-        c = self.subject[pos]
-        if c == '"':
+        ch = self.cursor.src[pos] # pos points to the char after =
+
+        if ch == '"': # quoted value
             self.begin = pos
-            self.add_event(
+            self.add_event( # "
                 Event.attr(
                     Range(pos, pos),
                     kind=AttrKind.QUOTE_MARKER
                 )
             )
             return State.SCANNING_QUOTED_VALUE
-        elif is_key_char(c):
+
+        if is_ascci_attr_char(ch): # bare value
             self.begin = pos
-            return State.SCANNING_BARE_VALUE
-        else:
-            return State.FAIL
+            # TODO: # does _scanning_bare_value points to the second char after here?
+            # For example, `foo=bar`, upon entering _scanning_value, pos points to `b`.
+            # And then pos += 1, so when we call _scanning_bare_value, pos points to `a`.
+            return State.SCANNING_BARE_VALUE 
+        
+        return State.FAIL
         
     def _scanning_bare_value(self, pos: int) -> State:
-        c = self.subject[pos]
-        if is_key_char(c):
+        ch = self.cursor.src[pos]
+
+        if is_ascci_attr_char(ch):
             return State.SCANNING_BARE_VALUE
-        elif c == '}' and self.begin and self.lastpos:
+
+        if ch == '}' and self.begin and self.lastpos:
             self.add_event(
                 Event.attr(
                     Range(self.begin, self.lastpos),
@@ -368,14 +418,15 @@ class AttributeParser:
             )
             self.begin = None
             return State.DONE
-        elif _re_leading_space.search(c) and self.begin and self.lastpos:
+
+        if ch.isspace() and self.begin and self.lastpos: # finished key=value
             self.add_event(
                 Event.attr(
                     Range(self.begin, self.lastpos),
                     kind=AttrKind.VALUE
                 )
             )
-            if not (c == '\r' or c == '\n'):
+            if not (ch == '\r' or ch == '\n'): # TODO: disalloww newline.
                 self.add_event(
                     Event.attr(
                         Range(pos, pos),
@@ -384,8 +435,8 @@ class AttributeParser:
                 )
             self.begin = None
             return State.SCANNING
-        else:
-            return State.FAIL
+        
+        return State.FAIL
         
     def _scanning_escaped(self, pos: int) -> State:
         return State.SCANNING_QUOTED_VALUE
@@ -397,8 +448,8 @@ class AttributeParser:
         """
         Equivalent to js version handlers[State.SCANNING_QUOTED_VALUE]
         """
-        c = self.subject[pos]
-        if c == '"' and self.begin and self.lastpos:
+        ch = self.cursor.src[pos]
+        if ch == '"' and self.begin and self.lastpos: # closing "
             self.add_event(
                 Event.attr(
                     Range(self.begin+1, self.lastpos),
@@ -414,7 +465,7 @@ class AttributeParser:
             self.begin = None
             return State.SCANNING
         
-        elif c == '\n' and self.begin and self.lastpos:
+        elif ch == '\n' and self.begin and self.lastpos: # TODO: forbid newline.
             self.add_event(
                 Event.attr(
                     Range(self.begin+1, self.lastpos),
@@ -423,7 +474,7 @@ class AttributeParser:
             )
             self.begin = None
             return State.SCANNING_QUOTED_VALUE_CONTINUATION
-        elif c == '\\':
+        elif ch == '\\':
             return State.SCANNING_ESCAPED
         else:
             return State.SCANNING_QUOTED_VALUE
@@ -432,11 +483,11 @@ class AttributeParser:
         """
         Equivalent to js version handlers[State.SCANNING_QUOTED_VALUE_CONTINUATION]
         """
-        c = self.subject[pos]
+        ch = self.cursor.src[pos]
         if self.begin is None:
             self.begin = pos
 
-        if c == '"' and self.begin and self.lastpos:
+        if ch == '"' and self.begin and self.lastpos: # closing "
             self.add_event(
                 Event.attr(
                     Range(self.begin, self.lastpos),
@@ -451,7 +502,7 @@ class AttributeParser:
             )
             self.begin = None
             return State.SCANNING
-        elif c == '\n' and self.begin and self.lastpos:
+        elif ch == '\n' and self.begin and self.lastpos: # TODO: forbid newline.
             self.add_event(
                 Event.attr(
                     Range(start=self.begin,
@@ -461,7 +512,7 @@ class AttributeParser:
             )
             self.begin = None
             return State.SCANNING_QUOTED_VALUE_CONTINUATION
-        elif c == '\\':
+        elif ch == '\\':
             return State.SCANNING_ESCAPED_IN_CONTINUATION
         else:
             return State.SCANNING_QUOTED_VALUE_CONTINUATION
