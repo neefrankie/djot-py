@@ -5,11 +5,11 @@ from ..common import (
 )
 from ..event import (
     Event,
-    ContainerKind,
-    LeafKind,
+    InlineLeaf,
+    InlineContainer
 )
 from .matcher import Matcher
-from .state import InlineState
+from .state import InlineState, OpenerKind
 
 class RightParenMatcher(Matcher):
 
@@ -24,7 +24,7 @@ class RightParenMatcher(Matcher):
         # TODO: why?
         if parens:
             parens.pop() # clear opener
-            state.events.append(Event.leaf(Range(pos, pos), LeafKind.STR))
+            state.events.append(Event.leaf(Range(pos, pos), InlineLeaf.STR))
             return pos+1
         
         openers = state.openers['[']
@@ -32,7 +32,7 @@ class RightParenMatcher(Matcher):
         if not openers:
             return None
     
-        if opener.annot != 'explicit_link':
+        if opener.kind != OpenerKind.EXPLICIT_LINK:
             return None
         
         # we have inline link
@@ -44,66 +44,69 @@ class RightParenMatcher(Matcher):
                     not state.cursor.is_backslash(opener.startpos-2))
     
         if is_image:
-            # Modify !
-            state.replace_event(
+            
+            state.replace_event( # Update !
                 Event.leaf(
                     Range(opener.startpos-1, opener.startpos-1),
-                    LeafKind.IMAGE_MARKER,
+                    InlineLeaf.IMAGE_MARKER,
                 ),
                 opener.event_index-1
             )
-            # modify [
-            state.replace_event(
+            
+            state.replace_event( # update [
                 Event.enter(
                     Range(opener.startpos, opener.endpos),
-                    ContainerKind.IMAGE_TEXT,
+                    InlineContainer.IMAGE_TEXT,
                 ),
                 opener.event_index
             )
-            # ]
-            state.replace_event(
+            
+            state.replace_event( # Update ]
                 Event.exit(
                     Range(
                         opener.sub_startpos or opener.startpos,
                         opener.sub_startpos or opener.startpos,
                     ),
-                    ContainerKind.IMAGE_TEXT,
+                    InlineContainer.IMAGE_TEXT,
                 ),
                 opener.sub_event_index,
             )
         else:
-            # [
-            state.replace_event(
+            
+            state.replace_event( # Update [
                 Event.enter(
                     Range(opener.startpos, opener.endpos),
-                    ContainerKind.LINK_TEXT,
+                    InlineContainer.LINK_TEXT,
                 ),
                 opener.event_index,
             )
-            # ]
-            state.replace_event(
+            
+            state.replace_event( # Upate ]
                 Event.exit(
                     Range(
                         opener.sub_startpos or opener.startpos,
                         opener.sub_startpos or opener.startpos,
                     ),
-                    ContainerKind.LINK_TEXT,
+                    InlineContainer.LINK_TEXT,
                 ),
                 opener.sub_event_index
             )
-        # (
-        state.replace_event(
+        
+        state.replace_event( # Update (
             Event.enter(
                 Range(
                     opener.sub_endpos or opener.endpos,
                     opener.sub_endpos or opener.endpos,
                 ),
-                ContainerKind.DESTINATION,
+                InlineContainer.DESTINATION,
             ),
             opener.sub_event_index+1
         )
-        state.events.append(
-            Event.exit(Range(pos, pos),ContainerKind.DESTINATION) # current )
+        state.events.append( # current )
+            Event.exit(
+                Range(pos, pos),
+                InlineContainer.DESTINATION
+            ) 
         )
         state.destination = False # Flag exiting link.
         state.clear_openers(opener.startpos, pos) # From [ to )
