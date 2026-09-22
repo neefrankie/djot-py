@@ -5,7 +5,7 @@ from ..common import (
 )
 from ..event import (
     Event,
-    LeafKind,
+    InlineLeaf,
 )
 from .matcher import Matcher
 from .state import InlineState
@@ -25,12 +25,18 @@ class LeftBracketMatcher(Matcher):
         m = state.cursor.find_note_reference(pos+1, endpos) # test from ^
         if m:
             state.events.append(
-                Event.leaf(Range(pos, m.end), LeafKind.FOOTNOTE_REF)
+                Event.leaf(
+                    Range(pos, m.end),
+                    InlineLeaf.FOOTNOTE_REF
+                )
             )
             return m.end+1
         else:
             state.add_opener(
                 '[',
-                Event.leaf(Range(pos, pos), LeafKind.STR)
+                Event.leaf(
+                    Range(pos, pos),
+                    InlineLeaf.STR
+                )
             )
             return pos+1
