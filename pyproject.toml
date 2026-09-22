@@ -1,14 +1,31 @@
 [project]
-name = "pyjot"
+name = "djot-py"
 version = "0.1.0"
-description = "Djot implentation in Python"
+description = "A pure Python implementation of the Jot markup language"
 readme = "README.md"
 authors = [
     { name = "Victor Nee", email = "neefrankie@gmail.com" }
 ]
 requires-python = ">=3.12"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Text Processing :: Markup",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Typing :: Typed",
+]
+license = "MIT"
 dependencies = []
 
 [build-system]
 requires = ["uv_build>=0.12.6,<0.13.0"]
 build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "djot"
