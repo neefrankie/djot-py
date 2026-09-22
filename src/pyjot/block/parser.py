@@ -12,29 +12,27 @@ from ..event import (
 from ..options import Options
 from ..common import Range
 
-from .rule import (
+from .container import (
+    ParsingContext,
     ContainerCap,
     Container,
     FlowControl,
     RuleResult,
     BlockRule,
-    ParaRule,
-    BlockquoteRule,
-    HeadingRule,
-    CaptionRule,
-    FootnoteRule,
-    ReferenceDefinitionRule,
-    ThematicBreakRule,
-    ListRule,
-    ListItemRule,
-    TableRule,
-    AttributeRule,
-    FencedDivRule,
-    CodeBlockRule,
 )
-from .container import (
-    ParsingContext,
-)
+
+from .para import ParaRule
+from .blockquote import BlockquoteRule
+from .heading import HeadingRule
+from .caption import CaptionRule
+from .footnote import FootnoteRule
+from .ref_def import ReferenceDefinitionRule
+from .thematic import ThematicBreakRule
+from .list import ListRule, ListItemRule
+from .table import TableRule
+from .attribute import AttributeRule
+from .fenced import FencedDivRule
+from .code_block import CodeBlockRule
 
 
 class ContinueContainerResult(NamedTuple):
