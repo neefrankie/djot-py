@@ -6,7 +6,8 @@ from ..inline import InlineParser
 from ..input import InputText
 from ..event import (
     Event,
-    LeafKind
+    BlockLeaf,
+    InlineLeaf,
 )
 from ..options import Options
 from ..common import Range
@@ -393,7 +394,7 @@ class EventParser:
                     # need to track these for tight/loose lists.
                     events.append(
                         Event.leaf(
-                            kind=LeafKind.BLANKLINE,
+                            kind=BlockLeaf.BLANKLINE,
                             span=self.input.rest_line_span()
                         )
                     )
@@ -416,7 +417,7 @@ class EventParser:
             start_pos = self.input.get_adjusted_text_start(tip.indent)
             events.append(
                 Event.leaf(
-                    kind=LeafKind.STR,
+                    kind=InlineLeaf.STR,
                     span=Range(
                         start=start_pos,
                         end=self.input.eol_start,
