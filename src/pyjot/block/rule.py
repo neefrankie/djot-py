@@ -990,7 +990,7 @@ class TableRule(BlockRule):
             nextbar = m.end
             # How does this regex works? [^`|\r\n]*(?:[|]|`+)
             # | just two \| `|` | cells in this table |
-            if cursor.src[nextbar] == '`' or inline_parser.in_verbatim():
+            if cursor.src[nextbar] == '`' or inline_parser.in_verbatim:
                 inline_parser.feed(cursor.pos, nextbar)
             elif cursor.src[nextbar-1] == '\\': # escaped |
                 # This handles \|.
@@ -1007,7 +1007,7 @@ class TableRule(BlockRule):
         if not cell_complete:
             return None
 
-        cell_matches = inline_parser.get_matches()
+        cell_matches = list(inline_parser.iter_merged_events())
         return ParsedDataCell(
             events=cell_matches,
             span=Range(
