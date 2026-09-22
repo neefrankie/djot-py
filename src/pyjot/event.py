@@ -8,76 +8,77 @@ class Action(Enum):
     ENTER = auto()
     EXIT = auto()
 
-class VerbatimKind(Enum):
-    DISPLAY_MATH = auto() # +/-
-    INLINE_MATH = auto() # +/-
-    VERBATIM = auto() # +/-
-
-class ContainerKind(Enum):
+class BlockContainer(Enum):
     ATTRIBUTES = auto() # +/-
     ANNOTATION = auto() # +/-
     BLOCK_QUOTE = auto() # +/-
     CAPTION = auto() # +/-
     CODE_BLOCK = auto() # +/-
-    DESTINATION = auto() # +/-
     DIV = auto() # +/-
-    EMAIL = auto() # +/-
     FENCED_DIV = auto() # +/-
     FOOTNOTE = auto() # +/-
     HEADING = auto() # +/-
-    IMAGE_TEXT = auto() # +/-
-    LINK_TEXT = auto() # +/-
     LIST = auto() # +/-
     LIST_ITEM = auto() # +/-
     REFERENCE_DEFINITION = auto() # +/-
-    REFERENCE = auto() # +/-
-    SPAN = auto() # +/-
     PARA = auto() # +/-
     TABLE = auto() # +/-
     TABLE_ROW = auto() # +/-
     TABLE_CELL = auto() # +/-
-    URL = auto() # +/-
 
-class LeafKind(Enum):
+class BlockLeaf(Enum):
     BLANKLINE = auto()
-    CHECKBOX = auto()
-    CODE_LANGUAGE = auto()
-    ELLIPSES = auto()
-    EM_DASH = auto()
-    EN_DASH = auto()
-    ESCAPE = auto()
-    FOOTNOTE_REF = auto()
-    HARD_BREAK = auto()
-    IMAGE_MARKER = auto()
-    NBSP = auto()
-    NOTE_LABEL = auto()
-    OPEN_MARKER = auto()
-    RAW_FORMAT = auto()
-    REFERENCE_KEY = auto()
-    REFERENCE_VALUE = auto()
-    SOFT_BREAK = auto()
-    STR = auto()
-    SYMBOL = auto()
     THEMATIC_BREAK = auto()
-    TABLE_SEPARATOR = auto()
+    TABLE_SEPARATOR = auto() # :---:
+
+class VerbatimKind(Enum):
+    DISPLAY_MATH = auto() # $$`...`
+    INLINE_MATH = auto() # $`...`
+    VERBATIM = auto() # `...`
 
 class InlineContainer(Enum):
+    DELETE = auto() # {- -}
+    DESTINATION = auto() # ( )
+    DOUBLE_QUOTED = auto() # "  "
+    EMAIL = auto() # < >
+    EMPH = auto() # _ _
+    IMAGE_TEXT = auto() # [ ]
+    LINK_TEXT = auto() # [ ]
+    INSERT = auto() # {+ +}
+    MARK = auto() # {= =}
+    REFERENCE = auto() # [ ]
+    SPAN = auto() # [ ]
+    SINGLE_QUOTED = auto() # '  '
     SUBSCRIPT = auto() # +/-
     SUPERSCRIPT = auto() # +/-
-    EMPH = auto() # _ _
     STRONG = auto() # * *
-    INSERT = auto() # {+ +}
-    DELETE = auto() # {- -}
-    MARK = auto() # {= =}
-    SINGLE_QUOTED = auto() # '  '
-    DOUBLE_QUOTED = auto() # "  "
+    URL = auto() # < >
+    
 
 class InlineLeaf(Enum):
+    CHECKBOX = auto() # X
+    CODE_LANGUAGE = auto()
+    EM_DASH = auto() # ---
+    EN_DASH = auto() # --
+    ELLIPSES = auto() # ...
+    ESCAPE = auto() # \
+    FOOTNOTE_REF = auto()
+    HARD_BREAK = auto()
+    IMAGE_MARKER = auto() # !
+    LEFT_SINGLE_QUOTE = auto() # ', {'
+    LEFT_DOUBLE_QUOTE = auto() # ", {"
+    NBSP = auto()
+    NOTE_LABEL = auto() # foo inside [^foo]
+    OPEN_MARKER = auto() # { in braced delimiter
+    RAW_FORMAT = auto() # =FORMAT
+    REFERENCE_KEY = auto() # google in [google]
+    REFERENCE_VALUE = auto()
+    RIGHT_SINGLE_QUOTE = auto() # ', '}
+    RIGHT_DOUBLE_QUOTE = auto() # ", "}
+    SOFT_BREAK = auto() # line break in inline content
+    SYMBOL = auto() # smiley
     STR = auto()
-    LEFT_SINGLE_QUOTE = auto()
-    RIGHT_SINGLE_QUOTE = auto()
-    LEFT_DOUBLE_QUOTE = auto()
-    RIGHT_DOUBLE_QUOTE = auto()
+    TABLE_SEPARATOR = auto() # :---:
 
 
 # Atributes are all leaves.
@@ -101,8 +102,8 @@ class Alignment(Enum):
     RIGHT = auto()
 
 EventKind = Union[
-    ContainerKind,
-    LeafKind,
+    BlockContainer,
+    BlockLeaf,
     VerbatimKind,
     InlineContainer,
     InlineLeaf,
@@ -136,7 +137,7 @@ class Event:
 
     @property
     def is_str(self) -> bool:
-        return self.kind == LeafKind.STR
+        return self.kind == InlineLeaf.STR
 
     @property
     def is_container(self) -> bool:
@@ -148,10 +149,14 @@ class Event:
 
     @property
     def is_open_marker(self) -> bool:
-        return self.kind == LeafKind.OPEN_MARKER
+        return self.kind == InlineLeaf.OPEN_MARKER
+
+    @property
+    def is_soft_break(self) -> bool:
+        return self.kind == InlineLeaf.SOFT_BREAK
 
     def with_list_styles(self, styles: List[str]):
-        if self.kind != ContainerKind.LIST or self.kind != ContainerKind.LIST_ITEM:
+        if self.kind != BlockContainer.LIST or self.kind != BlockContainer.LIST_ITEM:
             return self
         
         self.payload = ListPayload(
@@ -160,7 +165,7 @@ class Event:
         return self
 
     def with_table_alignment(self, align: Alignment):
-        if self.kind != LeafKind.TABLE_SEPARATOR:
+        if self.kind != InlineLeaf.TABLE_SEPARATOR:
             return self
         
         self.payload = TablePayload(
@@ -169,7 +174,7 @@ class Event:
         return self
 
     def with_checkbox(self, checked: bool):
-        if self.kind != LeafKind.CHECKBOX:
+        if self.kind != InlineLeaf.CHECKBOX:
             return self
         
         self.payload = CheckboxPayload(
@@ -178,7 +183,7 @@ class Event:
         return self
 
     def demote_to_str(self):
-        self.kind = LeafKind.STR
+        self.kind = InlineLeaf.STR
         self.action = None
 
     def expand(self, other: 'Event') -> bool:
@@ -190,7 +195,7 @@ class Event:
         return False
 
     @classmethod
-    def enter(cls, span: Range, kind: ContainerKind | VerbatimKind | InlineContainer) -> 'Event':
+    def enter(cls, span: Range, kind: BlockContainer | VerbatimKind | InlineContainer) -> 'Event':
         return cls(
             span=span,
             kind=kind,
@@ -198,7 +203,7 @@ class Event:
         )
 
     @classmethod
-    def exit(cls, span: Range, kind: ContainerKind | VerbatimKind | InlineContainer) -> 'Event':
+    def exit(cls, span: Range, kind: BlockContainer | VerbatimKind | InlineContainer) -> 'Event':
         return cls(
             span=span,
             kind=kind,
@@ -206,7 +211,7 @@ class Event:
         )
 
     @classmethod
-    def leaf(cls, span: Range, kind: LeafKind | InlineLeaf) -> 'Event':
+    def leaf(cls, span: Range, kind: BlockLeaf | InlineLeaf) -> 'Event':
         return cls(
             span=span,
             kind=kind,
