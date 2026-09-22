@@ -5,11 +5,13 @@ from ..common import (
 )
 from ..event import (
     Event,
-    ContainerKind,
-    LeafKind,
+    BlockContainer,
+    BlockLeaf,
+    InlineLeaf,
+    InlineContainer,
 )
 from .matcher import Matcher
-from .state import InlineState
+from .state import InlineState, OpenerKind
 
 class RightBracketMatcher(Matcher):
 
@@ -64,7 +66,7 @@ class RightBracketMatcher(Matcher):
         # the end of a reference link.
         # Now everything is clear and we can backtrace to modify
         # placeholder events.
-        if opener.annot == 'reference_link':
+        if opener.kind == OpenerKind.REFERENCE_LINK:
             # Found a reference link
             # convert all matches inside reference to str
             # Anything between opener and pos should be treated as plain text.
@@ -78,29 +80,28 @@ class RightBracketMatcher(Matcher):
             if is_image:
                 # ![picture of a cat][cat.jpg]
                 # Modify events aleady emitted for `!`, `[` and `]`.
-                state.replace_event(
+                state.replace_event( # Update ! event
                     Event.leaf(
-                        Range(opener.startpos-1, opener.startpos-1), # ! before [
-                        LeafKind.IMAGE_MARKER
+                        Range(opener.startpos-1, opener.startpos-1), # !
+                        InlineLeaf.IMAGE_MARKER
                     ), 
                     opener.event_index-1 # the index before opener
                 )
-                # Replace the [ Event.
-                state.replace_event(
+                state.replace_event( # Update [ event
                     Event.enter(
                         Range(opener.startpos, opener.endpos),
-                        ContainerKind.IMAGE_TEXT
+                        InlineContainer.IMAGE_TEXT
                     ),
                     opener.event_index
                 )
-                # ]( is the sub-range.
+                # ][ is the sub-range.
                 state.replace_event(
                     Event.exit( # first ]
                         Range(
                             opener.sub_startpos or opener.startpos,
                             opener.sub_startpos or opener.startpos
                         ),
-                        ContainerKind.IMAGE_TEXT,
+                        InlineContainer.IMAGE_TEXT,
                     ),
                     opener.sub_event_index
                 )
@@ -110,7 +111,7 @@ class RightBracketMatcher(Matcher):
                 state.replace_event(
                     Event.enter( # [
                         Range(opener.startpos, opener.endpos),
-                        ContainerKind.LINK_TEXT,
+                        InlineContainer.LINK_TEXT,
                     ),
                     opener.event_index,
                 )
@@ -120,7 +121,7 @@ class RightBracketMatcher(Matcher):
                             opener.sub_startpos or opener.startpos,
                             opener.sub_startpos or opener.startpos
                         ),
-                        ContainerKind.LINK_TEXT
+                        InlineContainer.LINK_TEXT
                     ),
                     opener.sub_event_index,
                 )
@@ -132,7 +133,7 @@ class RightBracketMatcher(Matcher):
                         opener.sub_endpos or opener.endpos,
                         opener.sub_endpos or opener.endpos
                     ),
-                    ContainerKind.REFERENCE,
+                    InlineContainer.REFERENCE,
                 ),
                 opener.sub_event_index+1
             )
@@ -140,7 +141,7 @@ class RightBracketMatcher(Matcher):
             state.events.append(
                 Event.exit(
                     Range(pos,pos),
-                    ContainerKind.REFERENCE
+                    InlineContainer.REFERENCE
                 )
             )
             # Remove all openers for current reference link.
@@ -152,12 +153,15 @@ class RightBracketMatcher(Matcher):
         # Next char is second left [ as in [My link text][foo bar]
         if pos+1 <= endpos and state.cursor.is_left_bracket(pos+1):
             
-            opener.annot = 'reference_link'
+            opener.kind = OpenerKind.REFERENCE_LINK
 
             # Add event for current char ].
-            # TODO: is LeafKind.STR a placeholder?
+            # TODO: is InlineLeaf.STR a placeholder?
             state.events.append(
-                Event.leaf(Range(pos, pos), LeafKind.STR)
+                Event.leaf(
+                    Range(pos, pos),
+                    InlineLeaf.STR
+                )
             )
 
             # The event we just created
@@ -165,7 +169,7 @@ class RightBracketMatcher(Matcher):
 
             # Add event for next char [
             state.events.append(
-                Event.leaf(Range(pos+1, pos+1), LeafKind.STR)
+                Event.leaf(Range(pos+1, pos+1), InlineLeaf.STR)
             )
 
             # Current char [ is a sub start.
@@ -182,18 +186,24 @@ class RightBracketMatcher(Matcher):
         if pos+1 <= endpos and state.cursor.is_left_paren(pos+1):
             
             state.openers['('] = [] # clear ( openers. Why?
-            opener.annot = 'explicit_link'
+            opener.kind = OpenerKind.EXPLICIT_LINK
 
             # Event for current bracket
             state.events.append(
-                Event.leaf(Range(pos, pos), LeafKind.STR)
+                Event.leaf(
+                    Range(pos, pos),
+                    InlineLeaf.STR
+                )
             )
             # The event just created.
             opener.sub_event_index = len(state.events) - 1
 
             # Current char (.
             state.events.append(
-                Event.leaf(Range(pos, pos), LeafKind.STR)
+                Event.leaf(
+                    Range(pos, pos),
+                    InlineLeaf.STR
+                )
             )
             # Position for ](
             opener.sub_startpos = pos
@@ -213,13 +223,16 @@ class RightBracketMatcher(Matcher):
             state.replace_event(
                 Event.enter(
                     Range(opener.startpos, opener.endpos),
-                    ContainerKind.SPAN
+                    InlineContainer.SPAN
                 ),
                 opener.event_index
             )
 
             state.events.append(
-                Event.exit(Range(pos, pos), ContainerKind.SPAN)
+                Event.exit(
+                    Range(pos, pos),
+                    InlineContainer.SPAN
+                )
             )
 
             # remove any openers between [ and ]
