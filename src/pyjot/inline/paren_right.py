@@ -13,7 +13,7 @@ from .state import InlineState, OpenerKind
 
 class RightParenMatcher(Matcher):
 
-    def __call___(self, state: InlineState, pos: int, endpos: int) -> Optional[int]:
+    def __call__(self, state: InlineState, pos: int, endpos: int) -> Optional[int]:
         # )
         # ![beautiful skyline](clouds.jpg)
         # [read more](https://example.com)
