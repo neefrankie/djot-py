@@ -6,8 +6,8 @@ from ..common import (
 )
 from ..event import (
     Event,
-    ContainerKind,
-    LeafKind,
+    InlineContainer,
+    InlineLeaf,
 )
 from .matcher import Matcher
 from .state import InlineState
@@ -32,14 +32,14 @@ class LessthanMatcher(Matcher):
         endurl = m.end
         url = m.captures[0]
         if is_email(url):
-            state.events.append(Event.enter(Range(starturl, starturl), ContainerKind.EMAIL)) # <
-            state.events.append(Event.leaf(Range(starturl+1, endurl-1), LeafKind.STR)) # email
-            state.events.append(Event.exit(Range(endurl, endurl), ContainerKind.EMAIL)) # >
+            state.events.append(Event.enter(Range(starturl, starturl), InlineContainer.EMAIL)) # <
+            state.events.append(Event.leaf(Range(starturl+1, endurl-1), InlineLeaf.STR)) # email
+            state.events.append(Event.exit(Range(endurl, endurl), InlineContainer.EMAIL)) # >
             return endurl+1 # after  >
         elif is_url(url):
-            state.events.append(Event.enter(Range(starturl, starturl), ContainerKind.URL)) # <
-            state.events.append(Event.leaf(Range(starturl+1, endurl-1), LeafKind.STR)) # url
-            state.events.append(Event.exit(Range(endurl, endurl), ContainerKind.URL)) # >
+            state.events.append(Event.enter(Range(starturl, starturl), InlineContainer.URL)) # <
+            state.events.append(Event.leaf(Range(starturl+1, endurl-1), InlineLeaf.STR)) # url
+            state.events.append(Event.exit(Range(endurl, endurl), InlineContainer.URL)) # >
             return endurl+1 # after >
         
         return None
