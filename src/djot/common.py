@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import List
 
 
 @dataclass(slots=True)
@@ -9,10 +8,6 @@ class Range:
 
     def shrink_end(self, end: int):
         self.start = end
-
-@dataclass(slots=True)
-class MatchedRange(Range):
-    captures: List[str]
 
 @dataclass(slots=True)
 class SourceLoc:
