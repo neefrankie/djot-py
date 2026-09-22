@@ -1,9 +1,34 @@
+from dataclasses import dataclass
 import re
-from typing import Optional
+from typing import List, Optional
 
-from .common import MatchedRange
-from .find import find
 from .common import Range
+
+@dataclass(slots=True, frozen=True)
+class MatchedRange:
+    start: int
+    end: int
+    captures: List[str]
+    
+# The TS version `find` is is a hack of JS regular expression,
+# which is already implemented by Python re.Pattern.search.
+def find(
+    subject: str, 
+    patt: re.Pattern, 
+    startpos: int, 
+    endpos: int | None = None
+) -> MatchedRange | None:
+    if endpos is not None:
+        m = patt.search(subject, startpos, endpos + 1)
+    else:
+        m = patt.search(subject, startpos)
+
+    if m:
+        return MatchedRange(
+            start=m.start(), # start of whole match.
+            end=m.end()-1, # the last char of whole match.
+            captures=list(m.groups()) # Match.groups() returns a tuple containing string or None.
+        )
 
 class InputText:
     _PATT_BANGS = re.compile(r'#+')
@@ -191,9 +216,6 @@ class InputText:
 
     def find(self, patt: re.Pattern) -> Optional[MatchedRange]:
         return find(self.src, patt, self.pos)
-
-    def find_from(self, patt: re.Pattern, start: int) -> Optional[MatchedRange]:
-        return find(self.src, patt, start)
 
     def find_bangs(self) -> Optional[MatchedRange]:
         return find(self.src, self._PATT_BANGS, self.pos)
