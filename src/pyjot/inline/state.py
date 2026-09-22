@@ -4,11 +4,10 @@ from typing import Dict, List, Optional
 
 from ..common import Range
 from ..input import InputText
-from ..options import Options
 from ..event import (
     Event,
     VerbatimKind,
-    LeafKind,
+    BlockLeaf,
     InlineLeaf,
 )
 from ..attributes import AttributeParser
@@ -58,7 +57,7 @@ class PendingSpan:
     close_event_idx: int
 
 class InlineState:
-    def __init__(self, cursor: InputText, options: Options):
+    def __init__(self, cursor: InputText):
         self.cursor = cursor
         self.events: List[Event] = []
 
@@ -148,31 +147,6 @@ class InlineState:
         )
 
         self.events.append(default_event)
-
-    def add_opener_2(self, name: str, startpos: int, endpos: int, kind: LeafKind | InlineLeaf):
-        if name not in self.openers:
-            self.openers[name] = []
-        
-            self.openers[name].append(
-                Opener(
-                    event_index=len(self.events),
-                    startpos=startpos,
-                    endpos=endpos,
-                    kind=None,
-                    sub_event_index=len(self.events),
-                    sub_startpos=None,
-                    sub_endpos=None,
-                )
-            )
-
-            self.events.append(
-                Event.leaf(
-                    Range(startpos, endpos),
-                    kind,
-                )
-            )
-        
-
 
     def get_openers(self, name: str) -> List[Opener]:
         return self.openers.get(name, [])
