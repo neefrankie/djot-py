@@ -5,7 +5,7 @@ from ..common import (
 )
 from ..event import (
     Event,
-    LeafKind,
+    InlineLeaf,
 )
 from .matcher import Matcher
 from .state import InlineState
@@ -16,5 +16,5 @@ class LeftParenMatcher(Matcher):
         # (
         if not state.destination:
             return None
-        state.add_opener('(', Event.leaf(Range(pos, pos), LeafKind.STR))
+        state.add_opener('(', Event.leaf(Range(pos, pos), InlineLeaf.STR))
         return pos+1
