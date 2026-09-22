@@ -5,7 +5,7 @@ from ..common import (
 )
 from ..event import (
     Event,
-    LeafKind,
+    InlineLeaf,
 )
 from .matcher import Matcher
 from .state import InlineState
@@ -19,7 +19,12 @@ class PeriodMatcher(Matcher):
         
         """
         if state.cursor.find_two_periods(pos+1, endpos): # find two more periods after current dot.
-            state.events.append(Event.leaf(Range(pos, pos+2), LeafKind.ELLIPSES))
+            state.events.append(
+                Event.leaf(
+                    Range(pos, pos+2),
+                    InlineLeaf.ELLIPSES
+                )
+            )
             return pos+3
         
         return None
