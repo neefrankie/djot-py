@@ -5,7 +5,8 @@ from ..common import (
 )
 from ..event import (
     Event,
-    LeafKind,
+    BlockLeaf,
+    InlineLeaf,
 )
 from .matcher import Matcher
 from .state import InlineState
@@ -26,8 +27,19 @@ class ColonMatcher(Matcher):
         
         m = state.cursor.find_symbol(pos, endpos)
         if m:
-            state.events.append(Event.leaf(Range(m.start, m.end), LeafKind.SYMBOL)) 
+            # TODO: why not add colon?
+            state.events.append(
+                Event.leaf(
+                    Range(m.start, m.end),
+                    InlineLeaf.SYMBOL
+                )
+            ) 
             return m.end+1 # after closing :
         else:
-            state.events.append(Event.leaf(Range(pos, pos), LeafKind.STR)) # : is plain text.
+            state.events.append(
+                Event.leaf(
+                    Range(pos, pos),
+                    InlineLeaf.STR
+                )
+            ) # : is plain text.
             return pos+1
