@@ -1,13 +1,12 @@
-from pyjot.event import InlineContainer, InlineLeaf
-from pyjot.input import InputText
-
 from ..common import (
     Range,
 )
 from ..event import (
     Event,
-    InlineLeaf,
+    InlineContainer,
+    InlineLeaf
 )
+from ..input import InputText
 from .state import InlineState
 from .between import BetweenMatcher
 
