@@ -88,7 +88,7 @@ class Container(Generic[T]):
     rule: 'BlockRule'
     indent: Optional[int] = None
     inline_parser: Optional[InlineParser] = None
-    attribute_parser: Optional[AttributeParser] = None
+    attribute_parser: Optional[AttributeParser] = None # parse block attributes
     data: Optional[T] = None
 
     @property
