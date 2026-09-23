@@ -44,8 +44,6 @@ class AttributeRule(BlockRule):
     kind: ContainerCap = ContainerCap.BLOCK
     accepts_content: ContainerCap = ContainerCap.ATTRIBUTES
 
-    _PATT_ENDLINE = re.compile(r'[ \t]*\r?\n')
-
     def try_open(self, cursor: InputText) -> RuleResult:        
         if not cursor.peek_char_is('{'):
             return RuleResult.fail()
@@ -56,34 +54,21 @@ class AttributeRule(BlockRule):
         if res.is_fail(): # Cursor is not moved. No need to rewind.
             return RuleResult.fail()
 
-        if res.is_done():
-            # After attributes are parsed, the line should only be left
-            # with optional spaces followed by newline.
-            if cursor.find_endline(res.position + 1) is None:
-                # Why finished_line is not set here?
-                return RuleResult.fail()
+        # Attributes should stand alone on a line.
+        if res.is_done() and not cursor.is_rest_of_line_blank(res.position + 1):
+            return RuleResult.fail()
 
         container = Container(
             rule=self,
-            data=AttributeData(
-                status=res.status,
-                indent=cursor.indent,
-                startpos=cursor.pos,
-                spans=[
-                    Range(
-                        start=cursor.pos,
-                        end=cursor.eol_start,
-                    ) # the range of attributes parsed.
-                ]
-            ),
-            attribute_parser=attribute_parser, # so that parsing could continue to next line.
+            data=None,
         )
         
         cursor.advance_to_eol()
         return RuleResult(
             status=FlowControl.OPEN,
+            events=attribute_parser.events,
             container=container,
-        ) # No event is returned. They are kept in AttributeParser for easy rewind. Why finished_line is not turned to True here?
+        ) # TODO: Why finished_line is not turned to True here?
 
     def on_continue(
         self,
