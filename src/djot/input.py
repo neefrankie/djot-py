@@ -18,10 +18,17 @@ def find(
     startpos: int, 
     endpos: int | None = None
 ) -> MatchedRange | None:
+    """
+    In djot.js, the find function is implemented by JS regular expression.
+
+    It first creates new RegExp(patt, 'yd'), which means that match must start at the RegExp.lastIndex property.
+    When you can `find`, it will set `patt.lastIndex = startpos` to enfore a `^` behavior.
+    In Python, it is equivalent to `match` rather than `search`.
+    """
     if endpos is not None:
-        m = patt.search(subject, startpos, endpos + 1)
+        m = patt.match(subject, startpos, endpos + 1)
     else:
-        m = patt.search(subject, startpos)
+        m = patt.match(subject, startpos)
 
     if m:
         return MatchedRange(
@@ -61,7 +68,7 @@ class InputText:
     _PATT_ROW_SEP = re.compile(r'(:?)--*(:?)([ \t]*\|[ \t]*)')
     _PATT_NEXT_BAR_OR_TICK = re.compile(r'[^`|\r\n]*(?:[|]|`+)')
     _PATT_WORD = re.compile(r'\w+\s')
-    _PATT_ENDLINE = re.compile(r'[ \t]*\r?\n')
+    
     _PATT_DIV_FENCE_START = re.compile(r'(::::*)[ \t]*')
     _PATT_DIV_FENCE_END = re.compile(r'([\w_-]*)[ \t]*\r?\n')
     _PATT_DIV_FENCE = re.compile(r'(::::*)[ \t]*\r?\n')
@@ -94,6 +101,7 @@ class InputText:
     # use short plain str is always optimal in Python.
     _WHITESPACE = ' \t\r\n'
     _SPACE_TAB = ' \t'
+    _CR_LF = '\r\n'
     
 
     # TODO: should we collect all the match logic in InputText?
@@ -117,7 +125,7 @@ class InputText:
         return self.length - 1
 
     @property
-    def is_blank_line(self) -> bool:
+    def is_blank_line(self) -> bool: # TODO: rename
         return self.pos == self.eol_start
 
     def is_eof(self) -> bool:
@@ -226,6 +234,43 @@ class InputText:
         
         return self.src[self.pos] == ch
 
+    def is_rest_of_line_blank(self, start: int) -> bool:
+        while start < self.length:
+            c = self.src[start]
+            if c in self._SPACE_TAB:
+                start += 1
+            elif c in self._CR_LF:
+                return True
+            else:
+                return False # non-space
+
+        return False # EOF without newline.
+
+    def find_rest_of_line_blank_end(self, pos: int, endpos: int) -> Optional[int]:
+        """
+        从 pos 位置开始扫描，如果直到行尾（包含 \n 或 \r\n）只有空格或制表符，
+        返回换行符结束的字符索引 (inclusive)；否则（遇到非空白字符）返回 None。
+        """
+        curr = pos
+        # 计算实际扫描的上限
+        limit = min(self.length, endpos + 1)
+        
+        while curr < limit:
+            c = self.src[curr]
+            if c in (' ', '\t'):
+                curr += 1
+            elif c == '\n':
+                return curr  # match \n，return position
+            elif c == '\r':
+                # Handle \r\n
+                if curr + 1 < limit and self.src[curr + 1] == '\n':
+                    return curr + 1
+                return curr
+            else:
+                return None  # Non-space char (like '\a'), not Hard Break
+                
+        return None
+
     def find(self, patt: re.Pattern) -> Optional[MatchedRange]:
         return find(self.src, patt, self.pos)
 
@@ -277,9 +322,6 @@ class InputText:
 
     def find_word(self) -> Optional[MatchedRange]:
         return find(self.src, self._PATT_WORD, self.pos)
-
-    def find_endline(self, start: int, endpos: Optional[int] = None) -> Optional[MatchedRange]:
-        return find(self.src, self._PATT_ENDLINE, start, endpos)
 
     def find_div_fence_start(self) -> Optional[MatchedRange]:
         return find(self.src, self._PATT_DIV_FENCE_START, self.pos)
