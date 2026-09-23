@@ -213,6 +213,18 @@ class InputText:
             start=min(self.pos, self.maxoffset),
             end=min(self.eol_end, self.maxoffset)
         )
+    
+    def char_at(self, i: int) -> Optional[str]:
+        if i >= self.length:
+            return None
+
+        return self.src[i]
+
+    def peek_char_is(self, ch: str) -> bool:
+        if self.pos >= self.length or self.pos < 0:
+            return False
+        
+        return self.src[self.pos] == ch
 
     def find(self, patt: re.Pattern) -> Optional[MatchedRange]:
         return find(self.src, patt, self.pos)
@@ -361,20 +373,7 @@ class InputText:
         if pos == 0: # start
             return True
 
-        return self.src[pos-1] in ' \t\r\n"\'-(['
-
-
-    def next_char(self) -> Optional[str]:
-        if self.pos > self.maxoffset:
-            return None
-
-        return self.src[self.pos]
-
-    def char_at(self, i: int) -> Optional[str]:
-        if i > self.maxoffset:
-            return None
-
-        return self.src[i]
+        return self.src[pos-1] in ' \t\r\n"\'-(['    
 
     def find_trailing_space_tab(self, span: Range) -> int:
         """Find out trailing space starting position
