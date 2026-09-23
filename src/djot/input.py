@@ -103,10 +103,6 @@ class InputText:
     _SPACE_TAB = ' \t'
     _CR_LF = '\r\n'
     
-
-    # TODO: should we collect all the match logic in InputText?
-    # If so, does it actually play the role of a Lexer?
-    
     def __init__(self, src: str) -> None:
         if src and src[-1] != '\n':
             src += '\n'
@@ -125,7 +121,7 @@ class InputText:
         return self.length - 1
 
     @property
-    def is_blank_line(self) -> bool: # TODO: rename
+    def is_blank_line(self) -> bool:
         return self.pos == self.eol_start
 
     def is_eof(self) -> bool:
