@@ -26,9 +26,9 @@ class BackslashMatcher(Matcher):
         
         """
         # Inspect if backslash is followed by [ \t]*\r?\n
-        m_line_end = state.cursor.find_endline(pos+1, endpos)
+        line_end_pos = state.cursor.find_rest_of_line_blank_end(pos+1, endpos)
         # Hardbreak.
-        if m_line_end is not None:
+        if line_end_pos is not None:
             # see if there were preceding spaces and remove them.
             # Look like: `hello  \   \n`
             state.trim_last_str_span_trailing()
@@ -43,11 +43,11 @@ class BackslashMatcher(Matcher):
             # The following is hard break.
             state.events.append(
                 Event.leaf(
-                    Range(pos+1, m_line_end.end),
+                    Range(pos+1, line_end_pos),
                     InlineLeaf.HARD_BREAK
                 )
             )
-            return m_line_end.end + 1 # new pos starts after newline.
+            return line_end_pos + 1 # new pos starts after newline.
         
         # Check if backslash if followed by any punctuations.
         # You might write somthihg like
