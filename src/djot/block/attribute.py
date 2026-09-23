@@ -46,12 +46,8 @@ class AttributeRule(BlockRule):
 
     _PATT_ENDLINE = re.compile(r'[ \t]*\r?\n')
 
-    def try_open(self, cursor: InputText) -> RuleResult:
-        ch = cursor.next_char()
-        if ch is None:
-            return RuleResult.fail()
-        
-        if ord(ch) != 123: # {
+    def try_open(self, cursor: InputText) -> RuleResult:        
+        if not cursor.peek_char_is('{'):
             return RuleResult.fail()
 
         attribute_parser = AttributeParser(cursor)
