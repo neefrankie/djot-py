@@ -23,6 +23,8 @@ val <- bareval | quotevdval
 bareval <- (ASCII_ALPHANUM | '.' | '-' | '_')+
 
 quotedval <- '"' ([^"] | '\"') '"'
+
+NOTE: this is the original js doc. My impelementation does not support newline and comment in attributes.
 """
 
 import string
@@ -44,10 +46,10 @@ class State(Enum):
     SCANNING_VALUE = 4
     SCANNING_BARE_VALUE = 5
     SCANNING_QUOTED_VALUE = 6
-    SCANNING_QUOTED_VALUE_CONTINUATION = 7
+    SCANNING_QUOTED_VALUE_CONTINUATION = 7 # TODO: remove
     SCANNING_ESCAPED = 8
-    SCANNING_ESCAPED_IN_CONTINUATION = 9
-    SCANNING_COMMENT = 10
+    SCANNING_ESCAPED_IN_CONTINUATION = 9 # TODO: remove
+    SCANNING_COMMENT = 10 # TODO: remove
     FAIL = 11
     DONE = 12
     START = 13
@@ -88,6 +90,9 @@ class AttrParseResult:
 
 
 class AttributeParser:
+
+    _SPACE_TAB = ' \t'
+
     def __init__(self, cursor: InputText):
         self.cursor = cursor
         self.state = State.START
@@ -120,13 +125,10 @@ class AttributeParser:
                 self.lastpos = pos
                 pos += 1
 
-        # If state is neither DONE nor FAIL, and endpos is reached,
-        # return CONTINUE to tell main parser that parsing should continue
-        # to next line.
-        # However, I want don't want to support newline inside attribute.
-        # Keep attributes on one line.
+        # Default to FAIL.
+        # This differs from js version, which returns CONTINUE to support newline in attributes.
         return AttrParseResult(
-            status=AttrFlowControl.CONTINUE, # TODO: to forbid newline in attributes, should we return FAIL?
+            status=AttrFlowControl.FAIL,
             position=endpos
         )
 
@@ -144,8 +146,8 @@ class AttributeParser:
                 return State.DONE
             case State.SCANNING:
                 return self._scanning(pos)
-            case State.SCANNING_COMMENT:
-                return self._scanning_comment(pos)
+            # case State.SCANNING_COMMENT:
+            #     return self._scanning_comment(pos)
             case State.SCANNING_ID:
                 # Point to position after #
                 return self._scanning_id(pos)
@@ -159,8 +161,8 @@ class AttributeParser:
                 return self._scanning_bare_value(pos)
             case State.SCANNING_ESCAPED:
                 return self._scanning_escaped(pos)
-            case State.SCANNING_ESCAPED_IN_CONTINUATION:
-                return self._scanning_escaped_in_continuation(pos)
+            # case State.SCANNING_ESCAPED_IN_CONTINUATION:
+            #     return self._scanning_escaped_in_continuation(pos)
             case State.SCANNING_QUOTED_VALUE:
                 return self._scanning_quoted_value(pos)
             case _:
@@ -182,8 +184,6 @@ class AttributeParser:
         """
         ch = self.cursor.src[pos]
         match ch:
-            case '\n' | '\r': # TODO: does this mean supporting newline? what if we disallow newline?
-                return State.SCANNING
             case ' ' | '\t':
                 self.add_event(
                     Event.attr(
@@ -204,10 +204,6 @@ class AttributeParser:
                     )
                 )
                 return State.SCANNING_ID
-            case '%':
-                # self.begin point to %
-                self.begin = pos
-                return State.SCANNING_COMMENT
             case '.':
                 self.begin = pos
                 self.add_event(
@@ -222,38 +218,6 @@ class AttributeParser:
                 return State.SCANNING_KEY
             case _:
                 return State.FAIL
-        
-    def _scanning_comment(self, pos: int) -> State:
-        """
-        Equivalent to js version handlers[State.SCANNING_COMMENT]
-        
-        Example:
-
-        % foo bar }
-        % foo bar %
-                            ⃔
-        SCANNING -> SCANNING_COMMENT -> DONE
-          |<-----------|
-        """
-        ch = self.cursor.src[pos]
-        # Already in comment, `%` or `}` mean end of comment
-        match ch:
-            case '%':
-                # If pos is at the start of comment, begin == pos.
-                if self.begin is not None and pos > self.begin:
-                    self.add_event(
-                        Event.attr(
-                            Range(self.begin, pos),
-                            AttrKind.COMMENT
-                        )
-                    )
-                return State.SCANNING
-            case '}':
-                # Comment extending to end of attribute list
-                return State.DONE
-            case _:
-                # In the middle of comment
-                return State.SCANNING_COMMENT
         
     def _scanning_id(self, pos: int) -> State:
         """
@@ -285,7 +249,8 @@ class AttributeParser:
             return State.DONE
 
         # Space indicates current id attrbute ends.
-        if ch.isspace():
+        # Here it differs from js version. We don't permit newline.
+        if ch in self._SPACE_TAB: 
             # the id is ended.
             if self.begin and self.lastpos and self.lastpos > self.begin: # content
                 self.add_event(
@@ -294,15 +259,13 @@ class AttributeParser:
                         AttrKind.ID
                     )
                 )
-            # if current character is space but not newline. Why save space?
-            # TODO: How to handle it if we disallow newline?
-            if not (ch == '\r' or ch == '\n'):
-                self.add_event(
-                    Event.attr(
-                        Range(pos, pos), 
-                        AttrKind.SPACE
-                    )
+
+            self.add_event(
+                Event.attr(
+                    Range(pos, pos), 
+                    AttrKind.SPACE
                 )
+            )
             # Prepare to scan next attribute.
             self.begin = None
             return State.SCANNING
@@ -334,7 +297,7 @@ class AttributeParser:
             self.begin = None
             return State.DONE
 
-        if ch.isspace(): # space
+        if ch in self._SPACE_TAB: # Differs from js vesion. We don't permit newline.
             if self.begin and self.lastpos and self.lastpos > self.begin:
                 self.add_event(
                     Event.attr(
@@ -342,13 +305,13 @@ class AttributeParser:
                         kind=AttrKind.CLASS,
                     )
                 )
-            if not (ch == '\r' or ch == '\n'):
-                self.add_event(
-                    Event.attr(
-                        Range(pos, pos),
-                        kind=AttrKind.SPACE
-                    )
+            
+            self.add_event(
+                Event.attr(
+                    Range(pos, pos),
+                    kind=AttrKind.SPACE
                 )
+            )
             self.begin = None
             return State.SCANNING
         
@@ -419,20 +382,21 @@ class AttributeParser:
             self.begin = None
             return State.DONE
 
-        if ch.isspace() and self.begin and self.lastpos: # finished key=value
+        # It differs from js version. We don't permit newline.
+        if ch in self._SPACE_TAB and self.begin and self.lastpos: # finished key=value
             self.add_event(
                 Event.attr(
                     Range(self.begin, self.lastpos),
                     kind=AttrKind.VALUE
                 )
             )
-            if not (ch == '\r' or ch == '\n'): # TODO: disalloww newline.
-                self.add_event(
-                    Event.attr(
-                        Range(pos, pos),
-                        kind=AttrKind.SPACE
-                    )
+            
+            self.add_event(
+                Event.attr(
+                    Range(pos, pos),
+                    kind=AttrKind.SPACE
                 )
+            )
             self.begin = None
             return State.SCANNING
         
@@ -440,9 +404,6 @@ class AttributeParser:
         
     def _scanning_escaped(self, pos: int) -> State:
         return State.SCANNING_QUOTED_VALUE
-    
-    def _scanning_escaped_in_continuation(self, pos: int) -> State:
-        return State.SCANNING_QUOTED_VALUE_CONTINUATION
     
     def _scanning_quoted_value(self, pos: int) -> State:
         """
@@ -464,57 +425,14 @@ class AttributeParser:
             )
             self.begin = None
             return State.SCANNING
-        
-        elif ch == '\n' and self.begin and self.lastpos: # TODO: forbid newline.
-            self.add_event(
-                Event.attr(
-                    Range(self.begin+1, self.lastpos),
-                    kind=AttrKind.VALUE
-                )
-            )
-            self.begin = None
-            return State.SCANNING_QUOTED_VALUE_CONTINUATION
-        elif ch == '\\':
-            return State.SCANNING_ESCAPED
-        else:
-            return State.SCANNING_QUOTED_VALUE
-        
-    def _scanning_quoted_value_continuation(self, pos: int) -> State:
-        """
-        Equivalent to js version handlers[State.SCANNING_QUOTED_VALUE_CONTINUATION]
-        """
-        ch = self.cursor.src[pos]
-        if self.begin is None:
-            self.begin = pos
 
-        if ch == '"' and self.begin and self.lastpos: # closing "
-            self.add_event(
-                Event.attr(
-                    Range(self.begin, self.lastpos),
-                    kind=AttrKind.VALUE
-                )
-            )
-            self.add_event(
-                Event.attr(
-                    Range(pos, pos),
-                    kind=AttrKind.QUOTE_MARKER
-                )
-            )
-            self.begin = None
-            return State.SCANNING
-        elif ch == '\n' and self.begin and self.lastpos: # TODO: forbid newline.
-            self.add_event(
-                Event.attr(
-                    Range(start=self.begin,
-                    end=self.lastpos),
-                    kind=AttrKind.VALUE
-                )
-            )
-            self.begin = None
-            return State.SCANNING_QUOTED_VALUE_CONTINUATION
-        elif ch == '\\':
-            return State.SCANNING_ESCAPED_IN_CONTINUATION
-        else:
-            return State.SCANNING_QUOTED_VALUE_CONTINUATION
+        # Here it dffers from js version. We don't permit newline.
+        if ch in '\r\n' and self.begin and self.lastpos:
+            return State.FAIL
+
+        if ch == '\\':
+            return State.SCANNING_ESCAPED
+        
+        return State.SCANNING_QUOTED_VALUE
             
 
