@@ -198,6 +198,14 @@ class Event:
         return False
 
     @classmethod
+    def new(cls, start: int, end: int, kind: EventKind, action: Optional[Action] = None) -> 'Event':
+        return cls(
+            span=Range(start=start, end=end),
+            kind=kind,
+            action=action,
+        )
+
+    @classmethod
     def enter(cls, span: Range, kind: BlockContainer | VerbatimKind | InlineContainer) -> 'Event':
         return cls(
             span=span,
