@@ -61,8 +61,14 @@ class Opener:
 
 @dataclass(slots=True, frozen=True)
 class PendingSpan:
-    open_event_idx: int
-    close_event_idx: int
+    """The position of possible Span event
+    
+    When the bracket part of [text]{.class} is seen, you cannot determine
+    if it is a span element until the following attribute is parsed.
+    If attribute parsing fails, the span should degenerate to plain text.
+    """
+    open_event_idx: int # Event index for [
+    close_event_idx: int # Event index for ]
 
 class InlineState:
     def __init__(self, cursor: InputText, options: Options):
@@ -82,10 +88,10 @@ class InlineState:
         self.destination = False # If inside link destination
 
         self.allow_attributes = True # allow parsing of attributes.
-        self.attribute_parser: Optional[AttributeParser] = None
-        self.attribute_start: Optional[int] = None # start pos of potential attribute
-        self.attribute_spans: Optional[List[Range]] = None # spans we've tried to parse as attributes
-        self.pending_span: Optional[PendingSpan] = None
+
+        self.in_attribute: bool = False
+        # Initiated in when a } is seen followed by a {.
+        self.pending_span: Optional[PendingSpan] = None 
 
     @property
     def last_event(self) -> Optional[Event]:
@@ -98,6 +104,9 @@ class InlineState:
     def replace_event(self, event: Event, idx: int):
         if idx < len(self.events):
             self.events[idx] = event
+
+    def extend_events(self, events: List[Event]):
+        self.events.extend(events)
 
     def push_event(self, event: Event):
         self.events.append(event)
@@ -202,20 +211,18 @@ class InlineState:
             i += 1
 
     def init_attribute_parser(self, pos: int):
-        """Create attribute parser
-        
-        When a `{` if encountered, and it is not followed by
-        inline markup like *, -, etc., it is taken as starting
-        attributes.
-        """
-        self.attribute_parser = AttributeParser(self.cursor)
-        self.attribute_start = pos
-        self.attribute_spans = []
+        self.in_attribute = True
 
     def reset_attribute_state(self):
-        self.attribute_parser = None
-        self.attribute_start = None
-        self.attribute_spans = None
+        self.in_attribute = False
+
+    def demote_span_to_str(self):
+        if self.pending_span is None:
+            return
+
+        self.events[self.pending_span.open_event_idx].demote_to_str()
+        self.events[self.pending_span.close_event_idx].demote_to_str()
+
         self.pending_span = None
 
     def get_matches(self) -> List[Event]:
