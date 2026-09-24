@@ -240,10 +240,11 @@ class InputText:
 
         return False # EOF without newline.
 
+    # re.compile(r'[ \t]*\r?\n')
     def find_rest_of_line_blank_end(self, pos: int, endpos: int) -> Optional[int]:
         """
-        从 pos 位置开始扫描，如果直到行尾（包含 \n 或 \r\n）只有空格或制表符，
-        返回换行符结束的字符索引 (inclusive)；否则（遇到非空白字符）返回 None。
+        Scan from pos to the end of line, if there's only space in between,
+        return the EOL index; otherwise returns None.
         """
         curr = pos
         # 计算实际扫描的上限
@@ -265,15 +266,17 @@ class InputText:
                 
         return None
 
+    # re.compile(r'''['!"#%&\\'()*+,\-./:;<=>?@\[\]^`{|}~']''')
     def is_ascii_punct(self, pos: int) -> bool:
         if pos >= self.length:
             return False
 
         return self.src[pos] in string.punctuation
 
-    def scan_any_backtick(self, pos: int, endpos: int) -> Optional[int]:
+    # re.compile(r'`*')
+    def find_any_backtick(self, pos: int, endpos: int) -> Optional[int]:
         """
-        Scan zeor or more consecutive backticks.
+        Find zero or more consecutive backticks.
 
         Returns:
             The position of last backtick, or None if nothing found.
@@ -291,23 +294,27 @@ class InputText:
 
         return i-1
 
+    # re.compile(r'\$\$')
     def is_double_dollars(self, pos: int) -> bool:
         if pos < 0 or pos+1 >= self.length:
             return False
         
         return self.src[pos] == '$' and self.src[pos+1] == '$'
 
+    # re.compile(r'\$')
     def is_single_dollar(self, pos: int) -> bool:
         if pos < 0 or pos >= self.length:
             return False
         return self.src[pos] == '$' and self.src[pos+1] != '$'
 
+    # re.compile(r'\\')
     def is_backslash(self, pos: int) -> bool:
         if pos < 0 or pos >= self.length:
             return False
         
         return self.src[pos] == '\\'
 
+    # re.compile(r'''[_*~^+='"-]''')
     def is_delimiter(self, pos: int) -> bool:
         if pos < 0 or pos >= self.length:
             return False
@@ -410,19 +417,15 @@ class InputText:
     def find_two_periods(self, pos: int, endpos: int) -> Optional[MatchedRange]:
         return find(self.src, self._PATT_TWO_PERIODS, pos, endpos)
 
+    # re.compile(r'\^([^\]]+)\]')
     def find_note_reference(self, pos: int, endpos: int) -> Optional[MatchedRange]:
-        """
-        Find pattern like `^foo]`
-        """
-        return find(self.src, self._PATT_NOTE_REFERENCE, pos, endpos)
-
-    def scan_note_reference(self, pos: int, endpos: int) -> Optional[MatchedRange]:
         if self.src[pos] != '^':
             return None
 
         start = pos
-        pos = pos + 1
-        while pos <= endpos:
+        limit = min(self.length, endpos+1)
+
+        while pos <= limit:
             c = self.src[pos]
             if c == ']':
                 return MatchedRange(
