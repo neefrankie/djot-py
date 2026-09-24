@@ -93,6 +93,9 @@ class AttrKind(Enum):
     QUOTE_MARKER = auto()
     SPACE = auto()
     VALUE = auto()
+
+    def __str__(self) -> str:
+        return self.name
     
 
 class Alignment(Enum):
