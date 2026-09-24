@@ -14,6 +14,7 @@ from djot.options import Options
 from djot.inline.backslash import BackslashMatcher
 from djot.inline.backtick import BacktickMatcher
 from djot.inline.brace_left import LeftBraceMatcher
+from djot.inline.bracket_left import LeftBracketMatcher
 
 @dataclass
 class TestData:
@@ -53,11 +54,12 @@ class TestMatcher(unittest.TestCase):
         ]
 
         for text, expected_pos, expected_events in cases:
-            state = InlineState(InputText(text), Options())
-            matcher = BackslashMatcher()
-            actual_pos = matcher(state, 0, len(text)-1)
-            self.assertEqual(actual_pos, expected_pos)
-            self.assertEqual(state.events, expected_events)
+            with self.subTest(text):
+                state = InlineState(InputText(text), Options())
+                matcher = BackslashMatcher()
+                actual_pos = matcher(state, 0, len(text)-1)
+                self.assertEqual(actual_pos, expected_pos)
+                self.assertEqual(state.events, expected_events)
 
     def test_backtick(self):
         cases = [
@@ -122,11 +124,38 @@ class TestMatcher(unittest.TestCase):
         ]
 
         for text, expected_pos, expected_events in cases:
-            state = InlineState(InputText(text), Options())
-            matcher = LeftBraceMatcher()
-            actual_pos = matcher(state, 0, len(text)-1)
-            self.assertEqual(actual_pos, expected_pos)
-            self.assertEqual(state.events, expected_events)
+            with self.subTest(text):
+                state = InlineState(InputText(text), Options())
+                matcher = LeftBraceMatcher()
+                actual_pos = matcher(state, 0, len(text)-1)
+                self.assertEqual(actual_pos, expected_pos)
+                self.assertEqual(state.events, expected_events)
+
+    def test_left_bracket(self):
+        cases = [
+            (
+                '[^foo]',
+                6,
+                [
+                    Event.new(0, 5, InlineLeaf.FOOTNOTE_REF)
+                ]
+            ),
+            (
+                '[foo]',
+                1,
+                [
+                    Event.new(0, 0, InlineLeaf.STR)
+                ]
+            )
+        ]
+
+        for text, expected_pos, expected_events in cases:
+            with self.subTest(text):
+                state = InlineState(InputText(text), Options())
+                matcher = LeftBracketMatcher()
+                actual_pos = matcher(state, 0, len(text)-1)
+                self.assertEqual(actual_pos, expected_pos)
+                self.assertEqual(state.events, expected_events)
 
 
 
