@@ -12,6 +12,7 @@ from .state import InlineState
 
 class LeftBraceMatcher(Matcher):
     def __call__(self, state: InlineState, pos: int, endpos: int) -> Optional[int]:
+        # Braced delimiter
         # { followed by any _*~^+='"-
         # {_italic_}
         # {*bold*}
@@ -23,7 +24,7 @@ class LeftBraceMatcher(Matcher):
         # {""}
         # {- -}
         # Implicit precedence: delimiter > attribute > plain text
-        if state.cursor.find_delimiter(pos+1, endpos):  # if next char is one of delimiters
+        if state.cursor.is_delimiter(pos+1):  # if next char is one of delimiters
             state.events.append( # current { is open marker
                 Event.leaf(
                     Range(pos, pos), 
@@ -32,6 +33,7 @@ class LeftBraceMatcher(Matcher):
             )
             return pos+1
 
+        # Attributes
         # Prepar to parse attributes from {
         # In djot.js there is a flag allow_attributes.
         # When attribute parsing failed, you could disable allow_attributes
