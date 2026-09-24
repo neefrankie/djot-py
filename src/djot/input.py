@@ -88,7 +88,8 @@ class InputText:
     # <https://pandoc.org/lua-filters>
     # <me@example.com>
     _PATT_AUTOLINK = re.compile(r'<([^<>\s]+)>')
-    _PATT_DELIM = re.compile(r'''[_*~^+='"-]''')
+    
+    _DELIMITERS = '_*~^+=\'"-'
     _PATT_SYMBOL = re.compile(r':[\w_+-]+:')
     _PATT_TWO_PERIODS = re.compile(r'\.\.')
     _PATT_NOTE_REFERENCE = re.compile(r'\^([^\]]+)\]')
@@ -307,6 +308,12 @@ class InputText:
         
         return self.src[pos] == '\\'
 
+    def is_delimiter(self, pos: int) -> bool:
+        if pos < 0 or pos >= self.length:
+            return False
+
+        return self.src[pos] in self._DELIMITERS
+
     def find(self, patt: re.Pattern) -> Optional[MatchedRange]:
         return find(self.src, patt, self.pos)
 
@@ -396,8 +403,6 @@ class InputText:
         # <me@example.com>
         return find(self.src, self._PATT_AUTOLINK, pos, endpos)
 
-    def find_delimiter(self, pos: int, endpos: int) -> Optional[MatchedRange]:
-        return find(self.src, self._PATT_DELIM, pos, endpos)
 
     def find_symbol(self, pos: int, endpos: int) -> Optional[MatchedRange]:
         return find(self.src, self._PATT_SYMBOL, pos, endpos)
