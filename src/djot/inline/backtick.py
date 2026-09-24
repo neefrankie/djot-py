@@ -14,7 +14,7 @@ class BacktickMatcher(Matcher):
 
     def __call__(self, state: InlineState, pos: int, endpos: int) -> Optional[int]:
         # Find zero or more backtick
-        endchar = state.cursor.scan_any_backtick(pos, endpos)
+        endchar = state.cursor.find_any_backtick(pos, endpos)
         if endchar is None:
             return None
         
