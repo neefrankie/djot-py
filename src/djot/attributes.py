@@ -34,7 +34,7 @@ from typing import Final, List
 
 from .event import Event, AttrKind
 from .input import InputText
-from .common import Range
+from .common import Range, is_name_char
 
 # states
 class State(Enum):
@@ -49,20 +49,6 @@ class State(Enum):
     FAIL = 11
     DONE = 12
     START = 13
-
-
-# In Python, str.isalnum() includes isalpha(), isdecimal(), isdigit().
-# They are not exactly identifical to regex defined in djot.js:
-# r'[a-zA-Z0-9_:-]'
-# For isalpha, 'µ'.isalpha() since non-ASCII characters can be considered alphabetical too
-# For isdecimal and isdigit, number in other language is also true
-# This actually equals string.ascii_letters + string.digits + '_:-'
-# Here's a strict version of ASCII char set permitted in key, bare value, id/class value.
-# Corresponds to regex r'[a-zA-Z0-9_:-]'
-_ASCII_ATTR_CHARS: Final = frozenset(string.ascii_letters + string.digits + "_:-")
-
-def is_ascci_attr_char(c: str) -> bool:
-    return c in _ASCII_ATTR_CHARS
 
 
 class AttrFlowControl(Enum):
@@ -284,7 +270,7 @@ class AttributeParser:
                     )
                 )
                 return State.SCANNING_CLASS
-            case _ if is_ascci_attr_char(ch):
+            case _ if is_name_char(ch):
                 self.begin = pos
                 return State.SCANNING_KEY
             case _:
@@ -304,7 +290,7 @@ class AttributeParser:
         ch = self.cursor.src[pos]
 
         # As long as the current character is in allowed characters, keep scanning.
-        if is_ascci_attr_char(ch):
+        if is_name_char(ch):
             return State.SCANNING_ID
 
         # } indicates the end of attribute list.
@@ -354,7 +340,7 @@ class AttributeParser:
         """
         ch = self.cursor.src[pos] # c points to the position after dot.
 
-        if is_ascci_attr_char(ch):
+        if is_name_char(ch):
             return State.SCANNING_CLASS
 
         if ch == '}':
@@ -410,7 +396,7 @@ class AttributeParser:
             self.begin = None
             return State.SCANNING_VALUE
 
-        if is_ascci_attr_char(ch):
+        if is_name_char(ch):
             return State.SCANNING_KEY
         
         return State.FAIL
@@ -428,7 +414,7 @@ class AttributeParser:
             )
             return State.SCANNING_QUOTED_VALUE
 
-        if is_ascci_attr_char(ch): # bare value
+        if is_name_char(ch): # bare value
             self.begin = pos
             # TODO: # does _scanning_bare_value points to the second char after here?
             # For example, `foo=bar`, upon entering _scanning_value, pos points to `b`.
@@ -440,7 +426,7 @@ class AttributeParser:
     def _scanning_bare_value(self, pos: int) -> State:
         ch = self.cursor.src[pos]
 
-        if is_ascci_attr_char(ch):
+        if is_name_char(ch):
             return State.SCANNING_BARE_VALUE
 
         if ch == '}' and self.begin and self.lastpos:
