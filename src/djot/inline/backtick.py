@@ -14,16 +14,14 @@ class BacktickMatcher(Matcher):
 
     def __call__(self, state: InlineState, pos: int, endpos: int) -> Optional[int]:
         # Find zero or more backtick
-        m = state.cursor.find_opening_backtick(pos, endpos)
-        if m is None:
+        endchar = state.cursor.scan_any_backtick(pos, endpos)
+        if endchar is None:
             return None
         
-        # Now we have opening backtick.
-        endchar = m.end # position of last found backtick
         # $$` x^n + y^n = z^n `
         # If previous two characters are $$, and not preceded by a backslash,
         # it's a display math.
-        if state.cursor.find_double_dollar(pos-2) and (not state.cursor.find_backslash(pos-3)):
+        if state.cursor.is_double_dollars(pos-2) and (not state.cursor.is_backslash(pos-3)):
             # Merge previous 2 dollar sign with current token.
             state.events.pop() # remove first $
             state.events.pop() # remove second $
@@ -35,13 +33,16 @@ class BacktickMatcher(Matcher):
                 )
             )
             # Entering into display math mode.
-            state.verbatim_type = VerbatimKind.DISPLAY_MATH
+            state.set_verbatim(pos, endchar, VerbatimKind.DISPLAY_MATH)
+            return endchar+1
+
+        # Inline match.
         # it might be:
         # - \$$
         # - $
         # - other text
         # What about \\$$?
-        elif state.cursor.find_single_dollar(pos-1):
+        if state.cursor.is_single_dollar(pos-1):
             # Merge the single dollar with current token.
             state.events.pop() # remove $
             state.events.append(
@@ -51,15 +52,16 @@ class BacktickMatcher(Matcher):
                 )
             )
             # Entering into inline math mode.
-            state.verbatim_type = VerbatimKind.INLINE_MATH
-        else:
-            state.events.append(
-                Event.enter(
-                    Range(pos, endchar),
-                    kind=VerbatimKind.VERBATIM,
-                )
+            state.set_verbatim(pos, endchar, VerbatimKind.INLINE_MATH)
+            return endchar+1
+        
+        # Plain verbatim
+        state.events.append(
+            Event.enter(
+                Range(pos, endchar),
+                kind=VerbatimKind.VERBATIM,
             )
-            # Plain verbatim
-            state.verbatim_type = VerbatimKind.VERBATIM
-        state.verbatim_len = endchar - pos + 1 # length of backticks.
+        )
+        
+        state.set_verbatim(pos, endchar, VerbatimKind.VERBATIM)
         return endchar+1 # after `
