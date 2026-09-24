@@ -30,7 +30,6 @@ NOTE: this is the original js doc. My impelementation does not support newline a
 import string
 from dataclasses import dataclass
 from enum import Enum
-import re
 from typing import Final, List
 
 from .event import Event, AttrKind
@@ -72,24 +71,94 @@ def is_ascci_attr_char(c: str) -> bool:
 class AttrFlowControl(Enum):
     DONE = 0
     FAIL = 1
-    CONTINUE = 2 # TODO: remove this to disable newline inside attributes.
 
 @dataclass(slots=True, frozen=True)
 class AttrParseResult:
     status: AttrFlowControl # TODO: if AttrFlowControl has only DONE and FAIL, is this still needed?
-    position: int
+    position: int # Point to } if DONE, otherwise point to start position.
 
     def is_done(self) -> bool:
         return self.status == AttrFlowControl.DONE
     
     def is_fail(self) -> bool:
         return self.status == AttrFlowControl.FAIL
-    
-    def is_continue(self) -> bool:
-        return self.status == AttrFlowControl.CONTINUE
 
 
 class AttributeParser:
+    """Parse block or inline attributes.
+
+    This implementation differs from djot specification.
+
+    Original specification on attributes are as follows:
+
+    ## Inline attributes
+
+    Attributes are put inside curaly braces and must immediately
+    follow the inline element to which they are attached (with no
+    intervening whitespace).
+
+    % begins a comenet, which ends with the next % or the end of
+    the attrbute `}`
+
+    Attribute specifiers may contain line breaks.
+
+    Example:
+
+    ```
+    An attribute on _emphasis text_{# foo
+    .bar .baz key="my value"}
+
+    avant{lang=fr}{.blue}
+    ```
+    
+    ## Block attributes
+    
+    A line immediately before the block.
+    Block attributes have the same syntax as inline attributes,
+    but if they don't fit on one line, subsequence lines must be indented.
+    Repeated attribute specifiers can be used, and the attributes
+    will accumulate.
+
+    
+    {#water}
+    {.important .large}
+    Don't forget to turn off the water.
+
+
+    ## My restriction on attributes.
+
+    Permitting line break inside attributes causes a lot trouble
+    to implement. You have to use a lot of backtracing,
+    which is against the spirit of djot.
+
+    I guess the cause of the problem comes from comment. It looks like this with comment inside attributes:
+
+    ```
+    {#ident % later we'll add a class % }
+    ```
+
+    Whe there is only comment in attributes, it degrades to
+    a comment-only attribute. That's why `{% ... %}` serve as
+    a general way to add comment.
+    When you write a comment-only attribute, you naturally want
+    to have line breaks.
+    This approach make `{ }` serving totally different purposes. 
+    What's more, there is a repetition for block attributes.
+    Repeated attribute specifiers play the same role line breaks
+    in attribute.
+    If we really want to support continuation to another line, 
+    why not use another `{ }` on a new line? 
+    Multiple lines of `{ }` is much easier to parse.
+
+    Comment in attributes causes a lot trouble.
+    In reality, it's not a must-have feature.
+    So I decided to restrcit attribute on one line,
+    and no comment in attributes.
+
+    This will greatly simplify the implementation.
+    Whenever a `{` appeared, feed it to the the end of line.
+    If closing `}` is not found, it's a fail.
+    """
 
     _SPACE_TAB = ' \t'
 
@@ -110,6 +179,7 @@ class AttributeParser:
         pos = startpos
         while pos <= endpos:
             self.state = self.step(self.state, pos)
+            # State turned to DONE only when pos points to `}`
             if self.state == State.DONE:
                 return AttrParseResult(
                     status=AttrFlowControl.DONE, 
@@ -129,7 +199,7 @@ class AttributeParser:
         # This differs from js version, which returns CONTINUE to support newline in attributes.
         return AttrParseResult(
             status=AttrFlowControl.FAIL,
-            position=endpos
+            position=pos
         )
 
 
@@ -161,8 +231,6 @@ class AttributeParser:
                 return self._scanning_bare_value(pos)
             case State.SCANNING_ESCAPED:
                 return self._scanning_escaped(pos)
-            # case State.SCANNING_ESCAPED_IN_CONTINUATION:
-            #     return self._scanning_escaped_in_continuation(pos)
             case State.SCANNING_QUOTED_VALUE:
                 return self._scanning_quoted_value(pos)
             case _:
