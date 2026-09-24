@@ -5,7 +5,6 @@ from ..common import (
 )
 from ..event import (
     Event,
-    BlockLeaf,
     InlineLeaf,
 )
 from .matcher import Matcher
@@ -22,7 +21,7 @@ class BackslashMatcher(Matcher):
         are just treated as literal backslashes, with the following exceptions:
 
         - Backslash before a newline (or before spaces or tabs followed by a newline) is parsed as a hard line break.
-        - Backslash before a space if parsed as non-breaking space.
+        - Backslash before a space is parsed as non-breaking space.
         
         """
         # Inspect if backslash is followed by [ \t]*\r?\n
@@ -31,7 +30,7 @@ class BackslashMatcher(Matcher):
         if line_end_pos is not None:
             # see if there were preceding spaces and remove them.
             # Look like: `hello  \   \n`
-            state.trim_last_str_span_trailing()
+            state.trim_last_event_if_str()
 
             # \ is escape
             state.events.append(
@@ -49,12 +48,12 @@ class BackslashMatcher(Matcher):
             )
             return line_end_pos + 1 # new pos starts after newline.
         
-        # Check if backslash if followed by any punctuations.
+        # Check if backslash is followed by any punctuations.
         # You might write somthihg like
         # \!, \", \#, \%, \&
-        m_punct = state.cursor.find_punctuation(pos+1, endpos)
+        next_pos = pos + 1
         
-        if m_punct is not None:
+        if state.cursor.is_ascii_punct(next_pos):
             # \ is escape
             state.events.append(
                 Event.leaf(
@@ -64,13 +63,14 @@ class BackslashMatcher(Matcher):
             )
             state.events.append(
                 Event.leaf(
-                    Range(m_punct.start, m_punct.end),
+                    Range(next_pos, next_pos),
                     InlineLeaf.STR
                 )
             )
-            return m_punct.end + 1
-        elif pos + 1 <= endpos and state.cursor.is_space(pos+1):
-            # \<space> is non-breaking space
+            return next_pos + 1
+
+        # non-breaking space
+        if pos + 1 <= endpos and state.cursor.is_space(pos+1):
             state.events.append(
                 Event.leaf(
                     Range(pos, pos),
@@ -84,12 +84,12 @@ class BackslashMatcher(Matcher):
                 )
             )
             return pos+2
-        else:
-            # Plain \
-            state.events.append(
-                Event.leaf(
-                    Range(pos, pos),
-                    InlineLeaf.STR
-                )
+        
+        # Plain \
+        state.events.append(
+            Event.leaf(
+                Range(pos, pos),
+                InlineLeaf.STR
             )
-            return pos+1
+        )
+        return pos+1
