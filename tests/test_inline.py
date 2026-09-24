@@ -6,14 +6,14 @@ from djot.event import (
     Event,
     InlineLeaf,
     VerbatimKind,
-    Action,
 )
+from djot.common import Range
 from djot.inline.state import InlineState
 from djot.input import InputText
 from djot.options import Options
 from djot.inline.backslash import BackslashMatcher
 from djot.inline.backtick import BacktickMatcher
-from djot.common import Range
+from djot.inline.brace_left import LeftBraceMatcher
 
 @dataclass
 class TestData:
@@ -103,6 +103,30 @@ class TestMatcher(unittest.TestCase):
                 actual_pos = matcher(state, c.args[0], c.args[1])
                 self.assertEqual(actual_pos, c.expected_pos)
                 self.assertEqual(state.events, c.expected_events)
+
+    def test_left_brace(self):
+        cases = [
+            (
+                '{_italic_}',
+                1,
+                [
+                    Event.new(0, 0, InlineLeaf.OPEN_MARKER)
+                ]
+            ),
+            (
+                '{#ident}',
+                0,
+                []
+
+            )
+        ]
+
+        for text, expected_pos, expected_events in cases:
+            state = InlineState(InputText(text), Options())
+            matcher = LeftBraceMatcher()
+            actual_pos = matcher(state, 0, len(text)-1)
+            self.assertEqual(actual_pos, expected_pos)
+            self.assertEqual(state.events, expected_events)
 
 
 
