@@ -1,14 +1,11 @@
 from dataclasses import dataclass
-import re
 
 from ..input import InputText
 from ..attributes import AttributeParser
-from ..common import Range
 
 from .container import (
     ContainerCap,
     Container,
-    AttributeData,
     FlowControl,
     BlockRule,
     RuleResult,
@@ -18,27 +15,7 @@ from .container import (
 
 @dataclass
 class AttributeRule(BlockRule):
-    """Block attributes
-    
-    A line immediately beforethe block.
-    Block attributes have the same syntax as inline attributes,
-    but if they don't fit on one line, subsequence lines must be indented.
-    Repeated attribute specifiers can be used, and the attributes
-    will accumulate.
-
-    
-    {#water}
-    {.important .large}
-    Don't forget to turn off the water.
-
-    In my opinion, there is a repetition of this specification.
-    Repeated attribute specifiers play the same role as multiple indented lines,
-    which is harder to implement.
-    If we really want to support continuation to another line, why not use
-    another `{ }` on a new line? Multiple lines of `{ }` is much easier to parse.
-
-    Or more strictly, just allow block attribute on one line, and only one line of attribute
-    above a block.
+    """
     """
 
     kind: ContainerCap = ContainerCap.BLOCK
