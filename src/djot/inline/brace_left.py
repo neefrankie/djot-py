@@ -31,20 +31,13 @@ class LeftBraceMatcher(Matcher):
                 )
             )
             return pos+1
-        elif state.allow_attributes:
-            # Prepar to parse attributes from {
-            # Why the flag allow_attributes?
-            # When attribute parsing failed, you could disable allow_attributes
-            # so that the parse could re-parse it as plain text.
-            # TODO: this might not be needed if we could simply attributes
-            # in Djot specification.
-            state.init_attribute_parser(pos)
-            return pos 
-        else:
-            state.events.append(
-                Event.leaf(
-                    Range(pos, pos),
-                    InlineLeaf.STR
-                )
-            ) # literal {
-            return pos+1
+
+        # Prepar to parse attributes from {
+        # In djot.js there is a flag allow_attributes.
+        # When attribute parsing failed, you could disable allow_attributes
+        # so that the parse could re-parse it as plain text.
+        # Since we do not permi newline in attribute, there is no backtracing.
+        # So always treat { as attribute start
+        # NOTE: escaped { won't go here. It is handled by backslash matcher.
+        state.init_attribute_parser(pos)
+        return pos
