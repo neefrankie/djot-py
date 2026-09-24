@@ -128,23 +128,6 @@ class InlineParser:
         if self.lastpos == 0 or endpos > self.lastpos:
             self.lastpos = endpos
 
-    def init_attribute_parser(self, pos: int):
-        """Create attribute parser
-        
-        When a `{` if encountered, and it is not followed by
-        inline markup like *, -, etc., it is taken as starting
-        attributes.
-        """
-        self.attribute_parser = AttributeParser(self.cursor)
-        self.attribute_start = pos
-        self.attribute_spans = []
-
-    def _reset_attribute_state(self):
-        self.attribute_parser = None
-        self.attribute_start = None
-        self.attribute_spans = None
-        self.pending_span = None
-
     
     def feed(self, startpos: int, endpos: int):
         # Position firstpos and endpos as far as possible.
@@ -152,7 +135,7 @@ class InlineParser:
 
         pos = startpos
         while pos <= endpos:
-            if self.attribute_parser is not None:
+            if self.state.in_attribute:
                 pos = self._feed_attribute(pos, endpos)
                 continue
             else:
@@ -176,52 +159,56 @@ class InlineParser:
 
     
     def _feed_attribute(self, pos: int, endpos: int) -> int:
+        """
+        Parse attributes
+
+        Workfllow:
+        LeftBraceMatcher -> Init AttributeParser -> Keep pos in place
+        -> next loop in feed -> _feed_attribute()
+
+        Args:
+            pos (int): start position of {
+            endpos (int): end position of line
+        """
         sp = pos
-        next_special = self.cursor.find_special(pos, endpos)
-        ep2 = endpos if next_special is None else next_special
 
-        assert self.attribute_parser is not None
+        attribute_parser = AttributeParser(self.state.cursor)
 
-        result = self.attribute_parser.feed(sp, ep2)
-        ep = result.position
+        result = attribute_parser.feed(sp, endpos)
 
         match result.status:
             case AttrFlowControl.DONE:
-                attribute_start = self.attribute_start
                 
-                if attribute_start is not None:
-                    self.state.events.append(
-                        Event.enter( # The opening {
-                            kind=BlockContainer.ATTRIBUTES,
-                            span=Range(attribute_start, attribute_start)
-                        )
+                self.state.push_event(
+                    Event.enter( # The opening {
+                        kind=BlockContainer.ATTRIBUTES,
+                        span=Range(sp, sp)
                     )
+                )
 
                 # Transfer attribute events.
-                self.state.events.extend(self.attribute_parser.events)
-                self.state.events.append(
+                self.state.extend_events(attribute_parser.events)
+                self.state.push_event(
                     Event.exit(
                         kind=BlockContainer.ATTRIBUTES,
-                        span=Range(ep, ep)
+                        span=Range(result.position, result.position)
                     )
                 )
 
                 # restore state to prior to adding attribute parser
-                self._reset_attribute_state()
-                return ep + 1
+                self.state.reset_attribute_state()
+                return result.position + 1
             case AttrFlowControl.FAIL:
-                # self.reparse_attributes()
-                return sp
-            case AttrFlowControl.CONTINUE:
-                if self.attribute_spans is None:
-                    self.attribute_spans = []
-                self.attribute_spans.append(
-                    Range( # the whole range of `{...}`
-                        start=sp,
-                        end=ep,
-                    )
+                # If attribute parsing failed, turn pending Span to str.
+                # And then add { as plain text event. Then move cursor forward.
+                self.state.demote_span_to_str()
+                self.state.push_event(
+                    Event.str(sp, sp)
                 )
-                return ep + 1
+
+                self.state.reset_attribute_state()
+                # No self.reparse_attributes() here
+                return sp+1
     
     def _feed_str_before_special(self, pos: int, endpos: int) -> int:
         """
