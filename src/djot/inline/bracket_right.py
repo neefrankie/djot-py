@@ -5,13 +5,11 @@ from ..common import (
 )
 from ..event import (
     Event,
-    BlockContainer,
-    BlockLeaf,
     InlineLeaf,
     InlineContainer,
 )
 from .matcher import Matcher
-from .state import InlineState, OpenerKind
+from .state import InlineState, OpenerKind, PendingSpan
 
 class RightBracketMatcher(Matcher):
 
@@ -26,26 +24,6 @@ class RightBracketMatcher(Matcher):
 
         - If we are reaching the first closing bracket, try to exract information as to how the bracket is used;
         - If we are reaching the second closing bracket, modify placehoder events.
-
-        Right bracket is used in multiple places:
-
-        1. In reference link:
-
-        Reference links use a reference label in square brackets, instead of
-        a destination in parentheses.
-
-        [My link text][foobar]
-        ![picture of a cat][cat]
-
-        2. Explicit link
-        
-        [My link text](https://example.com)
-        ![picture of a cat](cat.jpg)
-
-        The purpose of first pair of bracket was unknown until we have seen the
-        first closing bracket.
-
-        Here's the workflow:
 
         [             startpos / endpos, Event A, event_index
         My link text
@@ -78,6 +56,7 @@ class RightBracketMatcher(Matcher):
             is_image = state.cursor.is_bang(opener.startpos-1) and  not state.cursor.is_backslash(opener.startpos-2)
 
             if is_image:
+                # TODO: addImageMarker(opener)
                 # ![picture of a cat][cat.jpg]
                 # Modify events aleady emitted for `!`, `[` and `]`.
                 state.replace_event( # Update ! event
@@ -181,15 +160,13 @@ class RightBracketMatcher(Matcher):
             state.clear_openers(opener.startpos+1, pos-1)
             return pos+2 # after ][
 
-        # Next char is (
-        # 
+        # Inline link or inline image.
         if pos+1 <= endpos and state.cursor.is_left_paren(pos+1):
             
             state.openers['('] = [] # clear ( openers. Why?
             opener.kind = OpenerKind.EXPLICIT_LINK
 
-            # Event for current bracket
-            state.events.append(
+            state.events.append( # ]
                 Event.leaf(
                     Range(pos, pos),
                     InlineLeaf.STR
@@ -198,10 +175,9 @@ class RightBracketMatcher(Matcher):
             # The event just created.
             opener.sub_event_index = len(state.events) - 1
 
-            # Current char (.
-            state.events.append(
+            state.events.append( # (
                 Event.leaf(
-                    Range(pos, pos),
+                    Range(pos+1, pos+1),
                     InlineLeaf.STR
                 )
             )
@@ -217,10 +193,15 @@ class RightBracketMatcher(Matcher):
 
         # Attributes.
         # [a span]{.some-class #some-id some-key="some val"
+        # Why special treatment of Span?
+        # Because Span usage is ambiguous.
+        # For othher elements like _epmh_{.dark}, the meaning of
+        # underscore is clear regardless of attributes exist or not.
+        # But Span is only meaningful when followed by attributes.
         if pos+1 <= endpos and state.cursor.is_left_brace(pos+1):
             # assume this is attributes, bracketed span.
             # [a span]{.some-class #some-id some-key="some val"}
-            state.replace_event(
+            state.replace_event( # [ is opening span
                 Event.enter(
                     Range(opener.startpos, opener.endpos),
                     InlineContainer.SPAN
@@ -228,15 +209,21 @@ class RightBracketMatcher(Matcher):
                 opener.event_index
             )
 
-            state.events.append(
+            state.events.append( # ]
                 Event.exit(
                     Range(pos, pos),
                     InlineContainer.SPAN
                 )
             )
 
+            if state.allow_attributes:
+                state.pending_span = PendingSpan(
+                    open_event_idx=opener.event_index,
+                    close_event_idx=len(state.events)-1
+                )
+
             # remove any openers between [ and ]
             state.clear_openers(opener.startpos, pos)
-            return pos+1 # Leave { for brace handler.
+            return pos+1 # Leave { for attribute parser.
         
         return None
