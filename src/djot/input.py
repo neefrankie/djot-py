@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import re
+import string
 from typing import List, Optional
 
 from .common import Range
@@ -80,14 +81,10 @@ class InputText:
     )
     # {=FORMAT}
     _PATT_RAW_ATTRIBUTE = re.compile(r'\{=[^\s{}`]+\}')
-    _PATT_BACKTICKS0 = re.compile(r'`*')
+    
     _PATT_BACKTICKS1 = re.compile(r'`+')
-    _PATT_DOUBLE_DOLLARS = re.compile(r'\$\$')
-    _PATT_SINGLE_DOLLAR = re.compile(r'\$')
-    _PATT_BACKSLASH = re.compile(r'\\')
-    _PATT_PUNCTUATION = re.compile(
-        r'''['!"#%&\\'()*+,\-./:;<=>?@\[\]^`{|}~']'''
-    )
+    
+
     # <https://pandoc.org/lua-filters>
     # <me@example.com>
     _PATT_AUTOLINK = re.compile(r'<([^<>\s]+)>')
@@ -267,6 +264,49 @@ class InputText:
                 
         return None
 
+    def is_ascii_punct(self, pos: int) -> bool:
+        if pos >= self.length:
+            return False
+
+        return self.src[pos] in string.punctuation
+
+    def scan_any_backtick(self, pos: int, endpos: int) -> Optional[int]:
+        """
+        Scan zeor or more consecutive backticks.
+
+        Returns:
+            The position of last backtick, or None if nothing found.
+        """
+        i = pos
+        limit = min(self.length, endpos+1)
+        while i < limit:
+            if self.src[i] == '`':
+                i += 1
+            else:
+                break # when break, i points to the first non backtick
+
+        if i == pos:
+            return None
+
+        return i-1
+
+    def is_double_dollars(self, pos: int) -> bool:
+        if pos < 0 or pos+1 >= self.length:
+            return False
+        
+        return self.src[pos] == '$' and self.src[pos+1] == '$'
+
+    def is_single_dollar(self, pos: int) -> bool:
+        if pos < 0 or pos >= self.length:
+            return False
+        return self.src[pos] == '$' and self.src[pos+1] != '$'
+
+    def is_backslash(self, pos: int) -> bool:
+        if pos < 0 or pos >= self.length:
+            return False
+        
+        return self.src[pos] == '\\'
+
     def find(self, patt: re.Pattern) -> Optional[MatchedRange]:
         return find(self.src, patt, self.pos)
 
@@ -343,24 +383,10 @@ class InputText:
     def find_backtick_at_least_one(self, pos: int, endpos: int) -> Optional[MatchedRange]:
         return find(self.src, self._PATT_BACKTICKS1, pos, endpos)
 
-    def find_opening_backtick(self, pos: int, endpos: int) -> Optional[MatchedRange]:
-        # Find zero or more backtick
-        return find(self.src, self._PATT_BACKTICKS0, pos, endpos)
+    
 
     def find_raw_attribute(self, pos: int, endpos: int) -> Optional[MatchedRange]:
         return find(self.src, self._PATT_RAW_ATTRIBUTE, pos, endpos)
-
-    def find_double_dollar(self, pos: int) -> Optional[MatchedRange]:
-        return find(self.src, self._PATT_DOUBLE_DOLLARS, pos)
-
-    def find_single_dollar(self, pos: int) -> Optional[MatchedRange]:
-        return find(self.src, self._PATT_BACKSLASH, pos)
-
-    def find_backslash(self, pos: int) -> Optional[MatchedRange]:
-        return find(self.src, self._PATT_BACKSLASH, pos)
-
-    def find_punctuation(self, pos: int, endpos: int) -> Optional[MatchedRange]:
-        return find(self.src, self._PATT_PUNCTUATION, pos, endpos)
 
     
 
@@ -476,8 +502,7 @@ class InputText:
     def is_bang(self, i: int) -> bool:
         return self.src[i] == '!'
 
-    def is_backslash(self, i: int) -> bool:
-        return self.src[i] == '\\'
+    
 
     def is_left_bracket(self, i: int) -> bool:
         return self.src[i] == '['
