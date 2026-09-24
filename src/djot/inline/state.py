@@ -101,6 +101,10 @@ class InlineState:
     def in_verbatim(self) -> bool:
         return self.verbatim_len > 0
 
+    def set_verbatim(self, pos: int, endpos: int, typ: VerbatimKind):
+        self.verbatim_type = typ
+        self.verbatim_len = endpos - pos + 1
+
     def replace_event(self, event: Event, idx: int):
         if idx < len(self.events):
             self.events[idx] = event
@@ -111,7 +115,7 @@ class InlineState:
     def push_event(self, event: Event):
         self.events.append(event)
 
-    def trim_last_str_span_trailing(self):
+    def trim_last_event_if_str(self):
         if not self.events:
             return
 
