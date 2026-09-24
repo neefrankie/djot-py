@@ -219,6 +219,14 @@ class Event:
         )
 
     @classmethod
+    def str(cls, startpos: int, endpos: int) -> 'Event':
+        return cls(
+            span=Range(startpos, endpos),
+            kind=InlineLeaf.STR,
+            action=None
+        )
+
+    @classmethod
     def attr(cls, span: Range, kind: AttrKind) -> 'Event':
         return cls(
             span=span,
