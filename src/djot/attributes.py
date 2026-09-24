@@ -45,10 +45,7 @@ class State(Enum):
     SCANNING_VALUE = 4
     SCANNING_BARE_VALUE = 5
     SCANNING_QUOTED_VALUE = 6
-    SCANNING_QUOTED_VALUE_CONTINUATION = 7 # TODO: remove
     SCANNING_ESCAPED = 8
-    SCANNING_ESCAPED_IN_CONTINUATION = 9 # TODO: remove
-    SCANNING_COMMENT = 10 # TODO: remove
     FAIL = 11
     DONE = 12
     START = 13
@@ -207,6 +204,7 @@ class AttributeParser:
         """
         Equivalent to js version handlers array.
         """
+
         match state:
             case State.START:
                 return self._start(pos)
@@ -216,8 +214,6 @@ class AttributeParser:
                 return State.DONE
             case State.SCANNING:
                 return self._scanning(pos)
-            # case State.SCANNING_COMMENT:
-            #     return self._scanning_comment(pos)
             case State.SCANNING_ID:
                 # Point to position after #
                 return self._scanning_id(pos)
