@@ -72,7 +72,7 @@ class AttrFlowControl(Enum):
 @dataclass(slots=True, frozen=True)
 class AttrParseResult:
     status: AttrFlowControl # TODO: if AttrFlowControl has only DONE and FAIL, is this still needed?
-    position: int # Point to } if DONE, otherwise point to start position.
+    position: int # Last position the state machine stops.
 
     def is_done(self) -> bool:
         return self.status == AttrFlowControl.DONE
@@ -164,6 +164,14 @@ class AttributeParser:
         self.state = State.START
         self.begin: int | None = None # the begin position of a token
         self.lastpos: int | None = None # tracks the last position current char
+
+        # Events collected while scanning.
+        # Events emitted while seeing:
+        # - space
+        # - #
+        # - .
+        # - }
+        # - "
         self.events: List[Event] = []
 
     def add_event(self, event: Event):
@@ -215,7 +223,6 @@ class AttributeParser:
             case State.SCANNING:
                 return self._scanning(pos)
             case State.SCANNING_ID:
-                # Point to position after #
                 return self._scanning_id(pos)
             case State.SCANNING_CLASS:
                 return self._scanning_class(pos)
@@ -412,7 +419,7 @@ class AttributeParser:
         ch = self.cursor.src[pos] # pos points to the char after =
 
         if ch == '"': # quoted value
-            self.begin = pos
+            self.begin = pos # begin points to "
             self.add_event( # "
                 Event.attr(
                     Range(pos, pos),
@@ -477,7 +484,7 @@ class AttributeParser:
         if ch == '"' and self.begin and self.lastpos: # closing "
             self.add_event(
                 Event.attr(
-                    Range(self.begin+1, self.lastpos),
+                    Range(self.begin+1, self.lastpos), # begin + 1 jumps over "
                     kind=AttrKind.VALUE
                 )
             )
