@@ -380,7 +380,29 @@ class InputText:
         return find(self.src, self._PATT_TWO_PERIODS, pos, endpos)
 
     def find_note_reference(self, pos: int, endpos: int) -> Optional[MatchedRange]:
+        """
+        Find pattern like `^foo]`
+        """
         return find(self.src, self._PATT_NOTE_REFERENCE, pos, endpos)
+
+    def scan_note_reference(self, pos: int, endpos: int) -> Optional[MatchedRange]:
+        if self.src[pos] != '^':
+            return None
+
+        start = pos
+        pos = pos + 1
+        while pos <= endpos:
+            c = self.src[pos]
+            if c == ']':
+                return MatchedRange(
+                    start=start,
+                    end=pos,
+                    captures=[self.src[start:pos+1]]
+                )
+            else:
+                pos = pos + 1
+
+        return None
 
     def has_brace(self, i: int) -> bool:
 
