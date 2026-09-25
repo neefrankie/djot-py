@@ -9,7 +9,11 @@ from ..event import (
     InlineContainer,
 )
 from .matcher import Matcher
-from .state import InlineState, OpenerKind, PendingSpan
+from .state import (
+    InlineState,
+    OpenerKind,
+    OpenerV2,
+)
 
 class RightBracketMatcher(Matcher):
 
@@ -24,15 +28,8 @@ class RightBracketMatcher(Matcher):
 
         - If we are reaching the first closing bracket, try to exract information as to how the bracket is used;
         - If we are reaching the second closing bracket, modify placehoder events.
-
-        [             startpos / endpos, Event A, event_index
-        My link text
-        ]             sub_startpos, Event B, sub_event_index
-        [             sub_endpos, Enter reference
-        foobar
-        ]             Exit reference
         """
-        openers = state.openers['[']
+        openers = state.get_openers('[')
         if not openers:
             return None
         
@@ -44,153 +41,23 @@ class RightBracketMatcher(Matcher):
         # the end of a reference link.
         # Now everything is clear and we can backtrace to modify
         # placeholder events.
+        # Found a reference link
+        # Here we are handling the third phase of Opener
         if opener.kind == OpenerKind.REFERENCE_LINK:
-            # Found a reference link
-            # convert all matches inside reference to str
-            # Anything between opener and pos should be treated as plain text.
-            # We are handling content inside second pair of brackets
-            state.str_matches((opener.sub_endpos or opener.endpos)+1, pos-1)
-
-            # Backraracing to see if this is image.
-            # Image is `![` but not `\![`.
-            is_image = state.cursor.is_bang(opener.startpos-1) and  not state.cursor.is_backslash(opener.startpos-2)
-
-            if is_image:
-                # TODO: addImageMarker(opener)
-                # ![picture of a cat][cat.jpg]
-                # Modify events aleady emitted for `!`, `[` and `]`.
-                state.replace_event( # Update ! event
-                    Event.leaf(
-                        Range(opener.startpos-1, opener.startpos-1), # !
-                        InlineLeaf.IMAGE_MARKER
-                    ), 
-                    opener.event_index-1 # the index before opener
-                )
-                state.replace_event( # Update [ event
-                    Event.enter(
-                        Range(opener.startpos, opener.endpos),
-                        InlineContainer.IMAGE_TEXT
-                    ),
-                    opener.event_index
-                )
-                # ][ is the sub-range.
-                state.replace_event(
-                    Event.exit( # first ]
-                        Range(
-                            opener.sub_startpos or opener.startpos,
-                            opener.sub_startpos or opener.startpos
-                        ),
-                        InlineContainer.IMAGE_TEXT,
-                    ),
-                    opener.sub_event_index
-                )
-            else:
-                # [My link text][http://example.com]
-                # Modify events for first pair of `[` and `]`
-                state.replace_event(
-                    Event.enter( # [
-                        Range(opener.startpos, opener.endpos),
-                        InlineContainer.LINK_TEXT,
-                    ),
-                    opener.event_index,
-                )
-                state.replace_event(
-                    Event.exit( # ]
-                        Range(
-                            opener.sub_startpos or opener.startpos,
-                            opener.sub_startpos or opener.startpos
-                        ),
-                        InlineContainer.LINK_TEXT
-                    ),
-                    opener.sub_event_index,
-                )
-            
-            # Modify second [
-            state.replace_event(
-                Event.enter( # second [
-                    Range(
-                        opener.sub_endpos or opener.endpos,
-                        opener.sub_endpos or opener.endpos
-                    ),
-                    InlineContainer.REFERENCE,
-                ),
-                opener.sub_event_index+1
-            )
-            # Current char is the second ]
-            state.events.append(
-                Event.exit(
-                    Range(pos,pos),
-                    InlineContainer.REFERENCE
-                )
-            )
-            # Remove all openers for current reference link.
-            state.clear_openers(opener.startpos, pos)
-            return pos+1 # after ]
+           return self._commit_reference(state, opener, pos)
 
         # The following logic tries to extract information from 
         # the first pair of brackets.
         # Next char is second left [ as in [My link text][foo bar]
+        # Here we are handling the second phase of Opener
         if pos+1 <= endpos and state.cursor.is_left_bracket(pos+1):
+            return self._prepare_reference(state, opener, pos)
             
-            opener.kind = OpenerKind.REFERENCE_LINK
-
-            # Add event for current char ].
-            # TODO: is InlineLeaf.STR a placeholder?
-            state.events.append(
-                Event.leaf(
-                    Range(pos, pos),
-                    InlineLeaf.STR
-                )
-            )
-
-            # The event we just created
-            opener.sub_event_index = len(state.events) - 1
-
-            # Add event for next char [
-            state.events.append(
-                Event.leaf(Range(pos+1, pos+1), InlineLeaf.STR)
-            )
-
-            # Current char [ is a sub start.
-            opener.sub_startpos = pos
-            # Next char ] is a sub end
-            opener.sub_endpos = pos+1
-
-            # remove any openers between [ and ]
-            state.clear_openers(opener.startpos+1, pos-1)
-            return pos+2 # after ][
-
         # Inline link or inline image.
+        # Here we are handling the second phase of Opener, again.
         if pos+1 <= endpos and state.cursor.is_left_paren(pos+1):
+            return self._prepare_explicit(state, opener, pos)
             
-            state.openers['('] = [] # clear ( openers. Why?
-            opener.kind = OpenerKind.EXPLICIT_LINK
-
-            state.events.append( # ]
-                Event.leaf(
-                    Range(pos, pos),
-                    InlineLeaf.STR
-                )
-            )
-            # The event just created.
-            opener.sub_event_index = len(state.events) - 1
-
-            state.events.append( # (
-                Event.leaf(
-                    Range(pos+1, pos+1),
-                    InlineLeaf.STR
-                )
-            )
-            # Position for ](
-            opener.sub_startpos = pos
-            opener.sub_endpos = pos + 1
-
-            self.destination = True
-
-            # remove any openers inside [ and ]
-            state.clear_openers(opener.startpos + 1, pos - 1)
-            return pos + 2 # after ](
-
         # Attributes.
         # [a span]{.some-class #some-id some-key="some val"
         # Why special treatment of Span?
@@ -198,32 +65,184 @@ class RightBracketMatcher(Matcher):
         # For othher elements like _epmh_{.dark}, the meaning of
         # underscore is clear regardless of attributes exist or not.
         # But Span is only meaningful when followed by attributes.
+        # Here we are handling the second phase of Opener, again.
         if pos+1 <= endpos and state.cursor.is_left_brace(pos+1):
-            # assume this is attributes, bracketed span.
-            # [a span]{.some-class #some-id some-key="some val"}
-            state.replace_event( # [ is opening span
+            return self._prepare_span(state, opener, pos)
+        
+        return None
+
+    def _commit_reference(self, state: InlineState, opener: OpenerV2, pos: int) -> int:
+        # convert all matches inside reference label to str
+        state.str_matches((opener.sub_endpos or opener.endpos)+1, pos-1)
+
+        # Backtracing to see if this is image.
+        # Image is `![` but not `\![`.
+        is_image = state.cursor.is_bang(opener.startpos-1) and  not state.cursor.is_backslash(opener.startpos-2)
+
+        if is_image:
+            self._commit_image(state, opener)
+        else:
+            self._commit_link(state, opener)
+        
+        # Modify second [
+        state.replace_event(
+            Event.enter( # second [
+                Range(
+                    opener.sub_endpos or opener.endpos,
+                    opener.sub_endpos or opener.endpos
+                ),
+                InlineContainer.REFERENCE,
+            ),
+            opener.sub_event_index+1
+        )
+        # Current char is the second ]
+        state.events.append(
+            Event.exit(
+                Range(pos,pos),
+                InlineContainer.REFERENCE
+            )
+        )
+        # Remove all openers falls into the range of the whole reference link.
+        state.clear_openers(opener.startpos, pos)
+        return pos+1 # after ]
+
+    def _commit_image(self, state: InlineState, opener: OpenerV2):
+            # TODO: addImageMarker(opener)
+            # ![picture of a cat][cat.jpg]
+            # Modify events aleady emitted for `!`, `[` and `]`.
+            state.replace_event( # Update ! event
+                Event.leaf(
+                    Range(opener.startpos-1, opener.startpos-1), # !
+                    InlineLeaf.IMAGE_MARKER
+                ), 
+                opener.event_index-1 # the index before opener
+            )
+            state.replace_event( # Update [ event
                 Event.enter(
                     Range(opener.startpos, opener.endpos),
-                    InlineContainer.SPAN
+                    InlineContainer.IMAGE_TEXT
                 ),
                 opener.event_index
             )
-
-            state.events.append( # ]
-                Event.exit(
-                    Range(pos, pos),
-                    InlineContainer.SPAN
-                )
+            # ][ is the sub-range.
+            state.replace_event(
+                Event.exit( # first ]
+                    Range(
+                        opener.sub_startpos or opener.startpos,
+                        opener.sub_startpos or opener.startpos
+                    ),
+                    InlineContainer.IMAGE_TEXT,
+                ),
+                opener.sub_event_index
             )
 
-            if state.allow_attributes:
-                state.pending_span = PendingSpan(
-                    open_event_idx=opener.event_index,
-                    close_event_idx=len(state.events)-1
-                )
+    def _commit_link(self, state: InlineState, opener: OpenerV2):
+            # [My link text][http://example.com]
+            # Modify events for first pair of `[` and `]`
+            state.replace_event(
+                Event.enter( # [
+                    Range(opener.startpos, opener.endpos),
+                    InlineContainer.LINK_TEXT,
+                ),
+                opener.event_index,
+            )
+            state.replace_event(
+                Event.exit( # ]
+                    Range(
+                        opener.sub_startpos or opener.startpos,
+                        opener.sub_startpos or opener.startpos
+                    ),
+                    InlineContainer.LINK_TEXT
+                ),
+                opener.sub_event_index,
+            )
 
-            # remove any openers between [ and ]
-            state.clear_openers(opener.startpos, pos)
-            return pos+1 # Leave { for attribute parser.
+    def _prepare_reference(self, state: InlineState, opener: OpenerV2, pos: int):
+
+        # In this example [Text][foo],
+        # pos is pointing to the first right bracket now.
+        # This delimiter does not give much information at this step.
+        # We could only deduce it might be a reference link from the next char `[`.
+        # So the two char `][` gives different information.
+        # `]` only tells you "OK, I can close properly". Nothing more.
+        # It the following opening bracket `[` that tells this might be
+        # a reference link, but it's not sure yet since the second closing
+        # bracket is yet to merge.
         
-        return None
+        # In djot.js, the state change is mixed here.
+        # We separate it into two clear steps for each delimiter.
+        # Here's the event generated from ], and we refresh opener
+        # based on this event's index and spanned range.
+        close_ep = state.add_candidate_event(
+            Event.leaf( # ]
+                Range(pos, pos),
+                InlineLeaf.STR
+            )
+        )
+        opener.set_first_closer(close_ep)
+
+
+        # The second step derives more information from the second `[`.
+        open_ep = state.add_candidate_event(
+            Event.leaf(
+                Range(pos+1, pos+1),
+                InlineLeaf.STR,
+            )
+        )
+        opener.set_second_opener(open_ep, OpenerKind.REFERENCE_LINK)
+
+        # remove any openers between [ and ]
+        state.clear_openers(opener.startpos+1, pos-1)
+        return pos+2 # after ][
+
+    def _prepare_explicit(self, state: InlineState, opener: OpenerV2, pos: int):
+        
+        state.reset_openers('(') # clear ( openers. Why?
+
+        close_ep = state.add_candidate_event(
+            Event.leaf( # ]
+                Range(pos, pos),
+                InlineLeaf.STR
+            )
+        )
+        opener.set_first_closer(close_ep)
+
+
+        # The second step derives more information from the `(`.
+        open_ep = state.add_candidate_event(
+            Event.leaf(
+                Range(pos+1, pos+1),
+                InlineLeaf.STR,
+            )
+        )
+        opener.set_second_opener(open_ep, OpenerKind.EXPLICIT_LINK)
+
+        state.destination = True
+
+        # remove any openers inside [ and ]
+        state.clear_openers(opener.startpos + 1, pos - 1)
+        return pos + 2 # after ](
+
+    def _prepare_span(self, state: InlineState, opener: OpenerV2, pos: int):
+        # assume this is attributes, bracketed span.
+        # [a span]{.some-class #some-id some-key="some val"}
+        state.replace_event( # [ is opening span
+            Event.enter(
+                Range(opener.startpos, opener.endpos),
+                InlineContainer.SPAN
+            ),
+            opener.event_index
+        )
+
+        state.push_event( # ]
+            Event.exit(
+                Range(pos, pos),
+                InlineContainer.SPAN
+            )
+        )
+
+        state.set_pending_span(opener)
+
+        # remove any openers between [ and ]
+        state.clear_openers(opener.startpos, pos)
+        return pos+1 # Leave { for attribute parser.
