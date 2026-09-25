@@ -524,6 +524,9 @@ class InputText:
     def is_right_brace(self, i: int) -> bool:
         return self.src[i] == '}'
 
+    def is_hat(self, i: int) -> bool:
+        return self.src[i] == '^'
+
     
 
     
