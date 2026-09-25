@@ -26,19 +26,8 @@ class LeftBracketMatcher(Matcher):
         | Footnote           | `[^foo]: This is a note`             |
         | Span               | `[read the manual]{.big .red}`       |
         """
-        # Note reference
-        # Try to find `^foo]`
-        m = state.cursor.find_note_reference(pos+1, endpos) # test from ^
-        if m:
-            state.events.append(
-                Event.leaf(
-                    Range(pos, m.end),
-                    InlineLeaf.FOOTNOTE_REF
-                )
-            )
-            return m.end+1
         
-        # Otherwise we know little about this bracket.
+        # We know little about this bracket.
         # More information is deferred to right bracket.
         state.add_opener(
             '[',
