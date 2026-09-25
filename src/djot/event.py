@@ -139,6 +139,14 @@ class Event:
     payload: Optional[Payload] = None
 
     @property
+    def startpos(self) -> int:
+        return self.span.start
+
+    @property
+    def endpos(self) -> int:
+        return self.span.end
+
+    @property
     def is_str(self) -> bool:
         return self.kind == InlineLeaf.STR
 
@@ -157,6 +165,9 @@ class Event:
     @property
     def is_soft_break(self) -> bool:
         return self.kind == InlineLeaf.SOFT_BREAK
+
+    def shrink_end(self, to: int):
+        self.span.end = to
 
     def with_list_styles(self, styles: List[str]):
         if self.kind != BlockContainer.LIST or self.kind != BlockContainer.LIST_ITEM:
