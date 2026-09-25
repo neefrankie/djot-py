@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Dict, List, Optional
+from typing import Dict, List, NamedTuple, Optional
 
 from ..common import Range
 from ..input import InputText
@@ -9,13 +9,25 @@ from ..event import (
     VerbatimKind,
     InlineLeaf,
 )
-from ..attributes import AttributeParser
 from ..options import Options, Warning
 
 class OpenerKind(Enum):
     REFERENCE_LINK = auto()
     EXPLICIT_LINK = auto()
 
+class EventPointer(NamedTuple):
+    idx: int # Index in event list
+    start: int # start position of this event in source text
+    end: int # end position of this event in source text
+
+    @classmethod
+    def of_event(cls, event: Event, idx: int) -> 'EventPointer':
+        return cls(
+            idx=idx,
+            start=event.span.start,
+            end=event.span.end
+        )
+    
 @dataclass(slots=True)
 class Opener:
     """
@@ -40,15 +52,34 @@ class Opener:
     Move cursor to `b`.
     If we have created any openers between `[` and `]` (exclusive), delete them.
 
-    What happens for [fo[o][bar] or [fo(o]?
+    [             startpos / endpos, Event A, event_index
+    My link text
+    ]             sub_startpos, Event B, sub_event_index
+    [             sub_endpos, Enter reference
+    foobar
+    ]             Exit reference
     
+    an opener cotainers such data:
+    - Index of an event in events list
+    - The event's span
+    So we could reorganize into a new data struct:
+    
+    EventPointer:
+        index: int
+        span: Range
+
+    Then opener could be reorganized into:
+    Opener:
+        text_opener: EventPointer # exists upon creation
+        text_closer: EventPointer | None = None # known when we see ]
+        dest_or_label_opener: EventPointer | None = None
     """
     event_index: int # Index in Event list.
     startpos: int # point to the first [
     endpos: int
     kind: OpenerKind | None # cannot be determined upon creation. Only clear when sub_startpos is seen
-    sub_event_index: int
-    sub_startpos: int | None # point to first ]
+    sub_event_index: int # points to the first closing ]
+    sub_startpos: int | None # point to first closing ]
     sub_endpos: int | None # point to second [
 
     def is_within(self, startpos: int, endpos: int) -> bool:
@@ -58,6 +89,130 @@ class Opener:
         if self.sub_startpos is None or self.sub_endpos is None:
             return False
         return startpos <= self.sub_startpos and self.sub_endpos <= endpos
+
+    def set_first_closer(self, pointer: EventPointer):
+        self.sub_event_index = pointer.idx
+        self.sub_startpos = pointer.start
+
+    def set_second_opener(self, pointer: EventPointer, kind: OpenerKind):
+        self.sub_endpos = pointer.start
+        self.kind = kind
+
+    @classmethod
+    def new(cls, event: Event, evt_idx: int) -> 'Opener':
+        return Opener(
+            event_index=evt_idx,
+            startpos=event.span.start,
+            endpos=event.span.end,
+            kind=None,
+            sub_event_index=evt_idx,
+            sub_startpos=None,
+            sub_endpos=None,
+        )
+
+
+
+@dataclass(slots=True)
+class OpenerV2:
+    """Remember each phase when parsing ambiguous delimiters
+
+    In my opinion there are two groups of paired delimiters in Djot/Markdown:
+    `{* bold *}` and `[Text][foo]`. They roughly correspond to 
+    primivate value vs composite value in a programming langauge.
+
+    BTW, I was told by Gemini that John MacFarlane proposed simiar ideas.
+    I'm not sure what he called this pattern.
+
+    It takes 3 phases to figure out the exact meaning of a composite value.
+
+    Phase 1.
+    When you see opening bracket, is it an reference link? Inline link? Span?
+    We are not sure. So treat it as plain str and remember its position in event list.
+    It happens in LeftBracketMatcher.
+
+    Phase 2.
+    When you the first ], you can peek the char following ].
+    Is it paren, or another opening bracket, or opening brace?
+    Now we can determine the the purpose the the first pair of `[]`.
+    But we still cannot make sure whether it is valid or not.
+    It happens in RightBracketMatcher.
+
+    Phase 3.
+    When you see the the final ] or ), we are sure it is realy a reference link,
+    or explicit link, of attributes following a Span.
+    Now we can use the record save here to modify the events already generated.
+    It happens in RightBracketMatcher and LeftParenMatcher.
+    """
+    text_opener: EventPointer
+    text_closer: Optional[EventPointer] = None
+    target_opener: Optional[EventPointer] = None
+    kind: Optional[OpenerKind] = None
+
+    def set_first_closer(self, pointer: EventPointer):
+        self.text_closer = pointer
+
+    def set_second_opener(self, pointer: EventPointer, kind: OpenerKind):
+        self.target_opener = pointer
+        self.kind = kind
+
+    def clear_multi_stage(self):
+        self.text_closer = None
+        self.target_opener = None
+        self.kind = None
+
+    @property
+    def startpos(self) -> int:
+        return self.text_opener.start
+
+    @property
+    def endpos(self) -> int:
+        return self.text_opener.end
+
+    @property
+    def event_index(self) -> int:
+        return self.text_opener.idx
+
+    @property
+    def sub_event_index(self) -> int:
+        if self.text_closer:
+            return self.text_closer.idx
+
+        return self.text_opener.idx
+
+    @property
+    def sub_startpos(self) -> Optional[int]:
+        if self.text_closer:
+            return self.text_closer.start
+
+        return None
+    
+    @property
+    def sub_endpos(self) -> Optional[int]:
+        if self.target_opener:
+            return self.target_opener.start
+
+        return None
+
+    def is_within(self, startpos: int, endpos: int) -> bool:
+            return startpos <= self.startpos and endpos >= endpos
+    
+    def is_subrange_within(self, startpos: int, endpos: int) -> bool:
+        if self.sub_startpos is None or self.sub_endpos is None:
+            return False
+        return startpos <= self.sub_startpos and self.sub_endpos <= endpos
+
+    @classmethod
+    def new(cls, event: Event, evt_idx: int) -> 'OpenerV2':
+        return cls(
+            text_opener=EventPointer(
+                idx=evt_idx,
+                start=event.span.start,
+                end=event.span.end,
+            ),
+            text_closer=None,
+            target_opener=None,
+            kind=None,
+        )
 
 @dataclass(slots=True, frozen=True)
 class PendingSpan:
@@ -78,14 +233,13 @@ class InlineState:
         self.events: List[Event] = []
 
         # map from opener type to Opener[] in reverse order
-        # Each entry is a stack.
-        self.openers: Dict[str, List[Opener]] = {}
+        self.openers: Dict[str, List[OpenerV2]] = {}
 
         # parsing a verbatim span to be ended by N backticks
         self.verbatim_len = 0 # length of verbatim markers.
         self.verbatim_type: VerbatimKind = VerbatimKind.VERBATIM
 
-        self.destination = False # If inside link destination
+        self.destination: bool = False # If inside link destination
 
         self.allow_attributes = True # allow parsing of attributes.
 
@@ -96,6 +250,10 @@ class InlineState:
     @property
     def last_event(self) -> Optional[Event]:
         return self.events[-1] if self.events else None
+
+    @property
+    def event_len(self) -> int:
+        return len(self.events)
 
     @property
     def in_verbatim(self) -> bool:
@@ -158,22 +316,27 @@ class InlineState:
         if name not in self.openers:
             self.openers[name] = []
 
-        self.openers[name].append(
-            Opener(
-                event_index=len(self.events),
-                startpos=default_event.span.start,
-                endpos=default_event.span.end,
-                kind=None, # TODO: Event.action, Event.kind
-                sub_event_index=len(self.events),
-                sub_startpos=None,
-                sub_endpos=None,
-            )
+        ep = self.add_candidate_event(default_event)
+
+        opener = OpenerV2.new(default_event, ep.idx)
+        self.openers[name].append(opener)
+
+        return opener
+
+    def add_candidate_event(self, event: Event) -> EventPointer:
+        ep = EventPointer(
+            idx=len(self.events),
+            start=event.span.start,
+            end=event.span.end
         )
+        self.events.append(event)
+        return ep
 
-        self.events.append(default_event)
-
-    def get_openers(self, name: str) -> List[Opener]:
+    def get_openers(self, name: str) -> List[OpenerV2]:
         return self.openers.get(name, [])
+
+    def reset_openers(self, name: str):
+        self.openers[name] = []
 
     def clear_openers(self, startpos: int, endpos: int):
         """
@@ -188,9 +351,7 @@ class InlineState:
                     del v[i]
                 elif opener.is_subrange_within(startpos, endpos):
                     # If opener substartps to subendpos falls into startpos and endpos
-                    v[i].sub_startpos = None
-                    v[i].sub_endpos = None
-                    v[i].kind = None
+                    v[i].clear_multi_stage()
                 else:
                     break
 
@@ -219,6 +380,12 @@ class InlineState:
 
     def reset_attribute_state(self):
         self.in_attribute = False
+
+    def set_pending_span(self, opener: OpenerV2):
+        self.pending_span = PendingSpan(
+            open_event_idx=opener.text_opener.idx,
+            close_event_idx=len(self.events)-1
+        )
 
     def demote_span_to_str(self):
         if self.pending_span is None:
