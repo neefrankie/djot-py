@@ -20,6 +20,13 @@ class EventPointer(NamedTuple):
     start: int # start position of this event in source text
     end: int # end position of this event in source text
 
+    def move(self, step: int) -> 'EventPointer':
+        return EventPointer(
+            idx=self.idx + step,
+            start=self.start,
+            end=self.end
+        )
+
     @classmethod
     def of_event(cls, event: Event, idx: int) -> 'EventPointer':
         return cls(
@@ -193,6 +200,15 @@ class OpenerV2:
 
         return None
 
+    def move(self, step: int):
+        self.text_opener = self.text_opener.move(step)
+
+        if self.text_closer:
+            self.text_closer = self.text_closer.move(step)
+
+        if self.target_opener:
+            self.target_opener = self.target_opener.move(step)
+
     def is_within(self, startpos: int, endpos: int) -> bool:
             return startpos <= self.startpos and endpos >= endpos
     
@@ -270,6 +286,14 @@ class InlineState:
     def extend_events(self, events: List[Event]):
         self.events.extend(events)
 
+    def pop_events_upto(self, starpos: int) -> int:
+        i = len(self.events) - 1
+        while i > 0 and self.events[i].span.start > starpos:
+            self.events.pop()
+            i -= 1
+
+        return i
+
     def push_event(self, event: Event):
         self.events.append(event)
 
@@ -286,6 +310,7 @@ class InlineState:
             self.events.pop() # space only
         else:
             last_match.span.shrink_end(ep) # change end position to first non-space char.
+
 
     def is_cross_link_boudnary(self, opener_startpos: int) -> bool:
         """Check if opener crossed link boundary.
@@ -311,7 +336,52 @@ class InlineState:
         # If the opener starts early than link's '[' symbol
         return opener_startpos < last_link_opener.startpos
 
+    def add_candidate_event(self, event: Event) -> EventPointer:
+        ep = EventPointer(
+            idx=len(self.events),
+            start=event.span.start,
+            end=event.span.end
+        )
+        self.events.append(event)
+        return ep
 
+    def add_image_marker(self, opener: OpenerV2):
+        """Move ! from previous event to the one pointed by opener.
+
+        For example, `hello ![image](image.png)` might generated
+        Event(hello !), Event([), Event(image), etc..
+        When we found Event([) actually indicates image, we need to
+        transfer ! from previous event to Event(![).
+        
+        """
+        prev_idx = opener.text_opener.idx - 1
+        prev_event = self.events[prev_idx]
+
+        img_event = Event.leaf(
+            span=Range(opener.startpos - 1, opener.startpos - 1),
+            kind=InlineLeaf.IMAGE_MARKER,
+        )
+        
+        if prev_event.is_str and prev_event.startpos < opener.startpos - 1:
+            # '!' is grouped with preceding text in a single str match.
+            # Truncate the str to end before '!' and insert image_marker.
+            # For example, in 'hello ![image](image.png)', 
+            # opener.startpos is  7, pointing to '[' while previous str
+            # event spans from 0 to 6. We need to truncate the str to 5
+            # and insert ! as a separate event.
+            prev_event.shrink_end(opener.startpos - 2)
+            
+            self.events.insert(opener.event_index, img_event)
+            # Adjust indices since we inserted a new element
+            opener.move(1)
+            return
+
+        # '!' is alone in its str match, replace it directly
+        self.replace_event(
+            img_event,
+            prev_idx
+        )
+    
     def add_opener(self, name: str, default_event: Event):
         if name not in self.openers:
             self.openers[name] = []
@@ -323,14 +393,6 @@ class InlineState:
 
         return opener
 
-    def add_candidate_event(self, event: Event) -> EventPointer:
-        ep = EventPointer(
-            idx=len(self.events),
-            start=event.span.start,
-            end=event.span.end
-        )
-        self.events.append(event)
-        return ep
 
     def get_openers(self, name: str) -> List[OpenerV2]:
         return self.openers.get(name, [])
