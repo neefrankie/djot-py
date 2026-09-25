@@ -224,7 +224,7 @@ class InlineParser:
         if newpos > pos:
             self.state.events.append(
                 Event.leaf(
-                    span=Range(pos, endpos),
+                    span=Range(pos, newpos-1),
                     kind=InlineLeaf.STR
                 )
             )
