@@ -35,6 +35,14 @@ class RightBracketMatcher(Matcher):
         
         opener = openers[-1]
 
+        is_note_ref = state.cursor.is_hat(opener.text_opener.start + 1) # [^
+
+        # [^foo]
+        # pos -> ]
+        # opener.text_opener.start -> [
+        if is_note_ref:
+            return self._commit_note_reference(state, opener, pos)
+
         # [My link text][foo bar]
         # ![picture of a cat][cat]
         # We have reached the second close bracket, that is,
@@ -70,6 +78,14 @@ class RightBracketMatcher(Matcher):
             return self._prepare_span(state, opener, pos)
         
         return None
+
+    def _commit_note_reference(self, state: InlineState, opener: OpenerV2, pos: int) -> int:
+        i = state.pop_events_upto(opener.startpos)
+        state.clear_openers(opener.startpos, pos)
+        state.events[i].kind = InlineLeaf.FOOTNOTE_REF
+        state.events[i].span.end = pos
+
+        return pos+1
 
     def _commit_reference(self, state: InlineState, opener: OpenerV2, pos: int) -> int:
         # convert all matches inside reference label to str
@@ -107,34 +123,27 @@ class RightBracketMatcher(Matcher):
         return pos+1 # after ]
 
     def _commit_image(self, state: InlineState, opener: OpenerV2):
-            # TODO: addImageMarker(opener)
-            # ![picture of a cat][cat.jpg]
-            # Modify events aleady emitted for `!`, `[` and `]`.
-            state.replace_event( # Update ! event
-                Event.leaf(
-                    Range(opener.startpos-1, opener.startpos-1), # !
-                    InlineLeaf.IMAGE_MARKER
-                ), 
-                opener.event_index-1 # the index before opener
-            )
-            state.replace_event( # Update [ event
-                Event.enter(
-                    Range(opener.startpos, opener.endpos),
-                    InlineContainer.IMAGE_TEXT
+        # ![picture of a cat][cat.jpg]
+        # Modify events aleady emitted for `!`, `[` and `]`.
+        state.add_image_marker(opener)
+        state.replace_event( # Update [ event
+            Event.enter(
+                Range(opener.startpos, opener.endpos),
+                InlineContainer.IMAGE_TEXT
+            ),
+            opener.event_index
+        )
+        # ][ is the sub-range.
+        state.replace_event(
+            Event.exit( # first ]
+                Range(
+                    opener.sub_startpos or opener.startpos,
+                    opener.sub_startpos or opener.startpos
                 ),
-                opener.event_index
-            )
-            # ][ is the sub-range.
-            state.replace_event(
-                Event.exit( # first ]
-                    Range(
-                        opener.sub_startpos or opener.startpos,
-                        opener.sub_startpos or opener.startpos
-                    ),
-                    InlineContainer.IMAGE_TEXT,
-                ),
-                opener.sub_event_index
-            )
+                InlineContainer.IMAGE_TEXT,
+            ),
+            opener.sub_event_index
+        )
 
     def _commit_link(self, state: InlineState, opener: OpenerV2):
             # [My link text][http://example.com]
