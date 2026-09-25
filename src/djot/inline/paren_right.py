@@ -20,14 +20,14 @@ class RightParenMatcher(Matcher):
         if not state.destination:
             return None
         
-        parens = state.openers['(']
+        parens = state.get_openers('(')
         # TODO: why?
         if parens:
             parens.pop() # clear opener
             state.events.append(Event.leaf(Range(pos, pos), InlineLeaf.STR))
             return pos+1
         
-        openers = state.openers['[']
+        openers = state.get_openers('[')
         opener = openers[-1]
         if not openers:
             return None
