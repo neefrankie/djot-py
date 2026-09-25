@@ -1,20 +1,22 @@
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 import unittest
 
 from djot.event import (
     Event,
     InlineLeaf,
     VerbatimKind,
+    InlineContainer,
 )
 from djot.common import Range
-from djot.inline.state import InlineState
+from djot.inline.state import InlineState, Opener, OpenerKind, EventPointer, OpenerV2
 from djot.input import InputText
 from djot.options import Options
 from djot.inline.backslash import BackslashMatcher
 from djot.inline.backtick import BacktickMatcher
 from djot.inline.brace_left import LeftBraceMatcher
 from djot.inline.bracket_left import LeftBracketMatcher
+from djot.inline.bracket_right import RightBracketMatcher
 
 @dataclass
 class TestData:
@@ -24,8 +26,65 @@ class TestData:
     expected_pos: int
     expected_events: List[Event]
 
+@dataclass
+class Args:
+    state: InlineState
+    pos: int
+    endpos: int
+
+@dataclass
+class Expected:
+    pos: int
+    events: List[Event]
+
+
+def new_inline_state(
+    text: str,
+    events: List[Event] | None  = None,
+    openers: Dict[str, List[Opener]] | None = None,
+) -> InlineState:
+    state = InlineState(InputText(text), Options())
+
+
+    if events:
+        state.events = events
+
+    return state
+
+
+def new_link_state(
+    text: str,
+    open_span: Range,
+    close_span: Range | None = None,
+    kind: OpenerKind = OpenerKind.REFERENCE_LINK,
+):
+
+    state = InlineState(InputText(text), Options())
+    
+    opener = state.add_opener('[', Event.leaf(open_span, InlineLeaf.STR))
+
+    if close_span:
+        opener.set_first_closer(
+            state.add_candidate_event(
+                Event.leaf(close_span, InlineLeaf.STR)
+            )
+        )
+
+        opener.set_second_opener(
+            state.add_candidate_event(
+                Event.leaf(
+                    Range(close_span.end+1, close_span.end+1),
+                    InlineLeaf.STR
+                )
+            ),
+            kind=kind,
+        )
+
+    return state
+
+
 class TestMatcher(unittest.TestCase):
-    def test_bachslash(self):
+    def test_backslash(self):
         cases = [
             (
                 '\\  \n',
@@ -156,6 +215,51 @@ class TestMatcher(unittest.TestCase):
                 actual_pos = matcher(state, 0, len(text)-1)
                 self.assertEqual(actual_pos, expected_pos)
                 self.assertEqual(state.events, expected_events)
+
+    def test_right_bracket(self):
+        cases = [
+            (
+                Args(
+                    new_link_state(
+                        text='[Text][foo]',
+                        open_span=Range(0, 0),
+                        close_span=Range(5, 5),
+                        kind=OpenerKind.REFERENCE_LINK,
+                    ),
+                    pos=10,
+                    endpos=len('[Text][foo]')-1
+                ),
+                Expected(
+                    pos=11,
+                    events=[
+                        Event.enter( # [
+                            Range(0, 0),
+                            InlineContainer.LINK_TEXT,
+                        ),
+                        Event.exit( # ]
+                            Range(5, 5),
+                            InlineContainer.LINK_TEXT,
+                        ),
+                        Event.enter( # [
+                            Range(6, 6),
+                            InlineContainer.REFERENCE,
+                        ),
+                        Event.exit(
+                            Range(10, 10),
+                            InlineContainer.REFERENCE,
+                        )
+                    ]
+                )
+            ),
+            ()
+        ]
+
+        for args, expected in cases:
+            with self.subTest(args.state.cursor.src):
+                matcher = RightBracketMatcher()
+                actual_pos = matcher(args.state, args.pos, args.endpos)
+                self.assertEqual(actual_pos, expected.pos)
+                self.assertEqual(args.state.events, expected.events)
 
 
 
