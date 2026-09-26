@@ -15,7 +15,7 @@ from .container import (
     ParsingContext,
 )
 
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class BlockquoteRule(BlockRule):
     kind: ContainerCap = ContainerCap.BLOCK
     accepts_content: ContainerCap = ContainerCap.BLOCK
