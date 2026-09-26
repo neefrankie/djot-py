@@ -43,7 +43,7 @@ class ParaRule(BlockRule):
         container: Container,
         ctx: ParsingContext
     ) -> RuleResult:
-        if ctx.cursor.find_whitespace() is None:
+        if not ctx.cursor.peek_is_whitespace():
             return RuleResult.continue_ok()
 
         return RuleResult.fail()
