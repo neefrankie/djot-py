@@ -216,6 +216,14 @@ class InlineParser:
         beofore the found char as plain text.
         If not spcial char is found, the rest of line is taken
         as plain text.
+
+        Example: [^foo]
+        pos -> 1, ^
+        endpos -> 5, ]
+        next_sepcial -> 1
+        newpos == pos
+        No event added
+        return 1
         """
         next_special = self.cursor.find_special(pos, endpos)
 
