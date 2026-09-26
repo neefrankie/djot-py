@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import re
 import string
 from typing import List, Optional
@@ -9,7 +9,7 @@ from .common import Range
 class MatchedRange:
     start: int
     end: int
-    captures: List[str]
+    captures: List[str] = field(default_factory=list)
     
 # The TS version `find` is is a hack of JS regular expression,
 # which is already implemented by Python re.Pattern.search.
@@ -39,8 +39,8 @@ def find(
         )
 
 class InputText:
-    _PATT_BANGS = re.compile(r'#+')
-    _PATT_WHITESPACE = re.compile(r'[ \t\r\n]')
+    
+    _PATT_NON_WHITESPACE = re.compile(r'[^ \t\r\n]')
     _PATT_BLOCKQUOTE_PREFIX = re.compile(r'[>][ \t\r\n]')
     _PATT_CAPTION_START = re.compile(r'\^[ \t]+')
     _PATT_FOOTNOTE_START = re.compile(r'\[\^([^\]]+)\]:[ \t\r\n]')
@@ -71,7 +71,7 @@ class InputText:
     _PATT_WORD = re.compile(r'\w+\s')
     
     _PATT_DIV_FENCE_START = re.compile(r'(::::*)[ \t]*')
-    _PATT_DIV_FENCE_END = re.compile(r'([\w_-]*)[ \t]*\r?\n')
+    _PATT_DIV_FENCE_END = re.compile(r'([\w_-]*)[ \t]*\r?\n', flags=re.ASCII)
     _PATT_DIV_FENCE = re.compile(r'(::::*)[ \t]*\r?\n')
     _PATT_CODE_FENCE = re.compile(r'(~~~~*|````*)([ \t]*)([^ \t\r\n`]*)[ \t]*\r?\n')
 
@@ -82,18 +82,15 @@ class InputText:
     # {=FORMAT}
     _PATT_RAW_ATTRIBUTE = re.compile(r'\{=[^\s{}`]+\}')
     
-    _PATT_BACKTICKS1 = re.compile(r'`+')
-    
-
     # <https://pandoc.org/lua-filters>
     # <me@example.com>
     _PATT_AUTOLINK = re.compile(r'<([^<>\s]+)>')
     
-    _DELIMITERS = '_*~^+=\'"-'
-    _PATT_SYMBOL = re.compile(r':[\w_+-]+:')
-    _PATT_TWO_PERIODS = re.compile(r'\.\.')
-    _PATT_NOTE_REFERENCE = re.compile(r'\^([^\]]+)\]')
+    _PATT_SYMBOL = re.compile(r':[\w_+-]+:', flags=re.ASCII)
+    _SYMBOL_CHARS = string.ascii_letters + string.digits + "_+-"
 
+    _DELIMITERS = '_*~^+=\'"-'
+    
     # Replace `const pattNonspace = pattern("[^ \t\r\n]")` in djot.js.
     # When you want to determine if a single char is space,
     # use short plain str is always optimal in Python.
@@ -183,30 +180,17 @@ class InputText:
 
         return self.pos - (self.indent - indent) # does this amount to indent itself?
 
-
-    def skip_space(self):
-        """
-        跳过当前行的前导空格，并更新 self.indent
-        """
-        newpos = self.pos
-
-        while newpos < self.length and self.src[newpos] in self._SPACE_TAB:
-            newpos += 1
-
-        self.indent = newpos - self.line_start
-        self.pos = newpos
-
     def new_span(self, start: int, end: int) -> Range:
         return Range(
             start=min(start, self.maxoffset),
             end=min(end, self.maxoffset)
         )
 
-    def current_span(self) -> Range:
+    def current_span(self, end: Optional[int] = None) -> Range:
         """Create a Range at curent position"""
         return Range(
             start=min(self.pos, self.maxoffset),
-            end=min(self.pos, self.maxoffset)
+            end=min(end or self.pos, self.maxoffset)
         )
 
     def rest_line_span(self) -> Range:
@@ -228,6 +212,27 @@ class InputText:
         
         return self.src[self.pos] == ch
 
+    # Replace these regex:
+    # re.compile(r'`*')
+    # re.compile(r'`+')
+    def count_char(self, ch: str, start: Optional[int] = None) -> int:
+        """Count consecutive chars"""
+        if start is None:
+            pos = self.pos
+        else:
+            pos = start
+        
+        if self.src[pos] != ch:
+            return 0
+        
+        i = pos
+        
+        while i < self.length and self.src[i] == ch:
+            i += 1
+        
+        return i - pos
+
+
     def is_rest_of_line_blank(self, start: int) -> bool:
         while start < self.length:
             c = self.src[start]
@@ -241,7 +246,7 @@ class InputText:
         return False # EOF without newline.
 
     # re.compile(r'[ \t]*\r?\n')
-    def find_rest_of_line_blank_end(self, pos: int, endpos: int) -> Optional[int]:
+    def find_blank_end(self, pos: int, endpos: int) -> Optional[int]:
         """
         Scan from pos to the end of line, if there's only space in between,
         return the EOL index; otherwise returns None.
@@ -252,7 +257,7 @@ class InputText:
         
         while curr < limit:
             c = self.src[curr]
-            if c in (' ', '\t'):
+            if c in self._SPACE_TAB:
                 curr += 1
             elif c == '\n':
                 return curr  # match \n，return position
@@ -273,39 +278,27 @@ class InputText:
 
         return self.src[pos] in string.punctuation
 
-    # re.compile(r'`*')
-    def find_any_backtick(self, pos: int, endpos: int) -> Optional[int]:
-        """
-        Find zero or more consecutive backticks.
-
-        Returns:
-            The position of last backtick, or None if nothing found.
-        """
-        i = pos
-        limit = min(self.length, endpos+1)
-        while i < limit:
-            if self.src[i] == '`':
-                i += 1
-            else:
-                break # when break, i points to the first non backtick
-
-        if i == pos:
-            return None
-
-        return i-1
-
     # re.compile(r'\$\$')
-    def is_double_dollars(self, pos: int) -> bool:
+    def has_double_dollars(self, pos: int) -> bool:
         if pos < 0 or pos+1 >= self.length:
             return False
         
         return self.src[pos] == '$' and self.src[pos+1] == '$'
 
     # re.compile(r'\$')
-    def is_single_dollar(self, pos: int) -> bool:
+    def has_single_dollar(self, pos: int) -> bool:
         if pos < 0 or pos >= self.length:
             return False
         return self.src[pos] == '$' and self.src[pos+1] != '$'
+
+    # re.compile(r'\.\.')
+    def has_two_period(self, pos: int, endpos: int) -> bool:
+        limit = min(self.length-1, endpos)
+        if pos < 0 or pos >= limit:
+            return False
+
+        return self.src[pos] == '.' and self.src[pos+1] == '.'
+
 
     # re.compile(r'\\')
     def is_backslash(self, pos: int) -> bool:
@@ -321,17 +314,57 @@ class InputText:
 
         return self.src[pos] in self._DELIMITERS
 
+    def is_space(self, i: int) -> bool:
+            return self.src[i] == ' '
+    
+    def is_whitespace(self, pos: int) -> bool:
+        if pos < 0 or pos >= self.length:
+            return True
+        return self.src[pos] in self._WHITESPACE
+
+    def peek_is_whitespace(self) -> bool:
+        if self.pos < 0 or self.pos >= self.length:
+            return False
+
+        return self.src[self.pos] in self._WHITESPACE
+
+    def is_crlf(self, i: int):
+        """
+        Check if the char at i is \r and the next is \n.
+        """
+        if i >= self.length:
+            return False
+        return self.src[i] == '\r' and self.src[i+1] == '\n'
+
+    def is_cr_or_lf(self, i: int) -> bool:
+        if i >= self.length:
+            return False
+
+        return self.src[i] in self._CR_LF
+
+    def is_bang(self, i: int) -> bool:
+        return self.src[i] == '!'
+
+    def is_left_bracket(self, i: int) -> bool:
+        return self.src[i] == '['
+
+    def is_left_paren(self, i: int) -> bool:
+        return self.src[i] == '('
+
+    def is_left_brace(self, i: int) -> bool:
+        return self.src[i] == '{'
+
+    def is_right_brace(self, i: int) -> bool:
+        return self.src[i] == '}'
+
+    def is_hat(self, i: int) -> bool:
+        return self.src[i] == '^'
+
+    def is_dash(self, i: int) -> bool:
+        return self.src[i] == '-'
+
     def find(self, patt: re.Pattern) -> Optional[MatchedRange]:
         return find(self.src, patt, self.pos)
-
-    def find_bangs(self) -> Optional[MatchedRange]:
-        return find(self.src, self._PATT_BANGS, self.pos)
-
-    def find_whitespace(self, start: Optional[int] = None) -> Optional[MatchedRange]:
-        if start is None:
-            start = self.pos
-
-        return find(self.src, self._PATT_WHITESPACE, start)
 
     def find_blockquote_prefix(self) -> Optional[MatchedRange]:
         return find(self.src, self._PATT_BLOCKQUOTE_PREFIX, self.pos)
@@ -394,15 +427,8 @@ class InputText:
 
         return None
 
-    def find_backtick_at_least_one(self, pos: int, endpos: int) -> Optional[MatchedRange]:
-        return find(self.src, self._PATT_BACKTICKS1, pos, endpos)
-
-    
-
     def find_raw_attribute(self, pos: int, endpos: int) -> Optional[MatchedRange]:
         return find(self.src, self._PATT_RAW_ATTRIBUTE, pos, endpos)
-
-    
 
     def find_autolink(self, pos: int, endpos: int) -> Optional[MatchedRange]:
         # <([^<>\s]+)>
@@ -412,31 +438,13 @@ class InputText:
 
 
     def find_symbol(self, pos: int, endpos: int) -> Optional[MatchedRange]:
-        return find(self.src, self._PATT_SYMBOL, pos, endpos)
-
-    def find_two_periods(self, pos: int, endpos: int) -> Optional[MatchedRange]:
-        return find(self.src, self._PATT_TWO_PERIODS, pos, endpos)
-
-    # re.compile(r'\^([^\]]+)\]')
-    def find_note_reference(self, pos: int, endpos: int) -> Optional[MatchedRange]:
-        if self.src[pos] != '^':
+        if self.src[pos] != ':':
             return None
 
-        start = pos
-        limit = min(self.length, endpos+1)
-
-        while pos <= limit:
-            c = self.src[pos]
-            if c == ']':
-                return MatchedRange(
-                    start=start,
-                    end=pos,
-                    captures=[self.src[start:pos+1]]
-                )
-            else:
-                pos = pos + 1
-
-        return None
+        if pos + 1 > endpos or self.src[pos+1] not in self._SYMBOL_CHARS:
+            return None
+        
+        return find(self.src, self._PATT_SYMBOL, pos, endpos)
 
     def has_brace(self, i: int) -> bool:
 
@@ -491,41 +499,22 @@ class InputText:
 
         return end
 
-    def is_space(self, i: int) -> bool:
-        return self.src[i] == ' '
-
-    def is_whitespace(self, i: int) -> bool:
-        if i < 0 or i >= self.length:
-            return True
-        return self.src[i] in self._WHITESPACE
-
-    def is_crlf(self, i: int):
+    def skip_space(self):
         """
-        Check if the char at i is \r and the next is \n.
+        跳过当前行的前导空格，并更新 self.indent
         """
-        if i+1 >= self.maxoffset:
-            return False
-        return self.src[i] == '\r' and self.src[i+1] == '\n'
+        newpos = self.pos
 
-    def is_bang(self, i: int) -> bool:
-        return self.src[i] == '!'
+        while newpos < self.length and self.src[newpos] in self._SPACE_TAB:
+            newpos += 1
+
+        self.indent = newpos - self.line_start
+        self.pos = newpos
+
+    def find_non_whitespace(self) -> Optional[MatchedRange]:
+        return find(self.src, self._PATT_NON_WHITESPACE, self.pos)
 
     
-
-    def is_left_bracket(self, i: int) -> bool:
-        return self.src[i] == '['
-
-    def is_left_paren(self, i: int) -> bool:
-        return self.src[i] == '('
-
-    def is_left_brace(self, i: int) -> bool:
-        return self.src[i] == '{'
-
-    def is_right_brace(self, i: int) -> bool:
-        return self.src[i] == '}'
-
-    def is_hat(self, i: int) -> bool:
-        return self.src[i] == '^'
 
     
 
