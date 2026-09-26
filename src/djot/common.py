@@ -8,8 +8,8 @@ class Range:
     start: int
     end: int
 
-    def shrink_end(self, end: int):
-        self.start = end
+    def adjust_end(self, to: int):
+        self.start = to
 
     def __str__(self) -> str:
         return f'{self.start}:{self.end}'
