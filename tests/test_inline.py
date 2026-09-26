@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Dict, List, NamedTuple, Tuple
 import unittest
 
 from djot.event import (
@@ -9,7 +9,7 @@ from djot.event import (
     InlineContainer,
 )
 from djot.common import Range
-from djot.inline.state import InlineState, Opener, OpenerKind, EventPointer, OpenerV2
+from djot.inline.state import InlineState, OpenerKind
 from djot.input import InputText
 from djot.options import Options
 from djot.inline.backslash import BackslashMatcher
@@ -26,40 +26,34 @@ class TestData:
     expected_pos: int
     expected_events: List[Event]
 
-@dataclass
-class Args:
+class Args(NamedTuple):
     state: InlineState
     pos: int
     endpos: int
 
-@dataclass
-class Expected:
+class Expected(NamedTuple):
     pos: int
     events: List[Event]
 
-
-def new_inline_state(
-    text: str,
-    events: List[Event] | None  = None,
-    openers: Dict[str, List[Opener]] | None = None,
-) -> InlineState:
-    state = InlineState(InputText(text), Options())
-
-
-    if events:
-        state.events = events
-
-    return state
+class TestCase(NamedTuple):
+    args: Args
+    expected: Expected
 
 
 def new_link_state(
     text: str,
     open_span: Range,
     close_span: Range | None = None,
+    image_span: Range | None = None,
     kind: OpenerKind = OpenerKind.REFERENCE_LINK,
 ):
 
     state = InlineState(InputText(text), Options())
+
+    if image_span:
+        state.push_event(
+            Event.leaf(image_span, InlineLeaf.STR)
+        )
     
     opener = state.add_opener('[', Event.leaf(open_span, InlineLeaf.STR))
 
@@ -194,9 +188,9 @@ class TestMatcher(unittest.TestCase):
         cases = [
             (
                 '[^foo]',
-                6,
+                1,
                 [
-                    Event.new(0, 5, InlineLeaf.FOOTNOTE_REF)
+                    Event.new(0, 0, InlineLeaf.STR)
                 ]
             ),
             (
@@ -218,7 +212,26 @@ class TestMatcher(unittest.TestCase):
 
     def test_right_bracket(self):
         cases = [
-            (
+            TestCase(
+                Args(
+                    state=new_link_state(
+                        text='[^foo]',
+                        open_span=Range(0, 0),
+                    ),
+                    pos=5,
+                    endpos=5,
+                ),
+                Expected(
+                    pos=6,
+                    events=[
+                        Event.leaf(
+                            Range(0, 5),
+                            InlineLeaf.FOOTNOTE_REF,
+                        )
+                    ]
+                )
+            ),
+            TestCase(
                 Args(
                     new_link_state(
                         text='[Text][foo]',
@@ -251,7 +264,44 @@ class TestMatcher(unittest.TestCase):
                     ]
                 )
             ),
-            ()
+            TestCase(
+                Args(
+                    new_link_state(
+                        text='![Cat][cat]',
+                        image_span=Range(0, 0),
+                        open_span=Range(1, 1),
+                        close_span=Range(5, 5),
+                        kind=OpenerKind.REFERENCE_LINK,
+                    ),
+                    pos=10,
+                    endpos=len('![Cat][foo]')-1
+                ),
+                Expected(
+                    pos=11,
+                    events=[
+                        Event.leaf(
+                            Range(0, 0),
+                            InlineLeaf.IMAGE_MARKER,
+                        ),
+                        Event.enter( # [
+                            Range(1, 1),
+                            InlineContainer.IMAGE_TEXT,
+                        ),
+                        Event.exit( # ]
+                            Range(5, 5),
+                            InlineContainer.IMAGE_TEXT,
+                        ),
+                        Event.enter( # [
+                            Range(6, 6),
+                            InlineContainer.REFERENCE,
+                        ),
+                        Event.exit(
+                            Range(10, 10),
+                            InlineContainer.REFERENCE,
+                        )
+                    ]
+                )
+            ),
         ]
 
         for args, expected in cases:
