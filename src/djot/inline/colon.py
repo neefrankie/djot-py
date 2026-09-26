@@ -5,7 +5,6 @@ from ..common import (
 )
 from ..event import (
     Event,
-    BlockLeaf,
     InlineLeaf,
 )
 from .matcher import Matcher
@@ -34,11 +33,11 @@ class ColonMatcher(Matcher):
                 )
             ) 
             return m.end+1 # after closing :
-        else:
-            state.events.append(
-                Event.leaf(
-                    Range(pos, pos),
-                    InlineLeaf.STR
-                )
-            ) # : is plain text.
-            return pos+1
+        
+        state.events.append(
+            Event.leaf(
+                Range(pos, pos),
+                InlineLeaf.STR
+            )
+        ) # : is plain text.
+        return pos+1
