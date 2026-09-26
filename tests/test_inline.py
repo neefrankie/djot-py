@@ -17,6 +17,11 @@ from djot.inline.backtick import BacktickMatcher
 from djot.inline.brace_left import LeftBraceMatcher
 from djot.inline.bracket_left import LeftBracketMatcher
 from djot.inline.bracket_right import RightBracketMatcher
+from djot.inline.colon import ColonMatcher
+from djot.inline.lessthan import LessthanMatcher
+from djot.inline.paren_left import LeftParenMatcher
+from djot.inline.paren_right import RightParenMatcher
+from djot.inline.period import PeriodMatcher
 
 @dataclass
 class TestData:
@@ -40,6 +45,19 @@ class TestCase(NamedTuple):
     name: str
     args: Args
     expected: Expected
+
+def new_state(
+    text: str,
+    dest: bool = False,
+    events: List[Event] | None = None,
+):
+    state = InlineState(InputText(text), Options())
+    state.destination = dest
+
+    if events:
+        state.events = events
+
+    return state
 
 
 def new_link_state(
@@ -75,6 +93,9 @@ def new_link_state(
             ),
             kind=kind,
         )
+
+        if kind == OpenerKind.EXPLICIT_LINK:
+            state.destination = True
 
     return state
 
@@ -374,6 +395,232 @@ class TestMatcher(unittest.TestCase):
                 self.assertEqual(args.state.events, expected.events)
                 self.assertEqual(args.state.destination, expected.dest)
 
+    def test_colon(self):
+        smiley = ':smiley:'
+        strcolon = ': foo'
+        cases = [
+            TestCase(
+                'symbol',
+                Args(
+                    state=InlineState(InputText(smiley), Options()),
+                    pos=0,
+                    endpos=len(smiley)-1
+                ),
+                Expected(
+                    pos=len(smiley),
+                    events=[
+                        Event.leaf(Range(0, len(smiley)-1), InlineLeaf.SYMBOL),
+                    ]
+                )
+            ),
+            TestCase(
+                'str colon',
+                Args(
+                    state=InlineState(InputText(strcolon), Options()),
+                    pos=0,
+                    endpos=len(strcolon)-1
+                ),
+                Expected(
+                    pos=1,
+                    events=[
+                        Event.leaf(Range(0, 0), InlineLeaf.STR),
+                    ]
+                )
+            ),
+        ]
+        for name, args, expected in cases:
+            with self.subTest(f'{name}: {args.state.cursor.src}'):
+                matcher = ColonMatcher()
+                actual_pos = matcher(args.state, args.pos, args.endpos)
+                self.assertEqual(actual_pos, expected.pos)
+                self.assertEqual(args.state.events, expected.events)
+
+    def test_lessthan(self):
+        email = '<foo@bar.com>'
+        url = '<https://example.com>'
+        cases = [
+            TestCase(
+                'email',
+                Args(
+                    state=new_state(email),
+                    pos=0,
+                    endpos=len(email)-1
+                ),
+                Expected(
+                    pos=len(email),
+                    events=[
+                        Event.enter(Range(0, 0), InlineContainer.EMAIL),
+                        Event.leaf(Range(1, len(email)-2), InlineLeaf.STR),
+                        Event.exit(Range(len(email)-1, len(email)-1), InlineContainer.EMAIL)
+                    ]
+                )
+            ),
+            TestCase(
+                'url',
+                Args(
+                    state=new_state(url),
+                    pos=0,
+                    endpos=len(url)-1
+                ),
+                Expected(
+                    pos=len(url),
+                    events=[
+                        Event.enter(Range(0, 0), InlineContainer.URL),
+                        Event.leaf(Range(1, len(url)-2), InlineLeaf.STR),
+                        Event.exit(Range(len(url)-1, len(url)-1), InlineContainer.URL)
+                    ]
+                )
+            )
+        ]
+
+        for name, args, expected in cases:
+            with self.subTest(f'{name}: {args.state.cursor.src}'):
+                matcher = LessthanMatcher()
+                actual_pos = matcher(args.state, args.pos, args.endpos)
+                self.assertEqual(actual_pos, expected.pos)
+                self.assertEqual(args.state.events, expected.events)
+
+    def test_paren(self):
+        paren = '(hello)'
+        
+        cases = [
+            TestCase(
+                'paren',
+                Args(
+                    state=new_state(paren, dest=True),
+                    pos=0,
+                    endpos=len(paren)-1
+                ),
+                Expected(
+                    pos=1,
+                    events=[
+                        Event.str(0, 0),
+                    ]
+                )
+            ),
+        ]
+
+        for name, args, expected in cases:
+            with self.subTest(f'{name}: {args.state.cursor.src}'):
+                matcher = LeftParenMatcher()
+                actual_pos = matcher(args.state, args.pos, args.endpos)
+                self.assertEqual(actual_pos, expected.pos)
+                self.assertEqual(args.state.events, expected.events)
+
+    def test_right_paren(self):
+        cases = [
+            TestCase(
+                'commit link',
+                Args(
+                    new_link_state(
+                        text='[Text](foo)',
+                        open_span=Range(0, 0),
+                        close_span=Range(5, 5),
+                        kind=OpenerKind.EXPLICIT_LINK,
+                    ),
+                    pos=10,
+                    endpos=len('[Text][foo]')-1
+                ),
+                Expected(
+                    pos=11,
+                    events=[
+                        Event.enter( # [
+                            Range(0, 0),
+                            InlineContainer.LINK_TEXT,
+                        ),
+                        Event.exit( # ]
+                            Range(5, 5),
+                            InlineContainer.LINK_TEXT,
+                        ),
+                        Event.enter( # [
+                            Range(6, 6),
+                            InlineContainer.DESTINATION,
+                        ),
+                        Event.exit(
+                            Range(10, 10),
+                            InlineContainer.DESTINATION,
+                        )
+                    ],
+                    dest=False
+                )
+            ),
+            TestCase(
+                'commit image',
+                Args(
+                    new_link_state(
+                        text='![Cat](cat)',
+                        image_span=Range(0, 0),
+                        open_span=Range(1, 1),
+                        close_span=Range(5, 5),
+                        kind=OpenerKind.EXPLICIT_LINK,
+                    ),
+                    pos=10,
+                    endpos=len('![Cat][foo]')-1
+                ),
+                Expected(
+                    pos=11,
+                    events=[
+                        Event.leaf(
+                            Range(0, 0),
+                            InlineLeaf.IMAGE_MARKER,
+                        ),
+                        Event.enter( # [
+                            Range(1, 1),
+                            InlineContainer.IMAGE_TEXT,
+                        ),
+                        Event.exit( # ]
+                            Range(5, 5),
+                            InlineContainer.IMAGE_TEXT,
+                        ),
+                        Event.enter( # [
+                            Range(6, 6),
+                            InlineContainer.DESTINATION,
+                        ),
+                        Event.exit(
+                            Range(10, 10),
+                            InlineContainer.DESTINATION,
+                        )
+                    ],
+                    dest=False,
+                )
+            ),
+        ]
+
+        for name, args, expected in cases:
+            with self.subTest(f'{name}: {args.state.cursor.src}'):
+                matcher = RightParenMatcher()
+                actual_pos = matcher(args.state, args.pos, args.endpos)
+                self.assertEqual(actual_pos, expected.pos)
+                self.assertEqual(args.state.events, expected.events)
+                self.assertEqual(args.state.destination, expected.dest)
+
+    def test_period(self):
+        cases = [
+            TestCase(
+                'period',
+                Args(
+                    state=new_state('...'),
+                    pos=0,
+                    endpos=2
+                ),
+                Expected(
+                    pos=3,
+                    events=[
+                        Event.leaf(
+                            Range(0, 2),
+                            InlineLeaf.ELLIPSES,
+                        )
+                    ]
+                )
+            )
+        ]
+
+        for name, args, expected in cases:
+            with self.subTest(f'{name}: {args.state.cursor.src}'):
+                matcher = PeriodMatcher()
+                actual_pos = matcher(args.state, args.pos, args.endpos)
+                self.assertEqual(actual_pos, expected.pos)
+                self.assertEqual(args.state.events, expected.events)
 
 
 if __name__ == '__main__':
