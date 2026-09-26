@@ -18,7 +18,7 @@ class PeriodMatcher(Matcher):
         A sequence of three periods is parsed as ellipses
         
         """
-        if state.cursor.find_two_periods(pos+1, endpos): # find two more periods after current dot.
+        if state.cursor.has_two_period(pos+1, endpos): # find two more periods after current dot.
             state.events.append(
                 Event.leaf(
                     Range(pos, pos+2),
