@@ -241,12 +241,9 @@ class InlineParser:
 
         
     def _feed_newline(self, pos: int, endpos: int) -> Optional[int]:
-        ch = self.cursor.char_at(pos)
-        if ch is None:
-            raise Exception(f'char at {pos} is undefined')
 
-        if ch == '\r' or ch == '\n':
-            if ch == '\r' and self.cursor.char_at(pos+1) == '\n':
+        if self.cursor.is_cr_or_lf(pos):
+            if self.cursor.is_crlf(pos):
                 self.state.events.append(
                     Event.leaf(
                         span=Range(pos, pos+1),
@@ -270,11 +267,10 @@ class InlineParser:
         if self.verbatim_len <= 0: # not in verbatim mode
             return None
 
-        ch = self.cursor.char_at(pos)
-        if ch is None:
-            raise Exception(f'char at {pos} is undefined')
+        count = self.cursor.count_char('`', pos)
 
-        if ch != '`': # check verbatim closing mark
+        # In verbatim string, the special char is not backtick.
+        if count == 0:
             self.state.events.append(
                 Event.leaf(
                     span=Range(pos, pos),
@@ -282,28 +278,21 @@ class InlineParser:
                 )
             )
             return pos + 1
-        
-        m = self.cursor.find_backtick_at_least_one(pos, endpos)
-        if not m: # why this could happen if you are searching from the backtick?
-            self.state.events.append(
-                Event.leaf(
-                    span=Range(pos, endpos),
-                    kind=InlineLeaf.STR
-                )
-            )
-            return endpos + 1
+
+        # backtick found
+        endchar = pos + count - 1
 
         # Opening and closing delimiters should be equal.
-        if m.end - pos + 1 != self.verbatim_len:
+        if count != self.verbatim_len:
             self.state.events.append(
                 Event.leaf(
-                    span=Range(pos, m.end),
+                    span=Range(pos, endchar),
                     kind=InlineLeaf.STR
                 )
             )
 
         # Check for raw attribute
-        endchar = m.end
+        endchar = pos + count - 1
         m2 = self.cursor.find_raw_attribute(endchar+1, endpos)
         if m2 and self.verbatim_type == VerbatimKind.VERBATIM: # raw
             self.state.events.append(
