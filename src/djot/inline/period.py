@@ -19,7 +19,7 @@ class PeriodMatcher(Matcher):
         
         """
         if state.cursor.has_two_period(pos+1, endpos): # find two more periods after current dot.
-            state.events.append(
+            state.push_event(
                 Event.leaf(
                     Range(pos, pos+2),
                     InlineLeaf.ELLIPSES
