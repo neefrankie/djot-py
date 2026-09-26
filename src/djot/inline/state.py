@@ -309,7 +309,7 @@ class InlineState:
         if ep < last_match.span.start:
             self.events.pop() # space only
         else:
-            last_match.span.shrink_end(ep) # change end position to first non-space char.
+            last_match.span.adjust_end(ep) # change end position to first non-space char.
 
 
     def is_cross_link_boudnary(self, opener_startpos: int) -> bool:
@@ -369,7 +369,7 @@ class InlineState:
             # opener.startpos is  7, pointing to '[' while previous str
             # event spans from 0 to 6. We need to truncate the str to 5
             # and insert ! as a separate event.
-            prev_event.shrink_end(opener.startpos - 2)
+            prev_event.adjust_end(opener.startpos - 2)
             
             self.events.insert(opener.event_index, img_event)
             # Adjust indices since we inserted a new element
