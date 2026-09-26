@@ -25,7 +25,7 @@ class BackslashMatcher(Matcher):
         
         """
         # Inspect if backslash is followed by [ \t]*\r?\n
-        line_end_pos = state.cursor.find_rest_of_line_blank_end(pos+1, endpos)
+        line_end_pos = state.cursor.find_blank_end(pos+1, endpos)
         # Hardbreak.
         if line_end_pos is not None:
             # see if there were preceding spaces and remove them.
