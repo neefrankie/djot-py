@@ -166,7 +166,7 @@ class Event:
     def is_soft_break(self) -> bool:
         return self.kind == InlineLeaf.SOFT_BREAK
 
-    def shrink_end(self, to: int):
+    def adjust_end(self, to: int):
         self.span.end = to
 
     def with_list_styles(self, styles: List[str]):
@@ -198,6 +198,10 @@ class Event:
 
     def demote_to_str(self):
         self.kind = InlineLeaf.STR
+        self.action = None
+
+    def switch_to_leaf(self, kind: InlineLeaf):
+        self.kind = kind
         self.action = None
 
     def expand(self, other: 'Event') -> bool:
