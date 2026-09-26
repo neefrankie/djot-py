@@ -82,8 +82,8 @@ class RightBracketMatcher(Matcher):
     def _commit_note_reference(self, state: InlineState, opener: OpenerV2, pos: int) -> int:
         i = state.pop_events_upto(opener.startpos)
         state.clear_openers(opener.startpos, pos)
-        state.events[i].kind = InlineLeaf.FOOTNOTE_REF
-        state.events[i].span.end = pos
+        state.events[i].switch_to_leaf(InlineLeaf.FOOTNOTE_REF)
+        state.events[i].adjust_end(pos)
 
         return pos+1
 
