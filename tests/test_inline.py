@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, List, NamedTuple, Tuple
+from typing import List, NamedTuple, Tuple
 import unittest
 
 from djot.event import (
@@ -34,8 +34,10 @@ class Args(NamedTuple):
 class Expected(NamedTuple):
     pos: int
     events: List[Event]
+    dest: bool = False
 
 class TestCase(NamedTuple):
+    name: str
     args: Args
     expected: Expected
 
@@ -213,6 +215,7 @@ class TestMatcher(unittest.TestCase):
     def test_right_bracket(self):
         cases = [
             TestCase(
+                '_commit_note_reference',
                 Args(
                     state=new_link_state(
                         text='[^foo]',
@@ -232,6 +235,7 @@ class TestMatcher(unittest.TestCase):
                 )
             ),
             TestCase(
+                '_commit_link',
                 Args(
                     new_link_state(
                         text='[Text][foo]',
@@ -265,6 +269,7 @@ class TestMatcher(unittest.TestCase):
                 )
             ),
             TestCase(
+                '_commit_image',
                 Args(
                     new_link_state(
                         text='![Cat][cat]',
@@ -302,14 +307,72 @@ class TestMatcher(unittest.TestCase):
                     ]
                 )
             ),
+            TestCase(
+                'prepare reference link',
+                Args(
+                    state=new_link_state(
+                        text='[Foo][bar]',
+                        open_span=Range(0, 0),
+                    ),
+                    pos=4,
+                    endpos=len('[Foo][bar]')-1
+                ),
+                Expected(
+                    pos=6,
+                    events=[
+                        Event.leaf(Range(0, 0), InlineLeaf.STR),
+                        Event.leaf(Range(4, 4), InlineLeaf.STR),
+                        Event.leaf(Range(5, 5), InlineLeaf.STR),
+                    ]
+                )
+            ),
+            TestCase(
+                'prepare explicit link',
+                Args(
+                    state=new_link_state(
+                        text='[Foo](bar)',
+                        open_span=Range(0, 0),
+                    ),
+                    pos=4,
+                    endpos=len('[Foo][bar]')-1
+                ),
+                Expected(
+                    pos=6,
+                    events=[
+                        Event.leaf(Range(0, 0), InlineLeaf.STR),
+                        Event.leaf(Range(4, 4), InlineLeaf.STR),
+                        Event.leaf(Range(5, 5), InlineLeaf.STR),
+                    ],
+                    dest=True,
+                ),
+            ),
+            TestCase(
+                'prepare span',
+                Args(
+                    state=new_link_state(
+                        text='[Foo]{#bar}',
+                        open_span=Range(0, 0),
+                    ),
+                    pos=4,
+                    endpos=len('[Foo]{#bar}')-1
+                ),
+                Expected(
+                    pos=5,
+                    events=[
+                        Event.enter(Range(0, 0), InlineContainer.SPAN),
+                        Event.exit(Range(4, 4), InlineContainer.SPAN),
+                    ],
+                ),
+            ),
         ]
 
-        for args, expected in cases:
-            with self.subTest(args.state.cursor.src):
+        for name, args, expected in cases:
+            with self.subTest(f'{name}: {args.state.cursor.src}'):
                 matcher = RightBracketMatcher()
                 actual_pos = matcher(args.state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
                 self.assertEqual(args.state.events, expected.events)
+                self.assertEqual(args.state.destination, expected.dest)
 
 
 
