@@ -27,7 +27,6 @@ class ColonMatcher(Matcher):
         
         m = state.cursor.find_symbol(pos, endpos)
         if m:
-            # TODO: why not add colon?
             state.events.append(
                 Event.leaf(
                     Range(m.start, m.end),
