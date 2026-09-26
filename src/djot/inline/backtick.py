@@ -14,14 +14,16 @@ class BacktickMatcher(Matcher):
 
     def __call__(self, state: InlineState, pos: int, endpos: int) -> Optional[int]:
         # Find zero or more backtick
-        endchar = state.cursor.find_any_backtick(pos, endpos)
-        if endchar is None:
+        count = state.cursor.count_char('`', pos)
+        if count == 0:
             return None
         
+        endchar = pos + count - 1
+
         # $$` x^n + y^n = z^n `
         # If previous two characters are $$, and not preceded by a backslash,
         # it's a display math.
-        if state.cursor.is_double_dollars(pos-2) and (not state.cursor.is_backslash(pos-3)):
+        if state.cursor.has_double_dollars(pos-2) and (not state.cursor.is_backslash(pos-3)):
             # Merge previous 2 dollar sign with current token.
             state.events.pop() # remove first $
             state.events.pop() # remove second $
@@ -42,7 +44,7 @@ class BacktickMatcher(Matcher):
         # - $
         # - other text
         # What about \\$$?
-        if state.cursor.is_single_dollar(pos-1):
+        if state.cursor.has_single_dollar(pos-1):
             # Merge the single dollar with current token.
             state.events.pop() # remove $
             state.events.append(
