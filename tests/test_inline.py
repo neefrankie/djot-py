@@ -23,14 +23,6 @@ from djot.inline.paren_left import LeftParenMatcher
 from djot.inline.paren_right import RightParenMatcher
 from djot.inline.period import PeriodMatcher
 
-@dataclass
-class TestData:
-    text: str
-    args: Tuple[int, int]
-    fixture: List[Event]
-    expected_pos: int
-    expected_events: List[Event]
-
 class Args(NamedTuple):
     state: InlineState
     pos: int
@@ -103,135 +95,193 @@ def new_link_state(
 class TestMatcher(unittest.TestCase):
     def test_backslash(self):
         cases = [
-            (
-                '\\  \n',
-                4,
-                [
-                    Event.new(0, 0, InlineLeaf.ESCAPE),
-                    Event.new(1, 3, InlineLeaf.HARD_BREAK),
-                ]
+            TestCase(
+                'hard break',
+                Args(
+                    state=new_state('\\  \n'),
+                    pos=0,
+                    endpos=4
+                ),
+                Expected(
+                    pos=5,
+                    events=[
+                        Event.new(0, 0, InlineLeaf.ESCAPE),
+                        Event.new(1, 3, InlineLeaf.HARD_BREAK),
+                    ]
+                )
             ),
-            (
-                '\\!',
-                2,
-                [
-                    Event.new(0, 0, InlineLeaf.ESCAPE),
-                    Event.new(1, 1, InlineLeaf.STR),
-                ]
+            TestCase(
+                'escape',
+                Args(
+                    state=new_state('\\!'),
+                    pos=0,
+                    endpos=1,
+                ),
+                Expected(
+                    pos=2,
+                    events=[
+                        Event.new(0, 0, InlineLeaf.ESCAPE),
+                        Event.new(1, 1, InlineLeaf.STR),
+                    ]
+                )
             ),
-            (
-                '\\ ',
-                2,
-                [
-                    Event.new(0, 0, InlineLeaf.ESCAPE),
-                    Event.new(1, 1, InlineLeaf.NBSP),
-                ]
+            TestCase(
+                'non-breaking space',
+                Args(
+                    state=new_state('\\ '),
+                    pos=0,
+                    endpos=1,
+                ),
+                Expected(
+                    pos=2,
+                    events=[
+                        Event.new(0, 0, InlineLeaf.ESCAPE),
+                        Event.new(1, 1, InlineLeaf.NBSP),
+                    ]
+                )
             )
         ]
 
-        for text, expected_pos, expected_events in cases:
-            with self.subTest(text):
-                state = InlineState(InputText(text), Options())
+        for name, args, expected in cases:
+            with self.subTest(name):
                 matcher = BackslashMatcher()
-                actual_pos = matcher(state, 0, len(text)-1)
-                self.assertEqual(actual_pos, expected_pos)
-                self.assertEqual(state.events, expected_events)
+                actual_pos = matcher(args.state, args.pos, args.endpos)
+                self.assertEqual(actual_pos, expected.pos)
+                self.assertEqual(args.state.events, expected.events)
 
     def test_backtick(self):
         cases = [
-            TestData(
-                text='$$`',
-                args=(2, 2),
-                fixture=[
-                    Event.new(0, 0, InlineLeaf.STR),
-                    Event.new(1, 2, InlineLeaf.STR)
-                ],
-                expected_pos=3,
-                expected_events=[
-                    Event.enter(Range(0, 2), VerbatimKind.DISPLAY_MATH),
-                ]
+            TestCase(
+                'display math',
+                Args(
+                    state=new_state('$$`', events=[
+                        Event.new(0, 0, InlineLeaf.STR),
+                        Event.new(1, 2, InlineLeaf.STR)
+                    ]),
+                    pos=2,
+                    endpos=2,
+                ),
+                Expected(
+                    pos=3,
+                    events=[
+                        Event.enter(Range(0, 2), VerbatimKind.DISPLAY_MATH),
+                    ]
+                )
             ),
-            TestData(
-                text='$`',
-                args=(1, 1),
-                fixture=[
-                    Event.new(0, 0, InlineLeaf.STR),
-                ],
-                expected_pos=2,
-                expected_events=[
-                    Event.enter(Range(0, 1), VerbatimKind.INLINE_MATH),
-                ]
+            TestCase(
+                'inline math',
+                Args(
+                    state=new_state('$`', events=[
+                        Event.new(0, 0, InlineLeaf.STR),
+                    ]),
+                    pos=1,
+                    endpos=1,
+                ),
+                Expected(
+                    pos=2,
+                    events=[
+                        Event.enter(Range(0, 1), VerbatimKind.INLINE_MATH),
+                    ]
+                )
             ),
-            TestData(
-                text='`',
-                args=(0, 0),
-                fixture=[],
-                expected_pos=1,
-                expected_events=[
-                    Event.enter(Range(0, 0), VerbatimKind.VERBATIM),
-                ]
+            TestCase(
+                'verbatim',
+                Args(
+                    state=new_state('`'),
+                    pos=0,
+                    endpos=0,
+                ),
+                Expected(
+                    pos=1,
+                    events=[
+                        Event.enter(Range(0, 0), VerbatimKind.VERBATIM),
+                    ]
+                )
             )
         ]
 
-        for c in cases:
-            with self.subTest(c.text):
-                state = InlineState(InputText(c.text), Options())
-                state.events.extend(c.fixture)
+        for name, args, expected in cases:
+            with self.subTest(name):
                 matcher = BacktickMatcher()
-                actual_pos = matcher(state, c.args[0], c.args[1])
-                self.assertEqual(actual_pos, c.expected_pos)
-                self.assertEqual(state.events, c.expected_events)
+                actual_pos = matcher(args.state, args.pos, args.endpos)
+                self.assertEqual(actual_pos, expected.pos)
+                self.assertEqual(args.state.events, expected.events)
 
     def test_left_brace(self):
         cases = [
-            (
+            TestCase(
                 '{_italic_}',
-                1,
-                [
-                    Event.new(0, 0, InlineLeaf.OPEN_MARKER)
-                ]
+                Args(
+                    state=new_state('{_italic_}'),
+                    pos=0,
+                    endpos=7,
+                ),
+                Expected(
+                    pos=1,
+                    events=[
+                        Event.new(0, 0, InlineLeaf.OPEN_MARKER)
+                    ]
+                )
             ),
-            (
+            TestCase(
                 '{#ident}',
-                0,
-                []
-
+                Args(
+                    state=new_state('{#ident}'),
+                    pos=0,
+                    endpos=6,
+                ),
+                Expected(
+                    pos=0,
+                    events=[]
+                )
             )
         ]
 
-        for text, expected_pos, expected_events in cases:
-            with self.subTest(text):
-                state = InlineState(InputText(text), Options())
+        for name, args, expected in cases:
+            with self.subTest(f'{name}: {args.state.cursor.src}'):
                 matcher = LeftBraceMatcher()
-                actual_pos = matcher(state, 0, len(text)-1)
-                self.assertEqual(actual_pos, expected_pos)
-                self.assertEqual(state.events, expected_events)
+                actual_pos = matcher(args.state, args.pos, args.endpos)
+                self.assertEqual(actual_pos, expected.pos)
+                self.assertEqual(args.state.events, expected.events)
 
     def test_left_bracket(self):
         cases = [
-            (
-                '[^foo]',
-                1,
-                [
-                    Event.new(0, 0, InlineLeaf.STR)
-                ]
+            TestCase(
+                'footnote reference',
+                Args(
+                    state=new_state('[^foo]'),
+                    pos=0,
+                    endpos=5,
+                ),
+                Expected(
+                    pos=1,
+                    events=[
+                        Event.new(0, 0, InlineLeaf.STR)
+                    ]
+                )
             ),
-            (
+            TestCase(
                 '[foo]',
-                1,
-                [
-                    Event.new(0, 0, InlineLeaf.STR)
-                ]
+                Args(
+                    state=new_state('[foo]'),
+                    pos=0,
+                    endpos=4,
+                ),
+                Expected(
+                    pos=1,
+                    events=[
+                        Event.new(0, 0, InlineLeaf.STR)
+                    ]
+                )
             )
         ]
 
-        for text, expected_pos, expected_events in cases:
-            with self.subTest(text):
-                state = InlineState(InputText(text), Options())
+        for name, args, expected in cases:
+            with self.subTest(f'{name}: {args.state.cursor.src}'):
                 matcher = LeftBracketMatcher()
-                actual_pos = matcher(state, 0, len(text)-1)
-                self.assertEqual(actual_pos, expected_pos)
-                self.assertEqual(state.events, expected_events)
+                actual_pos = matcher(args.state, args.pos, args.endpos)
+                self.assertEqual(actual_pos, expected.pos)
+                self.assertEqual(args.state.events, expected.events)
 
     def test_right_bracket(self):
         cases = [
@@ -622,6 +672,7 @@ class TestMatcher(unittest.TestCase):
                 self.assertEqual(actual_pos, expected.pos)
                 self.assertEqual(args.state.events, expected.events)
 
+    
 
 if __name__ == '__main__':
     unittest.main()
