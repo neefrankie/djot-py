@@ -146,25 +146,25 @@ class RightBracketMatcher(Matcher):
         )
 
     def _commit_link(self, state: InlineState, opener: OpenerV2):
-            # [My link text][http://example.com]
-            # Modify events for first pair of `[` and `]`
-            state.replace_event(
-                Event.enter( # [
-                    Range(opener.startpos, opener.endpos),
-                    InlineContainer.LINK_TEXT,
+        # [My link text][http://example.com]
+        # Modify events for first pair of `[` and `]`
+        state.replace_event(
+            Event.enter( # [
+                Range(opener.startpos, opener.endpos),
+                InlineContainer.LINK_TEXT,
+            ),
+            opener.event_index,
+        )
+        state.replace_event(
+            Event.exit( # ]
+                Range(
+                    opener.sub_startpos or opener.startpos,
+                    opener.sub_startpos or opener.startpos
                 ),
-                opener.event_index,
-            )
-            state.replace_event(
-                Event.exit( # ]
-                    Range(
-                        opener.sub_startpos or opener.startpos,
-                        opener.sub_startpos or opener.startpos
-                    ),
-                    InlineContainer.LINK_TEXT
-                ),
-                opener.sub_event_index,
-            )
+                InlineContainer.LINK_TEXT
+            ),
+            opener.sub_event_index,
+        )
 
     def _prepare_reference(self, state: InlineState, opener: OpenerV2, pos: int):
 
