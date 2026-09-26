@@ -34,11 +34,11 @@ class HyphenMatcher(BetweenMatcher):
         # Didn't match a del, try for smart hyphen.
         ep = pos
         hyphens = 0
-        while ep <= endpos and state.cursor.char_at(ep) == '-':
+        while ep <= endpos and state.cursor.is_dash(ep):
             ep += 1 # if pos == endpos, only one loop
             hyphens += 1
 
-        if state.cursor.char_at(ep) == '}': # -}
+        if state.cursor.is_right_brace(ep): # -}
             hyphens -= 1 # last hyphen is close del
 
         if hyphens == 0: # this means we have '-}'
