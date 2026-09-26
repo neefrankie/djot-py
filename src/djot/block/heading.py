@@ -59,27 +59,23 @@ class HeadingRule(BlockRule):
     accepts_content: ContainerCap = ContainerCap.INLINE
 
     def try_open(self, cursor: InputText) -> RuleResult:
-        m = cursor.find_bangs()
-        if not m:
+        level = cursor.count_char('#')
+        if level == 0:
             return RuleResult.fail()
 
-        # Here we need two points to determine heading starts:
-        # 1. The consecutive chars and their number;
-        # 2. Whitepsace following #'s.
-        if not cursor.find_whitespace(m.end+1):
+        if not cursor.is_whitespace(cursor.pos + level):
             return RuleResult.fail()
 
-        level = m.end - m.start + 1 # m.end point to ending #, so length has to plus 1.
-
+        endchar = cursor.pos + level - 1
         event = Event.enter(
             kind=BlockContainer.HEADING,
-            span=cursor.new_span(m.start, m.end),
+            span=cursor.current_span(endchar),
         )
         container = Container(
             rule=self,
             data=HeadingData(level=level)
         )
-        cursor.advance(m.end + 1) # move to after ending #
+        cursor.advance(endchar + 1) # move to after ending #
         return RuleResult(
             status=FlowControl.OPEN,
             container=container,
@@ -91,9 +87,10 @@ class HeadingRule(BlockRule):
         container: Container,
         ctx: ParsingContext
     ) -> RuleResult:
-        m = ctx.cursor.find_bangs()
-        if not m:
+        level = ctx.cursor.count_char('#')
+        if level == 0:
             return RuleResult.fail()
+        
         if not isinstance(container.data, HeadingData):
             return RuleResult.fail()
 
@@ -101,13 +98,13 @@ class HeadingRule(BlockRule):
         # you can split heading over multiple lines. 
         # The following lines do not need to have starting #.
         # In my opinion, the multi-line heading should not be allowed in the first place.
-        if container.data.level != (m.end - m.start + 1): 
+        if container.data.level != level: 
             return RuleResult.fail()
 
-        if not ctx.cursor.find_whitespace(m.end + 1):
+        if not ctx.cursor.is_whitespace(ctx.cursor.pos + level):
             return RuleResult.fail()
 
-        ctx.cursor.advance_to(m.end + 1) # eat the leading #s
+        ctx.cursor.advance_to(ctx.cursor.pos + level) # eat the leading #s
 
         return RuleResult.continue_ok()
 
