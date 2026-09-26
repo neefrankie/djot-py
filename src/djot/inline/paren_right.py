@@ -5,11 +5,10 @@ from ..common import (
 )
 from ..event import (
     Event,
-    InlineLeaf,
     InlineContainer
 )
 from .matcher import Matcher
-from .state import InlineState, OpenerKind
+from .state import InlineState, OpenerKind, OpenerV2
 
 class RightParenMatcher(Matcher):
 
@@ -19,18 +18,26 @@ class RightParenMatcher(Matcher):
         # [read more](https://example.com)
         if not state.destination:
             return None
-        
+        # If we are in link mode, there should not be a valid
+        # opener record for opening paren. If it exists, it should
+        # be a plain text.
+        # RightBracketMatcher already consumed the opening paren
+        # without geerating a new opener for '('.
         parens = state.get_openers('(')
-        # TODO: why?
+        
         if parens:
             parens.pop() # clear opener
-            state.events.append(Event.leaf(Range(pos, pos), InlineLeaf.STR))
+            state.push_event(
+                Event.str(pos, pos)
+            )
             return pos+1
         
         openers = state.get_openers('[')
-        opener = openers[-1]
+        
         if not openers:
             return None
+
+        opener = openers[-1]
     
         if opener.kind != OpenerKind.EXPLICIT_LINK:
             return None
@@ -44,53 +51,9 @@ class RightParenMatcher(Matcher):
                     not state.cursor.is_backslash(opener.startpos-2))
     
         if is_image:
-            
-            state.replace_event( # Update !
-                Event.leaf(
-                    Range(opener.startpos-1, opener.startpos-1),
-                    InlineLeaf.IMAGE_MARKER,
-                ),
-                opener.event_index-1
-            )
-            
-            state.replace_event( # update [
-                Event.enter(
-                    Range(opener.startpos, opener.endpos),
-                    InlineContainer.IMAGE_TEXT,
-                ),
-                opener.event_index
-            )
-            
-            state.replace_event( # Update ]
-                Event.exit(
-                    Range(
-                        opener.sub_startpos or opener.startpos,
-                        opener.sub_startpos or opener.startpos,
-                    ),
-                    InlineContainer.IMAGE_TEXT,
-                ),
-                opener.sub_event_index,
-            )
+            self._commit_image(state, opener)
         else:
-            
-            state.replace_event( # Update [
-                Event.enter(
-                    Range(opener.startpos, opener.endpos),
-                    InlineContainer.LINK_TEXT,
-                ),
-                opener.event_index,
-            )
-            
-            state.replace_event( # Upate ]
-                Event.exit(
-                    Range(
-                        opener.sub_startpos or opener.startpos,
-                        opener.sub_startpos or opener.startpos,
-                    ),
-                    InlineContainer.LINK_TEXT,
-                ),
-                opener.sub_event_index
-            )
+            self._commit_link(state, opener)
         
         state.replace_event( # Update (
             Event.enter(
@@ -111,3 +74,45 @@ class RightParenMatcher(Matcher):
         state.destination = False # Flag exiting link.
         state.clear_openers(opener.startpos, pos) # From [ to )
         return pos+1 # after )
+
+    def _commit_image(self, state: InlineState, opener: OpenerV2):
+            state.add_image_marker(opener)
+            
+            state.replace_event( # Opening [
+                Event.enter(
+                    Range(opener.startpos, opener.endpos),
+                    InlineContainer.IMAGE_TEXT,
+                ),
+                opener.event_index
+            )
+            
+            state.replace_event( # Closing ]
+                Event.exit(
+                    Range(
+                        opener.sub_startpos or opener.startpos,
+                        opener.sub_startpos or opener.startpos,
+                    ),
+                    InlineContainer.IMAGE_TEXT,
+                ),
+                opener.sub_event_index,
+            )
+
+    def _commit_link(self, state: InlineState, opener: OpenerV2):
+        state.replace_event( # Update [
+            Event.enter(
+                Range(opener.startpos, opener.endpos),
+                InlineContainer.LINK_TEXT,
+            ),
+            opener.event_index,
+        )
+        
+        state.replace_event( # Upate ]
+            Event.exit(
+                Range(
+                    opener.sub_startpos or opener.startpos,
+                    opener.sub_startpos or opener.startpos,
+                ),
+                InlineContainer.LINK_TEXT,
+            ),
+            opener.sub_event_index
+        )
