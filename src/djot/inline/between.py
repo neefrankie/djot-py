@@ -7,13 +7,12 @@ from ..common import (
 )
 from ..event import (
     Event,
-    BlockLeaf,
     InlineContainer,
     InlineLeaf,
 )
 from ..input import InputText
 from .matcher import Matcher
-from .state import InlineState, Opener
+from .state import InlineState, OpenerV2
 
 class DelimiterCap(IntFlag):
     """Position of delimiter relative to space
@@ -74,7 +73,7 @@ class BetweenMatcher(Matcher):
         return self.fallback_leaf
 
     def __call__(self, state: InlineState, pos: int, endpos: int) -> Optional[int]:
-        ctx = self.match_context(state, pos, endpos)
+        ctx = self._match_context(state, pos, endpos)
 
         d = self.ch
         if ctx.has_open_marker:
@@ -107,7 +106,7 @@ class BetweenMatcher(Matcher):
         self, 
         state: InlineState, 
         ctx: MatchContext, 
-        opener: Opener, 
+        opener: OpenerV2, 
         pos: int
     ) -> Optional[int]:
         # For example, `**` should not produce a container.
@@ -168,7 +167,7 @@ class BetweenMatcher(Matcher):
     def can_open(self, cursor: InputText, pos: int) -> bool:
         return True
 
-    def match_context(
+    def _match_context(
         self,
         state: InlineState,
         pos: int,
@@ -178,9 +177,9 @@ class BetweenMatcher(Matcher):
         if ctx:
             return ctx
 
-        return self.bare_context(state.cursor, pos)
+        return self._bare_context(state.cursor, pos)
 
-    def bare_context(
+    def _bare_context(
         self,
         cursor: InputText,
         pos: int
