@@ -485,10 +485,7 @@ class InputText:
         - `('`
         - `['`
         """
-        if pos < 0: # do not allow negative number
-            return False
-        
-        if pos == 0: # start
+        if pos <= 0:
             return True
 
         return self.src[pos-1] in ' \t\r\n"\'-(['    
