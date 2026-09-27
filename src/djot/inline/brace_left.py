@@ -24,8 +24,9 @@ class LeftBraceMatcher(Matcher):
         # {""}
         # {- -}
         # Implicit precedence: delimiter > attribute > plain text
+        # TODO: combine left brace and delimiter into a single opening token.
         if state.cursor.is_delimiter(pos+1):  # if next char is one of delimiters
-            state.events.append( # current { is open marker
+            state.push_event( # current { is open marker
                 Event.leaf(
                     Range(pos, pos), 
                     InlineLeaf.OPEN_MARKER
