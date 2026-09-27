@@ -317,7 +317,7 @@ class InlineState:
 
         If a delimiter is opened before a link, but a closing delimiter
         is found inside link destination, this closing delimiter
-        should taken as plain text.
+        should be taken as plain text.
 
         For example, `_here [My link text](http://example_site.org)`.
         When the underscore in link destination is found, we check
