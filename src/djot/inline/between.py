@@ -19,7 +19,7 @@ class DelimiterCap(IntFlag):
     
     Correspond to can_open and can_close in djot.js implementation
     """
-    NONE = 0 # False, Fase. ` * `
+    NONE = auto() # False, Fase. ` * `
     CAN_OPEN = auto()        # True,  False ` *A`
     CAN_CLOSE = auto()       # False, True  `A* `
     BOTH = CAN_OPEN | CAN_CLOSE # True, True `A*B`
@@ -37,9 +37,9 @@ class MarkerStyle(Enum):
 class MatchContext:
     """MatchContext stores a delimiter's surrouding information"""
     delimiter_cap: DelimiterCap
-    startopener: int
-    endcloser: int
-    marker_style: MarkerStyle = MarkerStyle.NONE
+    token_start: int # position of opening delimiter. Will `token_start` be more clear?
+    token_end: int
+    marker_style: MarkerStyle = MarkerStyle.NONE # None if no brace.
 
     @property
     def can_open(self) -> bool:
@@ -56,6 +56,85 @@ class MatchContext:
     @property
     def has_close_marker(self) -> bool:
         return self.marker_style == MarkerStyle.CLOSE
+
+def opening_brace_context(
+    current_pos: int,
+    last_event: Optional[Event],
+) -> Optional[MatchContext]:
+    if not last_event:
+        return None
+
+    if not last_event.is_open_marker:
+        return None
+
+    # has open marker
+    return MatchContext(
+        delimiter_cap=DelimiterCap.CAN_OPEN,
+        token_start=current_pos-1,
+        token_end=current_pos,
+        marker_style=MarkerStyle.OPEN,
+    )
+
+def closing_brace_context(
+    cursor: InputText,
+    current_pos: int,
+    endpos: int,
+) -> Optional[MatchContext]:
+    if current_pos >= endpos:
+        return None
+
+    # no close marker
+    if not cursor.is_right_brace(current_pos+1):
+        return None
+
+    # has close marker
+    return MatchContext(
+        delimiter_cap=DelimiterCap.CAN_CLOSE,
+        token_start=current_pos,
+        token_end=current_pos+1,
+        marker_style=MarkerStyle.CLOSE,
+    )
+
+def determine_brace_context(
+    cursor: InputText,
+    current_pos: int,
+    endpos: int,
+    last_event: Optional[Event], # to determine opening brace.
+) -> Optional[MatchContext]:
+    opener_ctx = opening_brace_context(current_pos, last_event)
+
+    if opener_ctx:
+        return opener_ctx
+
+    return closing_brace_context(cursor, current_pos, endpos)
+
+def determine_bare_context(
+    cursor: InputText,
+    current_pos: int,
+    can_open: bool,
+) -> MatchContext:
+    cap = DelimiterCap.NONE
+    
+    # For opening delimiter, right side should not have space.
+    can_open = cursor.is_not_whitespace(current_pos+1) and can_open
+    
+    # For closing delimiter, left side should not have space.
+    can_close = cursor.is_not_whitespace(current_pos-1)
+
+    if can_open:
+        cap |= DelimiterCap.CAN_OPEN
+
+    if can_close:
+        cap |= DelimiterCap.CAN_CLOSE
+
+
+    return MatchContext(
+        delimiter_cap=cap,
+        token_start=current_pos,
+        token_end=current_pos,
+    )
+
+    
     
 class BetweenMatcher(Matcher):
 
@@ -73,10 +152,13 @@ class BetweenMatcher(Matcher):
         return self.fallback_leaf
 
     def __call__(self, state: InlineState, pos: int, endpos: int) -> Optional[int]:
+        
+        # TODO: I think the complexity here might
+        # comes largely from not combinng brace and delimiter into a single token.
         ctx = self._match_context(state, pos, endpos)
 
         d = self.ch
-        if ctx.has_open_marker:
+        if ctx.has_close_marker:
             d = '{' + d
 
         openers = state.get_openers(d)
@@ -85,29 +167,30 @@ class BetweenMatcher(Matcher):
         # In such case, we need to try to find opener for it.
         # If there is no opener, fallback to can_open, and then fallback to leaf.
         if ctx.can_close and openers:
+            
             opener = openers[-1]
-            newpos = self._handle_closer(state, ctx, opener, pos)
+            newpos = self._handle_closer(state, pos, ctx, opener)
             if newpos is not None:
                 return newpos
 
         if ctx.can_open:
-            return self._handle_opener(state, ctx, pos)
+            return self._handle_opener(state, pos, ctx)
 
         state.push_event(
             Event.leaf(
-                Range(pos, ctx.endcloser),
+                Range(pos, ctx.token_end),
                 kind=self.get_fallback_kind(ctx),
             )
         )
 
-        return ctx.endcloser+1
+        return ctx.token_end+1
 
     def _handle_closer(
         self, 
-        state: InlineState, 
-        ctx: MatchContext, 
-        opener: OpenerV2, 
-        pos: int
+        state: InlineState,
+        pos: int,
+        ctx: MatchContext,
+        opener: OpenerV2,
     ) -> Optional[int]:
         # For example, `**` should not produce a container.
         if opener.endpos == pos-1: # exlude empty emph
@@ -119,11 +202,11 @@ class BetweenMatcher(Matcher):
         if state.is_cross_link_boudnary(opener.startpos):
             state.push_event(
                 Event.leaf(
-                    Range(pos, ctx.endcloser),
+                    Range(pos, ctx.token_end),
                     kind=self.get_fallback_kind(ctx),
                 )
             )
-            return ctx.endcloser+1
+            return ctx.token_end+1
             # fallthrough
         
         state.clear_openers(opener.startpos, pos)
@@ -136,27 +219,28 @@ class BetweenMatcher(Matcher):
         )
         state.push_event(
             Event.exit(
-                Range(pos, ctx.endcloser),
+                Range(pos, ctx.token_end),
                 kind=self.container_kind,
             )
         )
-        return ctx.endcloser+1
+        return ctx.token_end+1
 
 
     def _handle_opener(
-        self, 
-        state: InlineState, 
-        ctx: MatchContext, 
-        pos: int
+        self,
+        state: InlineState,
+        pos: int,
+        ctx: MatchContext,
     ) -> Optional[int]:
         e = self.ch
         if ctx.has_open_marker:
-            e = '{' + e
+            e = '{' + e # TODO: <- pop last event here
 
+        # TODO: at this point you have an Event({), Event(DELIMITER)?
         state.add_opener(
             name=e,
             default_event=Event.leaf(
-                span=Range(pos, pos),
+                span=Range(ctx.token_start, pos),
                 kind=self.get_fallback_kind(ctx),
             )
         )
@@ -173,65 +257,22 @@ class BetweenMatcher(Matcher):
         pos: int,
         endpos: int
     ) -> MatchContext:
-        ctx = self.brace_context(state, pos, endpos)
+        ctx = determine_brace_context(
+            cursor=state.cursor,
+            current_pos=pos,
+            endpos=endpos,
+            last_event=state.last_event,
+        )
+
         if ctx:
             return ctx
 
-        return self._bare_context(state.cursor, pos)
-
-    def _bare_context(
-        self,
-        cursor: InputText,
-        pos: int
-    ) -> MatchContext:
-        cap = DelimiterCap.NONE
-
-        # For opening delimiter, right side should not have space.
-        can_open = (not cursor.is_whitespace(pos+1)) and self.can_open(cursor, pos)
-        
-        # For closing delimiter, left side should not have space.
-        can_close = not cursor.is_whitespace(pos-1)
-
-        if can_open:
-            cap |= DelimiterCap.CAN_OPEN
-
-        if can_close:
-            cap |= DelimiterCap.CAN_CLOSE
-
-
-        return MatchContext(
-            delimiter_cap=cap,
-            startopener=pos,
-            endcloser=pos,
+        return determine_bare_context(
+            cursor=state.cursor,
+            current_pos=pos,
+            can_open=self.can_open(state.cursor, pos)
         )
-
-    def brace_context(
-        self,
-        state: InlineState,
-        pos: int,
-        endpos: int
-    ):
-        last_event = state.last_event
-        has_opener_brace = last_event and last_event.is_open_marker
-        if has_opener_brace:
-            return MatchContext(
-                delimiter_cap=DelimiterCap.CAN_OPEN,
-                startopener=pos-1,
-                endcloser=pos,
-                marker_style=MarkerStyle.OPEN,
-            )
         
-        has_close_marker = pos+1 <= endpos and state.cursor.is_right_brace(pos+1)
-
-        if has_close_marker:
-            return MatchContext(
-                delimiter_cap=DelimiterCap.CAN_CLOSE,
-                startopener=pos,
-                endcloser=pos+1,
-                marker_style=MarkerStyle.CLOSE,
-            )
-
-        return None
 
 class SubscriptMatcher(BetweenMatcher):
     def __init__(self):
