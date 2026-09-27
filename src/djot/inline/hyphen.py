@@ -33,16 +33,18 @@ class HyphenMatcher(BetweenMatcher):
             
         # Didn't match a del, try for smart hyphen.
         ep = pos
-        hyphens = 0
-        while ep <= endpos and state.cursor.is_dash(ep):
-            ep += 1 # if pos == endpos, only one loop
-            hyphens += 1
+        hyphens = state.cursor.count_char('-', ep)
 
         if state.cursor.is_right_brace(ep): # -}
             hyphens -= 1 # last hyphen is close del
 
         if hyphens == 0: # this means we have '-}'
-            state.events.append(Event.leaf(Range(pos, pos+1), InlineLeaf.STR))
+            state.push_event(
+                Event.leaf(
+                    Range(pos, pos+1),
+                    InlineLeaf.STR
+                )
+            )
             return pos+2
         
         # Try to contruct a homogeneous sequence of dashes
