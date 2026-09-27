@@ -318,9 +318,25 @@ class InputText:
             return self.src[i] == ' '
     
     def is_whitespace(self, pos: int) -> bool:
+        
         if pos < 0 or pos >= self.length:
             return True
         return self.src[pos] in self._WHITESPACE
+
+    def is_not_whitespace(self, pos: int) -> bool:
+        """
+        Minics the regex "[^ \t\r\n]".
+        JS versions uses new RegExp(patt, 'yd') to build a regex,
+        and then use patt.lastIndex to set search start position.
+        lastIndex is a non-negative integer, 
+        and should be less than the length of the string,
+        otherwise no match will be found.
+        Therefore for out of range pos, we return false.
+        """
+        if pos < 0 or pos >= self.length:
+            return False
+
+        return self.src[pos] not in self._WHITESPACE
 
     def peek_is_whitespace(self) -> bool:
         if self.pos < 0 or self.pos >= self.length:
