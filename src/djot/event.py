@@ -69,7 +69,7 @@ class InlineLeaf(Enum):
     LEFT_DOUBLE_QUOTE = auto() # ", {"
     NBSP = auto() # \ + space
     NOTE_LABEL = auto() # foo inside [^foo]
-    OPEN_MARKER = auto() # { in braced delimiter
+    OPEN_MARKER = auto() # { in braced delimiter, this is a redundant marker and should not be rendered.
     RAW_FORMAT = auto() # =FORMAT
     REFERENCE_KEY = auto() # reference link key [foo]: https://example.com
     REFERENCE_VALUE = auto() # reference link value
