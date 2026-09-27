@@ -54,7 +54,7 @@ class HyphenMatcher(BetweenMatcher):
         all_en = hyphens % 2 == 0
         while hyphens > 0:
             if all_em:
-                state.events.append(
+                state.push_event(
                     Event.leaf(
                         Range(pos, pos+2),
                         InlineLeaf.EM_DASH
@@ -63,7 +63,7 @@ class HyphenMatcher(BetweenMatcher):
                 pos = pos + 3
                 hyphens = hyphens - 3
             elif all_en:
-                state.events.append(
+                state.push_event(
                     Event.leaf(
                         Range(pos, pos+1),
                         InlineLeaf.EN_DASH
@@ -72,7 +72,7 @@ class HyphenMatcher(BetweenMatcher):
                 pos = pos + 2
                 hyphens = hyphens - 2
             elif hyphens >= 3 and (hyphens % 2 != 0 or hyphens > 4): # odd number of dashes
-                state.events.append(
+                state.push_event(
                     Event.leaf(
                         Range(pos, pos+2),
                         InlineLeaf.EM_DASH
@@ -81,7 +81,7 @@ class HyphenMatcher(BetweenMatcher):
                 pos = pos + 3
                 hyphens = hyphens - 3
             elif hyphens >= 2:
-                state.events.append(
+                state.push_event(
                     Event.leaf(
                         Range(pos, pos+1),
                         InlineLeaf.EN_DASH
@@ -90,7 +90,9 @@ class HyphenMatcher(BetweenMatcher):
                 pos = pos + 2
                 hyphens = hyphens - 2
             else:
-                state.events.append(Event.leaf(span=Range(pos, pos), kind=InlineLeaf.STR))
+                state.push_event(
+                    Event.leaf(span=Range(pos, pos), kind=InlineLeaf.STR)
+                )
                 pos = pos + 1
                 hyphens = hyphens - 1
         
