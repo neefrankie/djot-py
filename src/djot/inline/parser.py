@@ -65,11 +65,8 @@ MATCHERS: Dict[str, Matcher] = {
 class InlineParser:
     def __init__(self, cursor: InputText, options: Options):
         self.options = options
-        self.cursor = cursor
         self.state = InlineState(cursor, options)
 
-        self.firstpos = -1 # position of first slice
-        self.lastpos = 0 # position of last slice
         self.matchers = MATCHERS
 
     @property
@@ -78,10 +75,7 @@ class InlineParser:
 
     def _single_char(self, pos: int) -> int:
         self.state.events.append(
-            Event.leaf(
-                span=Range(pos, pos),
-                kind=InlineLeaf.STR
-            )
+            Event.str(pos, pos)
         )
         return pos + 1
 
@@ -119,19 +113,8 @@ class InlineParser:
 
         if last_str:
             yield last_str
-
-    def _update_boudary(self, startpos: int, endpos: int):
-    
-        if self.firstpos == -1 or startpos < self.firstpos:
-            self.firstpos = startpos
-
-        if self.lastpos == 0 or endpos > self.lastpos:
-            self.lastpos = endpos
-
     
     def feed(self, startpos: int, endpos: int):
-        # Position firstpos and endpos as far as possible.
-        self._update_boudary(startpos, endpos)
 
         pos = startpos
         while pos <= endpos:
@@ -145,12 +128,13 @@ class InlineParser:
 
                 # if we get here, then pos points to some special char,
                 # i.e. we have something interesting at pos
+                # Why newline bofore verbatim?
                 newpos = self._feed_newline(pos, endpos)
                 if newpos is not None:
                     pos = newpos
                     continue
 
-                newpos = self._feed_verbatim(pos, endpos)
+                newpos = self._feed_closing_verbatim(pos, endpos)
                 if newpos is not None:
                     pos = newpos
                     continue
@@ -225,7 +209,7 @@ class InlineParser:
         No event added
         return 1
         """
-        next_special = self.cursor.find_special(pos, endpos)
+        next_special = self.state.cursor.find_special(pos, endpos)
 
         newpos = endpos + 1 if next_special is None else next_special
 
@@ -242,8 +226,8 @@ class InlineParser:
         
     def _feed_newline(self, pos: int, endpos: int) -> Optional[int]:
 
-        if self.cursor.is_cr_or_lf(pos):
-            if self.cursor.is_crlf(pos):
+        if self.state.cursor.is_cr_or_lf(pos):
+            if self.state.cursor.is_crlf(pos):
                 self.state.events.append(
                     Event.leaf(
                         span=Range(pos, pos+1),
@@ -263,19 +247,16 @@ class InlineParser:
         return None
                 
 
-    def _feed_verbatim(self, pos: int, endpos) -> Optional[int]:
-        if self.verbatim_len <= 0: # not in verbatim mode
+    def _feed_closing_verbatim(self, pos: int, endpos) -> Optional[int]:
+        if not self.state.in_verbatim: # not in verbatim mode
             return None
 
-        count = self.cursor.count_char('`', pos)
+        count = self.state.cursor.count_char('`', pos)
 
         # In verbatim string, the special char is not backtick.
         if count == 0:
             self.state.events.append(
-                Event.leaf(
-                    span=Range(pos, pos),
-                    kind=InlineLeaf.STR
-                )
+                Event.str(pos, pos)
             )
             return pos + 1
 
@@ -283,21 +264,18 @@ class InlineParser:
         endchar = pos + count - 1
 
         # Opening and closing delimiters should be equal.
-        if count != self.verbatim_len:
+        if count != self.state.verbatim_len:
             self.state.events.append(
-                Event.leaf(
-                    span=Range(pos, endchar),
-                    kind=InlineLeaf.STR
-                )
+                Event.str(pos, endchar)
             )
+            return endchar + 1
 
         # Check for raw attribute
-        endchar = pos + count - 1
-        m2 = self.cursor.find_raw_attribute(endchar+1, endpos)
-        if m2 and self.verbatim_type == VerbatimKind.VERBATIM: # raw
+        m2 = self.state.cursor.find_raw_attribute(endchar+1, endpos)
+        if m2 and self.state.verbatim_type == VerbatimKind.VERBATIM: # raw
             self.state.events.append(
                 Event.exit(
-                    kind=self.verbatim_type,
+                    kind=self.state.verbatim_type,
                     span=Range(pos, endchar) # the backtick
                 )
             )
@@ -308,21 +286,20 @@ class InlineParser:
                 )
             )
             pos = m2.end + 1
-        else:
+        else: # math
             self.state.events.append(
                 Event.exit(
-                    kind=self.verbatim_type,
+                    kind=self.state.verbatim_type,
                     span=Range(pos, endchar)
                 )
             )
             pos = endchar + 1
 
-        self.verbatim_len = 0
-        self.verbatim_type = VerbatimKind.VERBATIM
+        self.state.reset_verbatim()
         return pos
 
     def _feed_matcher(self, pos: int, endpos: int) -> int:
-        ch = self.cursor.char_at(pos)
+        ch = self.state.cursor.char_at(pos)
         if ch is None:
             raise Exception(f'char at {pos} is undefined')
 
