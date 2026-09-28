@@ -57,56 +57,34 @@ class MatchContext:
     def has_close_marker(self) -> bool:
         return self.marker_style == MarkerStyle.CLOSE
 
-def opening_brace_context(
-    current_pos: int,
-    last_event: Optional[Event],
-) -> Optional[MatchContext]:
-    if not last_event:
-        return None
-
-    if not last_event.is_open_marker:
-        return None
-
-    # has open marker
-    return MatchContext(
-        delimiter_cap=DelimiterCap.CAN_OPEN,
-        token_start=current_pos-1,
-        token_end=current_pos,
-        marker_style=MarkerStyle.OPEN,
-    )
-
-def closing_brace_context(
-    cursor: InputText,
-    current_pos: int,
-    endpos: int,
-) -> Optional[MatchContext]:
-    if current_pos >= endpos:
-        return None
-
-    # no close marker
-    if not cursor.is_right_brace(current_pos+1):
-        return None
-
-    # has close marker
-    return MatchContext(
-        delimiter_cap=DelimiterCap.CAN_CLOSE,
-        token_start=current_pos,
-        token_end=current_pos+1,
-        marker_style=MarkerStyle.CLOSE,
-    )
-
 def determine_brace_context(
     cursor: InputText,
     current_pos: int,
     endpos: int,
     last_event: Optional[Event], # to determine opening brace.
 ) -> Optional[MatchContext]:
-    opener_ctx = opening_brace_context(current_pos, last_event)
+    if last_event and last_event.is_open_marker:
+        return MatchContext(
+            delimiter_cap=DelimiterCap.CAN_OPEN,
+            token_start=current_pos-1,
+            token_end=current_pos,
+            marker_style=MarkerStyle.OPEN,
+        )
 
-    if opener_ctx:
-        return opener_ctx
+    if current_pos >= endpos:
+            return None
+    
+    # close marker
+    if current_pos < endpos and cursor.is_right_brace(current_pos+1):
+        # has close marker
+        return MatchContext(
+            delimiter_cap=DelimiterCap.CAN_CLOSE,
+            token_start=current_pos,
+            token_end=current_pos+1,
+            marker_style=MarkerStyle.CLOSE,
+        )
 
-    return closing_brace_context(cursor, current_pos, endpos)
+    return None
 
 def determine_bare_context(
     cursor: InputText,
@@ -167,7 +145,6 @@ class BetweenMatcher(Matcher):
         # In such case, we need to try to find opener for it.
         # If there is no opener, fallback to can_open, and then fallback to leaf.
         if ctx.can_close and openers:
-            
             opener = openers[-1]
             newpos = self._handle_closer(state, pos, ctx, opener)
             if newpos is not None:
@@ -217,6 +194,7 @@ class BetweenMatcher(Matcher):
             ),
             opener.event_index,
         )
+        
         state.push_event(
             Event.exit(
                 Range(pos, ctx.token_end),
@@ -236,7 +214,12 @@ class BetweenMatcher(Matcher):
         if ctx.has_open_marker:
             e = '{' + e # TODO: <- pop last event here
 
-        # TODO: at this point you have an Event({), Event(DELIMITER)?
+        # TODO: For braced opener like `{*`,
+        # LeftBraceMatcher added OPEN_MARKER event for `{`.
+        # When it comes to this step, however, the event added
+        # here spans `{` and `*`, making the OPEN_MARKER redundant.
+        # To keep consistent with the overral architecture,
+        # the OPENE_MARKER event should be popped or modified.
         state.add_opener(
             name=e,
             default_event=Event.leaf(
