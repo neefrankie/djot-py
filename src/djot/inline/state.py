@@ -247,17 +247,13 @@ class InlineState:
         self.options = options
 
         self.events: List[Event] = []
-
         # map from opener type to Opener[] in reverse order
         self.openers: Dict[str, List[OpenerV2]] = {}
+        self.destination: bool = False # If inside link destination
 
         # parsing a verbatim span to be ended by N backticks
         self.verbatim_len = 0 # length of verbatim markers.
         self.verbatim_type: VerbatimKind = VerbatimKind.VERBATIM
-
-        self.destination: bool = False # If inside link destination
-
-        self.allow_attributes = True # allow parsing of attributes.
 
         self.in_attribute: bool = False
         # Initiated in when a } is seen followed by a {.
@@ -279,9 +275,15 @@ class InlineState:
         self.verbatim_type = typ
         self.verbatim_len = endpos - pos + 1
 
+    def reset_verbatim(self):
+        self.verbatim_type = VerbatimKind.VERBATIM
+        self.verbatim_len = 0
+
     def replace_event(self, event: Event, idx: int):
         if idx < len(self.events):
             self.events[idx] = event
+        else:
+            print(f"Invalid event index to replace at {idx}")
 
     def extend_events(self, events: List[Event]):
         self.events.extend(events)
