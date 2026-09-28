@@ -6,6 +6,9 @@ from djot.event import (
     InlineLeaf,
     VerbatimKind,
     InlineContainer,
+    AttrKind,
+    BlockContainer,
+    VerbatimKind,
 )
 from djot.common import Range
 from djot.inline.state import InlineState, OpenerKind, OpenerV2
@@ -37,21 +40,110 @@ from djot.inline.between import (
     DoubleQuoteMatcher,
 )
 from djot.inline.hyphen import HyphenMatcher
+from djot.inline.parser import InlineParser
 
 class Args(NamedTuple):
-    state: InlineState
+    text: str
     pos: int
     endpos: int
+    ctx: MatchContext | None = None
 
 class Expected(NamedTuple):
     pos: int
     events: List[Event]
     dest: bool = False
 
+class VerbArgs(NamedTuple):
+    len: int = 0
+    typ: VerbatimKind = VerbatimKind.VERBATIM
+    events: List[Event] | None = None # for $$
+
+def populate_verb_state(state: InlineState, args: VerbArgs):
+    state.verbatim_len = args.len
+    state.verbatim_type = args.typ
+
+    if args.events:
+        state.extend_events(args.events)
+
+    return state
+
+class LinkArgs(NamedTuple):
+    open_span: Range
+    open_token: str = '['
+    close_span: Range | None = None
+    image_span: Range | None = None
+    kind: OpenerKind = OpenerKind.REFERENCE_LINK
+
+def populate_link_state(state: InlineState, args: LinkArgs):
+    if args.image_span:
+        state.push_event(
+            Event.leaf(args.image_span, InlineLeaf.STR)
+        )
+    
+    opener = state.add_opener(
+        args.open_token,
+        Event.leaf(args.open_span, InlineLeaf.STR)
+    )
+
+    if args.close_span:
+        opener.set_first_closer(
+            state.add_candidate_event(
+                Event.leaf(args.close_span, InlineLeaf.STR)
+            )
+        )
+
+        opener.set_second_opener(
+            state.add_candidate_event(
+                Event.leaf(
+                    Range(args.close_span.end+1, args.close_span.end+1),
+                    InlineLeaf.STR
+                )
+            ),
+            kind=args.kind,
+        )
+
+        if args.kind == OpenerKind.EXPLICIT_LINK:
+            state.destination = True
+
+
+    return state
+
+class OpenerArgs(NamedTuple):
+    start: int
+    end: int
+    token_name: str
+    kind: InlineLeaf = InlineLeaf.STR
+
+def populate_between_state(state: InlineState, args: OpenerArgs):
+    
+    # Mock steps in LeftBraceMatcher.
+    # This step is required to determine `{*` is opening delimiter.
+    # This is sort of a hack. It's not elegant.
+    if args.token_name.startswith('{') and args.kind == InlineLeaf.OPEN_MARKER:
+        state.push_event(
+            Event.leaf(
+                Range(args.start, args.start),
+                InlineLeaf.OPEN_MARKER,
+            )
+        )
+        return state
+    
+    # Mock steps in BetweenMatcher._handle_opener
+    state.add_opener(
+        name=args.token_name,
+        default_event=Event.leaf(
+            Range(args.start, args.end),
+            args.kind,
+        )
+    )
+
+    return state
+
 class TestCase(NamedTuple):
     name: str
     args: Args
     expected: Expected
+    pre_state: None | VerbArgs | LinkArgs | OpenerArgs = None
 
 def new_state(
     text: str,
@@ -114,7 +206,7 @@ class TestMatcher(unittest.TestCase):
             TestCase(
                 'hard break',
                 Args(
-                    state=new_state('\\  \n'),
+                    text='\\  \n',
                     pos=0,
                     endpos=3
                 ),
@@ -129,7 +221,7 @@ class TestMatcher(unittest.TestCase):
             TestCase(
                 'escape',
                 Args(
-                    state=new_state('\\!'),
+                    text='\\!',
                     pos=0,
                     endpos=1,
                 ),
@@ -144,7 +236,7 @@ class TestMatcher(unittest.TestCase):
             TestCase(
                 'non-breaking space',
                 Args(
-                    state=new_state('\\ '),
+                    text='\\ ',
                     pos=0,
                     endpos=1,
                 ),
@@ -158,22 +250,20 @@ class TestMatcher(unittest.TestCase):
             )
         ]
 
-        for name, args, expected in cases:
+        for name, args, expected, _ in cases:
             with self.subTest(name):
+                state = InlineState(InputText(args.text), Options())
                 matcher = BackslashMatcher()
-                actual_pos = matcher(args.state, args.pos, args.endpos)
+                actual_pos = matcher(state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
-                self.assertEqual(args.state.events, expected.events)
+                self.assertEqual(state.events, expected.events)
 
     def test_backtick(self):
         cases = [
             TestCase(
                 'display math',
                 Args(
-                    state=new_state('$$`', events=[
-                        Event.new(0, 0, InlineLeaf.STR),
-                        Event.new(1, 2, InlineLeaf.STR)
-                    ]),
+                    text='$$`',
                     pos=2,
                     endpos=2,
                 ),
@@ -182,14 +272,16 @@ class TestMatcher(unittest.TestCase):
                     events=[
                         Event.enter(Range(0, 2), VerbatimKind.DISPLAY_MATH),
                     ]
-                )
+                ),
+                VerbArgs(events=[
+                    Event.new(0, 0, InlineLeaf.STR),
+                    Event.new(1, 2, InlineLeaf.STR)
+                ])
             ),
             TestCase(
                 'inline math',
                 Args(
-                    state=new_state('$`', events=[
-                        Event.new(0, 0, InlineLeaf.STR),
-                    ]),
+                    text='$`',
                     pos=1,
                     endpos=1,
                 ),
@@ -198,12 +290,15 @@ class TestMatcher(unittest.TestCase):
                     events=[
                         Event.enter(Range(0, 1), VerbatimKind.INLINE_MATH),
                     ]
-                )
+                ),
+                VerbArgs(events=[
+                    Event.new(0, 0, InlineLeaf.STR),
+                ])
             ),
             TestCase(
                 'verbatim',
                 Args(
-                    state=new_state('`'),
+                    text='`',
                     pos=0,
                     endpos=0,
                 ),
@@ -216,19 +311,22 @@ class TestMatcher(unittest.TestCase):
             )
         ]
 
-        for name, args, expected in cases:
+        for name, args, expected, state_args in cases:
             with self.subTest(name):
+                state = InlineState(InputText(args.text), Options())
+                if isinstance(state_args, VerbArgs):
+                    populate_verb_state(state, state_args)
                 matcher = BacktickMatcher()
-                actual_pos = matcher(args.state, args.pos, args.endpos)
+                actual_pos = matcher(state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
-                self.assertEqual(args.state.events, expected.events)
+                self.assertEqual(state.events, expected.events)
 
     def test_left_brace(self):
         cases = [
             TestCase(
                 '{_italic_}',
                 Args(
-                    state=new_state('{_italic_}'),
+                    text='{_italic_}',
                     pos=0,
                     endpos=7,
                 ),
@@ -242,7 +340,7 @@ class TestMatcher(unittest.TestCase):
             TestCase(
                 '{#ident}',
                 Args(
-                    state=new_state('{#ident}'),
+                    text='{#ident}',
                     pos=0,
                     endpos=6,
                 ),
@@ -253,19 +351,20 @@ class TestMatcher(unittest.TestCase):
             )
         ]
 
-        for name, args, expected in cases:
-            with self.subTest(f'{name}: {args.state.cursor.src}'):
+        for name, args, expected, state_args in cases:
+            with self.subTest(f'{name}: {args.text}'):
+                state = InlineState(InputText(args.text), Options())
                 matcher = LeftBraceMatcher()
-                actual_pos = matcher(args.state, args.pos, args.endpos)
+                actual_pos = matcher(state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
-                self.assertEqual(args.state.events, expected.events)
+                self.assertEqual(state.events, expected.events)
 
     def test_left_bracket(self):
         cases = [
             TestCase(
                 'footnote reference',
                 Args(
-                    state=new_state('[^foo]'),
+                    text='[^foo]',
                     pos=0,
                     endpos=5,
                 ),
@@ -279,7 +378,7 @@ class TestMatcher(unittest.TestCase):
             TestCase(
                 '[foo]',
                 Args(
-                    state=new_state('[foo]'),
+                    text='[foo]',
                     pos=0,
                     endpos=4,
                 ),
@@ -292,22 +391,20 @@ class TestMatcher(unittest.TestCase):
             )
         ]
 
-        for name, args, expected in cases:
-            with self.subTest(f'{name}: {args.state.cursor.src}'):
+        for name, args, expected, _ in cases:
+            with self.subTest(f'{name}: {args.text}'):
+                state = InlineState(InputText(args.text), Options())
                 matcher = LeftBracketMatcher()
-                actual_pos = matcher(args.state, args.pos, args.endpos)
+                actual_pos = matcher(state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
-                self.assertEqual(args.state.events, expected.events)
+                self.assertEqual(state.events, expected.events)
 
     def test_right_bracket(self):
         cases = [
-            TestCase(
-                '_commit_note_reference',
+            (
+                'comment not reference',
                 Args(
-                    state=new_closer_state(
-                        text='[^foo]',
-                        open_span=Range(0, 0),
-                    ),
+                    text='[^foo]',
                     pos=5,
                     endpos=5,
                 ),
@@ -319,17 +416,15 @@ class TestMatcher(unittest.TestCase):
                             InlineLeaf.FOOTNOTE_REF,
                         )
                     ]
+                ),
+                LinkArgs(
+                    open_span=Range(0, 0),
                 )
             ),
-            TestCase(
-                '_commit_link',
+            (
+                'commit link',
                 Args(
-                    new_closer_state(
-                        text='[Text][foo]',
-                        open_span=Range(0, 0),
-                        close_span=Range(5, 5),
-                        kind=OpenerKind.REFERENCE_LINK,
-                    ),
+                    text='[Text][foo]',
                     pos=10,
                     endpos=len('[Text][foo]')-1
                 ),
@@ -353,18 +448,17 @@ class TestMatcher(unittest.TestCase):
                             InlineContainer.REFERENCE,
                         )
                     ]
+                ),
+                LinkArgs(
+                    open_span=Range(0, 0),
+                    close_span=Range(5, 5),
+                    kind=OpenerKind.REFERENCE_LINK,
                 )
             ),
-            TestCase(
-                '_commit_image',
+            (
+                'commit image',
                 Args(
-                    new_closer_state(
-                        text='![Cat][cat]',
-                        image_span=Range(0, 0),
-                        open_span=Range(1, 1),
-                        close_span=Range(5, 5),
-                        kind=OpenerKind.REFERENCE_LINK,
-                    ),
+                    text='![Cat][cat]',
                     pos=10,
                     endpos=len('![Cat][foo]')-1
                 ),
@@ -392,15 +486,18 @@ class TestMatcher(unittest.TestCase):
                             InlineContainer.REFERENCE,
                         )
                     ]
+                ),
+                LinkArgs(
+                    open_span=Range(1, 1),
+                    image_span=Range(0, 0),
+                    close_span=Range(5, 5),
+                    kind=OpenerKind.REFERENCE_LINK,
                 )
             ),
-            TestCase(
+            (
                 'prepare reference link',
                 Args(
-                    state=new_closer_state(
-                        text='[Foo][bar]',
-                        open_span=Range(0, 0),
-                    ),
+                    text='[Foo][bar]',
                     pos=4,
                     endpos=len('[Foo][bar]')-1
                 ),
@@ -411,15 +508,15 @@ class TestMatcher(unittest.TestCase):
                         Event.leaf(Range(4, 4), InlineLeaf.STR),
                         Event.leaf(Range(5, 5), InlineLeaf.STR),
                     ]
-                )
+                ),
+                LinkArgs(
+                    open_span=Range(0, 0),
+                ),
             ),
-            TestCase(
+            (
                 'prepare explicit link',
                 Args(
-                    state=new_closer_state(
-                        text='[Foo](bar)',
-                        open_span=Range(0, 0),
-                    ),
+                    text='[Foo](bar)',
                     pos=4,
                     endpos=len('[Foo][bar]')-1
                 ),
@@ -432,14 +529,14 @@ class TestMatcher(unittest.TestCase):
                     ],
                     dest=True,
                 ),
+                LinkArgs(
+                    open_span=Range(0, 0),
+                )
             ),
-            TestCase(
+            (
                 'prepare span',
                 Args(
-                    state=new_closer_state(
-                        text='[Foo]{#bar}',
-                        open_span=Range(0, 0),
-                    ),
+                    text='[Foo]{#bar}',
                     pos=4,
                     endpos=len('[Foo]{#bar}')-1
                 ),
@@ -450,25 +547,30 @@ class TestMatcher(unittest.TestCase):
                         Event.exit(Range(4, 4), InlineContainer.SPAN),
                     ],
                 ),
+                LinkArgs(
+                    open_span=Range(0, 0),
+                )
             ),
         ]
 
-        for name, args, expected in cases:
-            with self.subTest(f'{name}: {args.state.cursor.src}'):
+        for name, args, expected, state_args in cases:
+            with self.subTest(f'{name}: {args.text}'):
                 matcher = RightBracketMatcher()
-                actual_pos = matcher(args.state, args.pos, args.endpos)
+                state = InlineState(InputText(args.text), Options())
+                populate_link_state(state, state_args)
+                actual_pos = matcher(state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
-                self.assertEqual(args.state.events, expected.events)
-                self.assertEqual(args.state.destination, expected.dest)
+                self.assertEqual(state.events, expected.events)
+                self.assertEqual(state.destination, expected.dest)
 
     def test_colon(self):
         smiley = ':smiley:'
         strcolon = ': foo'
         cases = [
-            TestCase(
+            (
                 'symbol',
                 Args(
-                    state=InlineState(InputText(smiley), Options()),
+                    text=smiley,
                     pos=0,
                     endpos=len(smiley)-1
                 ),
@@ -479,10 +581,10 @@ class TestMatcher(unittest.TestCase):
                     ]
                 )
             ),
-            TestCase(
+            (
                 'str colon',
                 Args(
-                    state=InlineState(InputText(strcolon), Options()),
+                    text=strcolon,
                     pos=0,
                     endpos=len(strcolon)-1
                 ),
@@ -495,20 +597,22 @@ class TestMatcher(unittest.TestCase):
             ),
         ]
         for name, args, expected in cases:
-            with self.subTest(f'{name}: {args.state.cursor.src}'):
+            with self.subTest(f'{name}: {args.text}'):
                 matcher = ColonMatcher()
-                actual_pos = matcher(args.state, args.pos, args.endpos)
+                state=InlineState(InputText(args.text), Options())
+                actual_pos = matcher(state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
-                self.assertEqual(args.state.events, expected.events)
+                self.assertEqual(state.events, expected.events)
 
     def test_lessthan(self):
         email = '<foo@bar.com>'
         url = '<https://example.com>'
         cases = [
-            TestCase(
+            (
                 'email',
                 Args(
-                    state=new_state(email),
+                    text=email,
+                    
                     pos=0,
                     endpos=len(email)-1
                 ),
@@ -521,10 +625,10 @@ class TestMatcher(unittest.TestCase):
                     ]
                 )
             ),
-            TestCase(
+            (
                 'url',
                 Args(
-                    state=new_state(url),
+                    text=url,
                     pos=0,
                     endpos=len(url)-1
                 ),
@@ -540,20 +644,21 @@ class TestMatcher(unittest.TestCase):
         ]
 
         for name, args, expected in cases:
-            with self.subTest(f'{name}: {args.state.cursor.src}'):
+            with self.subTest(f'{name}: {args.text}'):
                 matcher = LessthanMatcher()
-                actual_pos = matcher(args.state, args.pos, args.endpos)
+                state=InlineState(InputText(args.text), Options())
+                actual_pos = matcher(state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
-                self.assertEqual(args.state.events, expected.events)
+                self.assertEqual(state.events, expected.events)
 
     def test_paren(self):
         paren = '(hello)'
         
         cases = [
-            TestCase(
+            (
                 'paren',
                 Args(
-                    state=new_state(paren, dest=True),
+                    text=paren,
                     pos=0,
                     endpos=len(paren)-1
                 ),
@@ -562,28 +667,25 @@ class TestMatcher(unittest.TestCase):
                     events=[
                         Event.str(0, 0),
                     ]
-                )
+                ),
             ),
         ]
 
         for name, args, expected in cases:
-            with self.subTest(f'{name}: {args.state.cursor.src}'):
+            with self.subTest(f'{name}: {args.text}'):
+                state=InlineState(InputText(args.text), Options())
+                state.destination = True
                 matcher = LeftParenMatcher()
-                actual_pos = matcher(args.state, args.pos, args.endpos)
+                actual_pos = matcher(state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
-                self.assertEqual(args.state.events, expected.events)
+                self.assertEqual(state.events, expected.events)
 
     def test_right_paren(self):
         cases = [
-            TestCase(
+            (
                 'commit link',
                 Args(
-                    new_closer_state(
-                        text='[Text](foo)',
-                        open_span=Range(0, 0),
-                        close_span=Range(5, 5),
-                        kind=OpenerKind.EXPLICIT_LINK,
-                    ),
+                    text='[Text](foo)',
                     pos=10,
                     endpos=len('[Text][foo]')-1
                 ),
@@ -608,18 +710,17 @@ class TestMatcher(unittest.TestCase):
                         )
                     ],
                     dest=False
+                ),
+                LinkArgs(
+                    open_span=Range(0, 0),
+                    close_span=Range(5, 5),
+                    kind=OpenerKind.EXPLICIT_LINK,
                 )
             ),
-            TestCase(
+            (
                 'commit image',
                 Args(
-                    new_closer_state(
-                        text='![Cat](cat)',
-                        image_span=Range(0, 0),
-                        open_span=Range(1, 1),
-                        close_span=Range(5, 5),
-                        kind=OpenerKind.EXPLICIT_LINK,
-                    ),
+                    text='![Cat](cat)',
                     pos=10,
                     endpos=len('![Cat][foo]')-1
                 ),
@@ -648,24 +749,32 @@ class TestMatcher(unittest.TestCase):
                         )
                     ],
                     dest=False,
+                ),
+                LinkArgs(
+                    image_span=Range(0, 0),
+                    open_span=Range(1, 1),
+                    close_span=Range(5, 5),
+                    kind=OpenerKind.EXPLICIT_LINK,
                 )
             ),
         ]
 
-        for name, args, expected in cases:
-            with self.subTest(f'{name}: {args.state.cursor.src}'):
+        for name, args, expected, state_args in cases:
+            with self.subTest(f'{name}: {args.text}'):
+                state = InlineState(InputText(args.text), Options())
+                populate_link_state(state, state_args)
                 matcher = RightParenMatcher()
-                actual_pos = matcher(args.state, args.pos, args.endpos)
+                actual_pos = matcher(state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
-                self.assertEqual(args.state.events, expected.events)
-                self.assertEqual(args.state.destination, expected.dest)
+                self.assertEqual(state.events, expected.events)
+                self.assertEqual(state.destination, expected.dest)
 
     def test_period(self):
         cases = [
-            TestCase(
+            (
                 'period',
                 Args(
-                    state=new_state('...'),
+                    text='...',
                     pos=0,
                     endpos=2
                 ),
@@ -682,18 +791,19 @@ class TestMatcher(unittest.TestCase):
         ]
 
         for name, args, expected in cases:
-            with self.subTest(f'{name}: {args.state.cursor.src}'):
+            with self.subTest(f'{name}: {args.text}'):
+                state = InlineState(InputText(args.text), Options())
                 matcher = PeriodMatcher()
-                actual_pos = matcher(args.state, args.pos, args.endpos)
+                actual_pos = matcher(state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
-                self.assertEqual(args.state.events, expected.events)
+                self.assertEqual(state.events, expected.events)
 
     def test_subscript(self):
         cases = [
-            TestCase(
+            (
                 'subscript open',
                 Args(
-                    state=new_state('H~2~O'),
+                    text='H~2~O',
                     pos=1,
                     endpos=5,
                 ),
@@ -702,16 +812,13 @@ class TestMatcher(unittest.TestCase):
                     events=[
                         Event.str(1, 1)
                     ]
-                )
+                ),
+                None,
             ),
-            TestCase(
+            (
                 'subscript close',
                 Args(
-                    state=new_closer_state(
-                        'H~2~O',
-                        open_span=Range(1, 1),
-                        open_token='~'
-                    ),
+                    text='H~2~O',
                     pos=3,
                     endpos=5,
                 ),
@@ -721,17 +828,13 @@ class TestMatcher(unittest.TestCase):
                         Event.enter(Range(1, 1), InlineContainer.SUBSCRIPT),
                         Event.exit(Range(3, 3), InlineContainer.SUBSCRIPT)
                     ]
-                )
+                ),
+                OpenerArgs(1, 1, '~')
             ),
-            TestCase(
+            (
                 'braced subscript open',
                 Args(
-                    state=new_state(
-                        'H{~2~}O',
-                        events=[
-                            Event.leaf(Range(1, 1), InlineLeaf.OPEN_MARKER)
-                        ]
-                    ),
+                    text='H{~2~}O',
                     pos=2,
                     endpos=7,
                 ),
@@ -741,16 +844,13 @@ class TestMatcher(unittest.TestCase):
                         Event.leaf(Range(1, 1), InlineLeaf.OPEN_MARKER),
                         Event.str(1, 2)
                     ]
-                )
+                ),
+                OpenerArgs(1, 1, '{~', InlineLeaf.OPEN_MARKER)
             ),
-            TestCase(
+            (
                 'braced subscript close',
                 Args(
-                    state=new_closer_state(
-                        'H{~2~}O',
-                        open_span=Range(1, 2),
-                        open_token='{~'
-                    ),
+                    text='H{~2~}O',
                     pos=4,
                     endpos=7,
                 ),
@@ -760,23 +860,27 @@ class TestMatcher(unittest.TestCase):
                         Event.enter(Range(1, 2), InlineContainer.SUBSCRIPT),
                         Event.exit(Range(4, 5), InlineContainer.SUBSCRIPT)
                     ]
-                )
+                ),
+                OpenerArgs(1, 2, '{~')
             ),
         ]
 
-        for name, args, expected in cases:
-            with self.subTest(f'{name}: {args.state.cursor.src}'):
+        for name, args, expected, state_args in cases:
+            with self.subTest(f'{name}: {args.text}'):
+                state = InlineState(InputText(args.text), Options())
+                if state_args:
+                    populate_between_state(state, state_args)
                 matcher = SubscriptMatcher()
-                actual_pos = matcher(args.state, args.pos, args.endpos)
+                actual_pos = matcher(state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
-                self.assertEqual(args.state.events, expected.events)
+                self.assertEqual(state.events, expected.events)
 
     def test_superscript(self):
         cases = [
             TestCase(
                 'superscript open',
                 Args(
-                    state=new_state('^TM^'),
+                    text='^TM^',
                     pos=0,
                     endpos=4,
                 ),
@@ -785,16 +889,13 @@ class TestMatcher(unittest.TestCase):
                     events=[
                         Event.str(0, 0)
                     ]
-                )
+                ),
+                None,
             ),
             TestCase(
                 'superscript close',
                 Args(
-                    state=new_closer_state(
-                        '^TM^',
-                        open_span=Range(0, 0),
-                        open_token='^'
-                    ),
+                    text='^TM^',
                     pos=3,
                     endpos=3,
                 ),
@@ -804,17 +905,13 @@ class TestMatcher(unittest.TestCase):
                         Event.enter(Range(0, 0), InlineContainer.SUPERSCRIPT),
                         Event.exit(Range(3, 3), InlineContainer.SUPERSCRIPT)
                     ]
-                )
+                ),
+                OpenerArgs(0, 0, '^')
             ),
             TestCase(
                 'braced superscript open',
                 Args(
-                    state=new_state(
-                        '{^TM^}',
-                        events=[
-                            Event.leaf(Range(0, 0), InlineLeaf.OPEN_MARKER)
-                        ]
-                    ),
+                    text='{^TM^}',
                     pos=1,
                     endpos=5,
                 ),
@@ -824,16 +921,13 @@ class TestMatcher(unittest.TestCase):
                         Event.leaf(Range(0, 0), InlineLeaf.OPEN_MARKER),
                         Event.str(0, 1)
                     ]
-                )
+                ),
+                OpenerArgs(0, 0, '{^', InlineLeaf.OPEN_MARKER)
             ),
             TestCase(
                 'braced subscript close',
                 Args(
-                    state=new_closer_state(
-                        '{^TM^}',
-                        open_span=Range(0, 1),
-                        open_token='{^'
-                    ),
+                    text='{^TM^}',
                     pos=4,
                     endpos=5,
                 ),
@@ -843,23 +937,28 @@ class TestMatcher(unittest.TestCase):
                         Event.enter(Range(0, 1), InlineContainer.SUPERSCRIPT),
                         Event.exit(Range(4, 5), InlineContainer.SUPERSCRIPT)
                     ]
-                )
+                ),
+                OpenerArgs(0, 1, '{^')
             ),
         ]
 
-        for name, args, expected in cases:
-            with self.subTest(f'{name}: {args.state.cursor.src}'):
+        for name, args, expected, state_args in cases:
+            with self.subTest(f'{name}: {args.text}'):
+                state = InlineState(InputText(args.text), Options())
+                if isinstance(state_args, OpenerArgs):
+                    populate_between_state(state, state_args)
                 matcher = SuperscriptMatcher()
-                actual_pos = matcher(args.state, args.pos, args.endpos)
+                
+                actual_pos = matcher(state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
-                self.assertEqual(args.state.events, expected.events)
+                self.assertEqual(state.events, expected.events)
 
     def test_emphasis(self):
         cases = [
             TestCase(
                 'emphasis open',
                 Args(
-                    state=new_state('_e_'),
+                    text='_e_',
                     pos=0,
                     endpos=2,
                 ),
@@ -868,16 +967,13 @@ class TestMatcher(unittest.TestCase):
                     events=[
                         Event.str(0, 0)
                     ]
-                )
+                ),
+                None,
             ),
             TestCase(
                 'emphasis close',
                 Args(
-                    state=new_closer_state(
-                        '_emph_',
-                        open_span=Range(0, 0),
-                        open_token='_'
-                    ),
+                    text='_emph_',
                     pos=5,
                     endpos=5,
                 ),
@@ -887,17 +983,13 @@ class TestMatcher(unittest.TestCase):
                         Event.enter(Range(0, 0), InlineContainer.EMPH),
                         Event.exit(Range(5, 5), InlineContainer.EMPH)
                     ]
-                )
+                ),
+                OpenerArgs(0, 0, '_')
             ),
             TestCase(
                 'braced emphasis open',
                 Args(
-                    state=new_state(
-                        '{_emph_}',
-                        events=[
-                            Event.leaf(Range(0, 0), InlineLeaf.OPEN_MARKER)
-                        ]
-                    ),
+                    text='{_emph_}',
                     pos=1,
                     endpos=7,
                 ),
@@ -907,16 +999,13 @@ class TestMatcher(unittest.TestCase):
                         Event.leaf(Range(0, 0), InlineLeaf.OPEN_MARKER),
                         Event.str(0, 1)
                     ]
-                )
+                ),
+                OpenerArgs(0, 0, '{_', InlineLeaf.OPEN_MARKER)
             ),
             TestCase(
                 'braced emphasis close',
                 Args(
-                    state=new_closer_state(
-                        '{_emph_}',
-                        open_span=Range(0, 1),
-                        open_token='{_'
-                    ),
+                    text='{_emph_}',
                     pos=6,
                     endpos=7,
                 ),
@@ -926,23 +1015,27 @@ class TestMatcher(unittest.TestCase):
                         Event.enter(Range(0, 1), InlineContainer.EMPH),
                         Event.exit(Range(6, 7), InlineContainer.EMPH)
                     ]
-                )
+                ),
+                OpenerArgs(0, 1, '{_')
             ),
         ]
 
-        for name, args, expected in cases:
-            with self.subTest(f'{name}: {args.state.cursor.src}'):
+        for name, args, expected, state_arg in cases:
+            with self.subTest(f'{name}: {args.text}'):
+                state = InlineState(InputText(args.text), Options())
+                if isinstance(state_arg, OpenerArgs):
+                    populate_between_state(state, state_arg)
                 matcher = EmphMatcher()
-                actual_pos = matcher(args.state, args.pos, args.endpos)
+                actual_pos = matcher(state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
-                self.assertEqual(args.state.events, expected.events)
+                self.assertEqual(state.events, expected.events)
 
     def test_strong(self):
         cases = [
             TestCase(
                 'strong open',
                 Args(
-                    state=new_state('*a*'),
+                    text='*a*',
                     pos=0,
                     endpos=2,
                 ),
@@ -951,16 +1044,13 @@ class TestMatcher(unittest.TestCase):
                     events=[
                         Event.str(0, 0)
                     ]
-                )
+                ),
+                None,
             ),
             TestCase(
                 'strong close',
                 Args(
-                    state=new_closer_state(
-                        '*a*',
-                        open_span=Range(0, 0),
-                        open_token='*'
-                    ),
+                    text='*a*',
                     pos=2,
                     endpos=2,
                 ),
@@ -970,17 +1060,13 @@ class TestMatcher(unittest.TestCase):
                         Event.enter(Range(0, 0), InlineContainer.STRONG),
                         Event.exit(Range(2, 2), InlineContainer.STRONG)
                     ]
-                )
+                ),
+                OpenerArgs(0, 0, '*')
             ),
             TestCase(
                 'braced strong open',
                 Args(
-                    state=new_state(
-                        '{*a*}',
-                        events=[
-                            Event.leaf(Range(0, 0), InlineLeaf.OPEN_MARKER)
-                        ]
-                    ),
+                    text='{*a*}',
                     pos=1,
                     endpos=4,
                 ),
@@ -990,16 +1076,13 @@ class TestMatcher(unittest.TestCase):
                         Event.leaf(Range(0, 0), InlineLeaf.OPEN_MARKER),
                         Event.str(0, 1)
                     ]
-                )
+                ),
+                OpenerArgs(0, 0, '{*', InlineLeaf.OPEN_MARKER)
             ),
             TestCase(
                 'braced strong close',
                 Args(
-                    state=new_closer_state(
-                        '{*a*}',
-                        open_span=Range(0, 1),
-                        open_token='{*'
-                    ),
+                    text='{*a*}',
                     pos=3,
                     endpos=4,
                 ),
@@ -1009,28 +1092,30 @@ class TestMatcher(unittest.TestCase):
                         Event.enter(Range(0, 1), InlineContainer.STRONG),
                         Event.exit(Range(3, 4), InlineContainer.STRONG)
                     ]
-                )
+                ),
+                OpenerArgs(0, 1, '{*')
             ),
         ]
 
-        for name, args, expected in cases:
-            with self.subTest(f'{name}: {args.state.cursor.src}'):
+        for name, args, expected, state_arg in cases:
+            with self.subTest(f'{name}: {args.text}'):
+
+                state = InlineState(InputText(args.text), Options())
+                if isinstance(state_arg, OpenerArgs):
+                    populate_between_state(state, state_arg)
+
                 matcher = StrongMatcher()
-                actual_pos = matcher(args.state, args.pos, args.endpos)
+                actual_pos = matcher(state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
-                self.assertEqual(args.state.events, expected.events)
+
+                self.assertEqual(state.events, expected.events)
 
     def test_insert(self):
         cases = [
             TestCase(
                 'insert open',
                 Args(
-                    state=new_state(
-                        '{+a+}',
-                        events=[
-                            Event.leaf(Range(0, 0), InlineLeaf.OPEN_MARKER)
-                        ]
-                    ),
+                    text='{+a+}',
                     pos=1,
                     endpos=4,
                 ),
@@ -1040,16 +1125,13 @@ class TestMatcher(unittest.TestCase):
                         Event.leaf(Range(0, 0), InlineLeaf.OPEN_MARKER),
                         Event.str(0, 1)
                     ]
-                )
+                ),
+                OpenerArgs(0, 0, '{+', InlineLeaf.OPEN_MARKER)
             ),
             TestCase(
                 'insert close',
                 Args(
-                    state=new_closer_state(
-                        '{+a+}',
-                        open_span=Range(0, 1),
-                        open_token='{+'
-                    ),
+                    text='{+a+}',
                     pos=3,
                     endpos=4,
                 ),
@@ -1059,28 +1141,27 @@ class TestMatcher(unittest.TestCase):
                         Event.enter(Range(0, 1), InlineContainer.INSERT),
                         Event.exit(Range(3, 4), InlineContainer.INSERT)
                     ]
-                )
+                ),
+                OpenerArgs(0, 1, '{+')
             ),
         ]
 
-        for name, args, expected in cases:
-            with self.subTest(f'{name}: {args.state.cursor.src}'):
+        for name, args, expected, state_arg in cases:
+            with self.subTest(f'{name}: {args.text}'):
+                state = InlineState(InputText(args.text), Options())
+                if isinstance(state_arg, OpenerArgs):
+                    populate_between_state(state, state_arg)
                 matcher = InsertMatcher()
-                actual_pos = matcher(args.state, args.pos, args.endpos)
+                actual_pos = matcher(state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
-                self.assertEqual(args.state.events, expected.events)
+                self.assertEqual(state.events, expected.events)
     
     def test_hyphen(self):
         cases = [
             TestCase(
                 'delete open',
                 Args(
-                    state=new_state(
-                        '{-a-}',
-                        events=[
-                            Event.leaf(Range(0, 0), InlineLeaf.OPEN_MARKER)
-                        ]
-                    ),
+                    text='{-a-}',
                     pos=1,
                     endpos=4,
                 ),
@@ -1090,16 +1171,13 @@ class TestMatcher(unittest.TestCase):
                         Event.leaf(Range(0, 0), InlineLeaf.OPEN_MARKER),
                         Event.str(0, 1)
                     ]
-                )
+                ),
+                OpenerArgs(0, 0, '{-', InlineLeaf.OPEN_MARKER)
             ),
             TestCase(
                 'delete close',
                 Args(
-                    state=new_closer_state(
-                        '{-a-}',
-                        open_span=Range(0, 1),
-                        open_token='{-'
-                    ),
+                    text='{-a-}',
                     pos=3,
                     endpos=4,
                 ),
@@ -1109,12 +1187,13 @@ class TestMatcher(unittest.TestCase):
                         Event.enter(Range(0, 1), InlineContainer.DELETE),
                         Event.exit(Range(3, 4), InlineContainer.DELETE)
                     ]
-                )
+                ),
+                OpenerArgs(0, 1, '{-')
             ),
             TestCase(
                 'dash brace',
                 Args(
-                    state=new_state('-}'),
+                    text='-}',
                     pos=0,
                     endpos=1,
                 ),
@@ -1128,7 +1207,7 @@ class TestMatcher(unittest.TestCase):
             TestCase(
                 'em dash',
                 Args(
-                    state=new_state('---'),
+                    text='---',
                     pos=0,
                     endpos=2,
                 ),
@@ -1142,7 +1221,7 @@ class TestMatcher(unittest.TestCase):
             TestCase(
                 'en dash',
                 Args(
-                    state=new_state('--'),
+                    text='--',
                     pos=0,
                     endpos=1,
                 ),
@@ -1156,7 +1235,7 @@ class TestMatcher(unittest.TestCase):
             TestCase(
                 'en dash',
                 Args(
-                    state=new_state('-----'),
+                    text='-----',
                     pos=0,
                     endpos=1,
                 ),
@@ -1170,24 +1249,22 @@ class TestMatcher(unittest.TestCase):
             ),
         ]
 
-        for name, args, expected in cases:
-            with self.subTest(f'{name}: {args.state.cursor.src}'):
+        for name, args, expected, state_args in cases:
+            with self.subTest(f'{name}: {args.text}'):
+                state = InlineState(InputText(args.text), Options())
+                if isinstance(state_args, OpenerArgs):
+                    populate_between_state(state, state_args)
                 matcher = HyphenMatcher()
-                actual_pos = matcher(args.state, args.pos, args.endpos)
+                actual_pos = matcher(state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
-                self.assertEqual(args.state.events, expected.events)
+                self.assertEqual(state.events, expected.events)
 
     def test_mark(self):
         cases = [
             TestCase(
                 'mark open',
                 Args(
-                    state=new_state(
-                        '{=a=}',
-                        events=[
-                            Event.leaf(Range(0, 0), InlineLeaf.OPEN_MARKER)
-                        ]
-                    ),
+                    text='{=a=}',
                     pos=1,
                     endpos=4,
                 ),
@@ -1197,16 +1274,13 @@ class TestMatcher(unittest.TestCase):
                         Event.leaf(Range(0, 0), InlineLeaf.OPEN_MARKER),
                         Event.str(0, 1)
                     ]
-                )
+                ),
+                OpenerArgs(0, 0, '{=', InlineLeaf.OPEN_MARKER)
             ),
             TestCase(
                 'mark close',
                 Args(
-                    state=new_closer_state(
-                        '{=a=}',
-                        open_span=Range(0, 1),
-                        open_token='{='
-                    ),
+                    text='{=a=}',
                     pos=3,
                     endpos=4,
                 ),
@@ -1216,23 +1290,27 @@ class TestMatcher(unittest.TestCase):
                         Event.enter(Range(0, 1), InlineContainer.MARK),
                         Event.exit(Range(3, 4), InlineContainer.MARK)
                     ]
-                )
+                ),
+                OpenerArgs(0, 1, '{=')
             ),
         ]
 
-        for name, args, expected in cases:
-            with self.subTest(f'{name}: {args.state.cursor.src}'):
+        for name, args, expected, state_args in cases:
+                with self.subTest(f'{name}: {args.text}'):
+                    state = InlineState(InputText(args.text), Options())
+                    if isinstance(state_args, OpenerArgs):
+                        populate_between_state(state, state_args)
                 matcher = MarkMatcher()
-                actual_pos = matcher(args.state, args.pos, args.endpos)
+                actual_pos = matcher(state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
-                self.assertEqual(args.state.events, expected.events)
+                self.assertEqual(state.events, expected.events)
 
     def test_single_quote(self):
         cases = [
             TestCase(
                 'left single quote',
                 Args(
-                    state=new_state("'a'"),
+                    text="'a'",
                     pos=0,
                     endpos=2,
                 ),
@@ -1246,11 +1324,7 @@ class TestMatcher(unittest.TestCase):
             TestCase(
                 'right double quote',
                 Args(
-                    state=new_closer_state(
-                        "'a'",
-                        open_span=Range(0, 0),
-                        open_token="'"
-                    ),
+                    text="'a'",
                     pos=2,
                     endpos=2,
                 ),
@@ -1260,17 +1334,13 @@ class TestMatcher(unittest.TestCase):
                         Event.enter(Range(0, 0), InlineContainer.SINGLE_QUOTED),
                         Event.exit(Range(2, 2), InlineContainer.SINGLE_QUOTED)
                     ]
-                )
+                ),
+                OpenerArgs(0, 0, "'", InlineLeaf.RIGHT_SINGLE_QUOTE)
             ),
             TestCase(
                 'braced left single quote',
                 Args(
-                    state=new_state(
-                        "{'a'}",
-                        events=[
-                            Event.leaf(Range(0, 0), InlineLeaf.OPEN_MARKER)
-                        ]
-                    ),
+                    text="{'a'}",
                     pos=1,
                     endpos=4,
                 ),
@@ -1280,16 +1350,13 @@ class TestMatcher(unittest.TestCase):
                         Event.leaf(Range(0, 0), InlineLeaf.OPEN_MARKER),
                         Event.leaf(Range(0, 1), InlineLeaf.LEFT_SINGLE_QUOTE)
                     ]
-                )
+                ),
+                OpenerArgs(0, 0, '{', InlineLeaf.OPEN_MARKER)
             ),
             TestCase(
                 'braced right single quote',
                 Args(
-                    state=new_closer_state(
-                        "{'a'}",
-                        open_span=Range(0, 1),
-                        open_token="{'"
-                    ),
+                    text="{'a'}",
                     pos=3,
                     endpos=4,
                 ),
@@ -1299,23 +1366,27 @@ class TestMatcher(unittest.TestCase):
                         Event.enter(Range(0, 1), InlineContainer.SINGLE_QUOTED),
                         Event.exit(Range(3, 4), InlineContainer.SINGLE_QUOTED)
                     ]
-                )
+                ),
+                OpenerArgs(0, 1, "{'")
             ),
         ]
 
-        for name, args, expected in cases:
-            with self.subTest(f'{name}: {args.state.cursor.src}'):
+        for name, args, expected, state_args in cases:
+            with self.subTest(f'{name}: {args.text}'):
+                state = InlineState(InputText(args.text), Options())
+                if isinstance(state_args, OpenerArgs):
+                    populate_between_state(state, state_args)
                 matcher = SingleQuoteMatcher()
-                actual_pos = matcher(args.state, args.pos, args.endpos)
+                actual_pos = matcher(state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
-                self.assertEqual(args.state.events, expected.events)
+                self.assertEqual(state.events, expected.events)
 
     def test_double_quote(self):
         cases = [
             TestCase(
                 'left double quote',
                 Args(
-                    state=new_state('"a"'),
+                    text='"a"',
                     pos=0,
                     endpos=2,
                 ),
@@ -1329,11 +1400,7 @@ class TestMatcher(unittest.TestCase):
             TestCase(
                 'right double quote',
                 Args(
-                    state=new_closer_state(
-                        '"a"',
-                        open_span=Range(0, 0),
-                        open_token='"'
-                    ),
+                    text='"a"',
                     pos=2,
                     endpos=2,
                 ),
@@ -1343,17 +1410,13 @@ class TestMatcher(unittest.TestCase):
                         Event.enter(Range(0, 0), InlineContainer.DOUBLE_QUOTED),
                         Event.exit(Range(2, 2), InlineContainer.DOUBLE_QUOTED)
                     ]
-                )
+                ),
+                OpenerArgs(0, 0, '"', InlineLeaf.LEFT_DOUBLE_QUOTE)
             ),
             TestCase(
                 'braced left double quote',
                 Args(
-                    state=new_state(
-                        '{"a"}',
-                        events=[
-                            Event.leaf(Range(0, 0), InlineLeaf.OPEN_MARKER)
-                        ]
-                    ),
+                    text='{"a"}',
                     pos=1,
                     endpos=4,
                 ),
@@ -1363,16 +1426,13 @@ class TestMatcher(unittest.TestCase):
                         Event.leaf(Range(0, 0), InlineLeaf.OPEN_MARKER),
                         Event.leaf(Range(0, 1), InlineLeaf.LEFT_DOUBLE_QUOTE)
                     ]
-                )
+                ),
+                OpenerArgs(0, 0, '{', InlineLeaf.OPEN_MARKER)
             ),
             TestCase(
                 'braced right double quote',
                 Args(
-                    state=new_closer_state(
-                        '{"a"}',
-                        open_span=Range(0, 1),
-                        open_token='{"'
-                    ),
+                    text='{"a"}',
                     pos=3,
                     endpos=4,
                 ),
@@ -1382,32 +1442,30 @@ class TestMatcher(unittest.TestCase):
                         Event.enter(Range(0, 1), InlineContainer.DOUBLE_QUOTED),
                         Event.exit(Range(3, 4), InlineContainer.DOUBLE_QUOTED)
                     ]
-                )
+                ),
+                OpenerArgs(0, 1, '{"')
             ),
         ]
 
-        for name, args, expected in cases:
-            with self.subTest(f'{name}: {args.state.cursor.src}'):
+        for name, args, expected, state_args in cases:
+            with self.subTest(f'{name}: {args.text}'):
+                state = InlineState(InputText(args.text), Options())
+                if isinstance(state_args, OpenerArgs):
+                    populate_between_state(state, state_args)
                 matcher = DoubleQuoteMatcher()
-                actual_pos = matcher(args.state, args.pos, args.endpos)
+                actual_pos = matcher(state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
-                self.assertEqual(args.state.events, expected.events)
+                self.assertEqual(state.events, expected.events)
 
-
-class OCArgs(NamedTuple):
-    state: InlineState
-    pos: int
-    ctx: MatchContext
-    opener: OpenerV2 | None = None
 
 class BareArgs(NamedTuple):
-    cursor: InputText
-    current_pos: int
+    text: str
+    pos: int
     can_open: bool
 
 class BraceArgs(NamedTuple):
-    cursor: InputText
-    current_pos: int
+    text: str
+    pos: int
     endpos: int
     last_event: Event | None
 
@@ -1417,8 +1475,8 @@ class TestBetweenMatcher(unittest.TestCase):
             (
                 'bare open',
                 BareArgs(
-                    cursor=InputText('*bold*'),
-                    current_pos=0,
+                    text='*bold*',
+                    pos=0,
                     can_open=True
                 ),
                 MatchContext(
@@ -1431,8 +1489,8 @@ class TestBetweenMatcher(unittest.TestCase):
             (
                 'bare close',
                 BareArgs(
-                    cursor=InputText('*bold*'),
-                    current_pos=5,
+                    text='*bold*',
+                    pos=5,
                     can_open=True,
                 ),
                 MatchContext(
@@ -1445,8 +1503,8 @@ class TestBetweenMatcher(unittest.TestCase):
             (
                 'bare open close',
                 BareArgs(
-                    cursor=InputText('a*b'),
-                    current_pos=1,
+                    text='a*b',
+                    pos=1,
                     can_open=True
                 ),
                 MatchContext(
@@ -1459,10 +1517,11 @@ class TestBetweenMatcher(unittest.TestCase):
         ]
 
         for name, args, expected in cases:
-            with self.subTest(f'{name}: {args.cursor.src}'):
+            with self.subTest(f'{name}: {args.text}'):
+                cursor = InputText(args.text)
                 actual = determine_bare_context(
-                    args.cursor,
-                    args.current_pos,
+                    cursor,
+                    args.pos,
                     args.can_open
                 )
                 self.assertEqual(actual, expected)
@@ -1472,8 +1531,8 @@ class TestBetweenMatcher(unittest.TestCase):
             (
                 'brace open',
                 BraceArgs(
-                    cursor=InputText('{*bold*}'),
-                    current_pos=1,
+                    text='{*bold*}',
+                    pos=1,
                     endpos=7,
                     last_event=Event.leaf(
                         Range(0, 0), 
@@ -1490,8 +1549,8 @@ class TestBetweenMatcher(unittest.TestCase):
             (
                 'brace close',
                 BraceArgs(
-                    cursor=InputText('{*bold*}'),
-                    current_pos=6,
+                    text='{*bold*}',
+                    pos=6,
                     endpos=7,
                     last_event=None
                 ),
@@ -1505,10 +1564,11 @@ class TestBetweenMatcher(unittest.TestCase):
         ]
 
         for name, args, expected in cases:
-            with self.subTest(f'{name}: {args.cursor.src}'):
+            with self.subTest(f'{name}: {args.text}'):
+                cursor = InputText(args.text)
                 actual = determine_brace_context(
-                    args.cursor,
-                    args.current_pos,
+                    cursor,
+                    args.pos,
                     args.endpos,
                     args.last_event
                 )
@@ -1516,11 +1576,12 @@ class TestBetweenMatcher(unittest.TestCase):
 
     def test_handle_opener(self):
         cases = [
-            (
+            TestCase(
                 'handle opener',
-                OCArgs(
-                    state=new_state('*bold*'),
+                Args(
+                    text='*bold*',
                     pos=0,
+                    endpos=5,
                     ctx=MatchContext(
                         delimiter_cap=DelimiterCap.CAN_OPEN,
                         token_start=0,
@@ -1534,17 +1595,14 @@ class TestBetweenMatcher(unittest.TestCase):
                         Event.str(0, 0)
                     ]
                 ),
+                None,
             ),
-            (
+            TestCase(
                 'handle brace opener',
-                OCArgs(
-                    state=new_state(
-                        '{*bold*}',
-                        events=[
-                            Event.leaf(Range(0, 0), InlineLeaf.OPEN_MARKER)
-                        ]
-                    ),
+                Args(
+                    text='{*bold*}',
                     pos=1,
+                    endpos=7,
                     ctx=MatchContext(
                         delimiter_cap=DelimiterCap.CAN_OPEN,
                         token_start=0,
@@ -1559,36 +1617,41 @@ class TestBetweenMatcher(unittest.TestCase):
                         Event.str(0, 1)
                     ],
                 ),
+                OpenerArgs(0, 0, '{*', InlineLeaf.OPEN_MARKER)
             ),
         ]
 
-        for name, args, expected in cases:
-            with self.subTest(f'{name}: {args.state.cursor.src}'):
+        for name, args, expected, state_args in cases:
+            with self.subTest(f'{name}: {args.text}'):
+                state = InlineState(InputText(args.text), Options())
+                if isinstance(state_args, OpenerArgs):
+                    populate_between_state(state, state_args)
+
                 matcher = StrongMatcher()
+
+                assert args.ctx is not None
                 actual = matcher._handle_opener(
-                    args.state,
+                    state,
                     args.pos,
                     args.ctx,
                 )
                 self.assertEqual(actual, expected.pos)
-                self.assertEqual(args.state.events, expected.events)
+                self.assertEqual(state.events, expected.events)
 
     def test_handle_closer(self):
         cases = [
             (
                 'handle closer',
-                OCArgs(
-                    state=new_state('*bold*', events=[
-                        Event.str(0, 0)
-                    ]),
+                Args(
+                    text='*bold*',
                     pos=5,
+                    endpos=5,
                     ctx=MatchContext(
                         delimiter_cap=DelimiterCap.CAN_CLOSE,
                         token_start=5,
                         token_end=5,
                         marker_style=MarkerStyle.NONE
                     ),
-                    opener=OpenerV2.new(Event.str(0, 0), 0),
                 ),
                 Expected(
                     pos=6,
@@ -1597,51 +1660,285 @@ class TestBetweenMatcher(unittest.TestCase):
                         Event.exit(Range(5, 5), InlineContainer.STRONG)
                     ]
                 ),
-
+                OpenerArgs(0, 0, '*')
             ),
             (
                 'handle brace closer',
-                OCArgs(
-                    state=new_state(
-                        '{*bold*}',
-                        events=[
-                            Event.leaf(Range(0, 0), InlineLeaf.OPEN_MARKER),
-                            Event.leaf(Range(0, 1), InlineLeaf.STR)
-                        ]
-                    ),
+                Args(
+                    text='{*bold*}',
                     pos=6,
+                    endpos=7,
                     ctx=MatchContext(
                         delimiter_cap=DelimiterCap.CAN_CLOSE,
                         token_start=6,
                         token_end=7,
                         marker_style=MarkerStyle.CLOSE,
                     ),
-                    opener=OpenerV2.new(Event.str(0, 1), 1),
                 ),
                 Expected(
                     pos=8,
                     events=[
-                        Event.leaf(Range(0, 0), InlineLeaf.OPEN_MARKER),
                         Event.enter(Range(0, 1), InlineContainer.STRONG),
                         Event.exit(Range(6, 7), InlineContainer.STRONG)
                     ],
                 ),
+                OpenerArgs(0, 1, '{*')
             ),
         ]
 
-        for name, args, expected in cases:
-            with self.subTest(f'{name}: {args.state.cursor.src}'):
-                assert args.opener is not None
+        for name, args, expected, state_args in cases:
+            with self.subTest(f'{name}: {args.text}'):
+                
+                state = InlineState(InputText(args.text), Options())
+                if state_args:
+                    populate_between_state(state, state_args)
+                
                 matcher = StrongMatcher()
+
+                assert args.ctx is not None
                 actual = matcher._handle_closer(
-                    state=args.state,
+                    state=state,
                     ctx=args.ctx,
                     pos=args.pos,
-                    opener=args.opener
+                    opener=state.get_openers(state_args.token_name)[-1]
                 )
                 self.assertEqual(actual, expected.pos)
-                self.assertEqual(args.state.events, expected.events)
+                self.assertEqual(state.events, expected.events)
 
+
+class TestInlineParser(unittest.TestCase):
+    def test_feed_attribute(self):
+        attr = '{#ident .dark key=value key2="val2 val3"}'
+        cases = [
+            (
+                'inline attributes',
+                Args(
+                    text=attr,
+                    pos=0,
+                    endpos=len(attr) - 1
+                ),
+                Expected(
+                    pos=len(attr),
+                    events=[
+                        Event.enter(Range(0, 0), BlockContainer.ATTRIBUTES),
+                        Event.attr(Range(1, 1), AttrKind.ID_START),
+                        Event.attr(Range(2, 6), AttrKind.ID),
+                        Event.attr(Range(7, 7), AttrKind.SPACE),
+                        Event.attr(Range(8, 8), AttrKind.CLASS_START),
+                        Event.attr(Range(9, 12), AttrKind.CLASS),
+                        Event.attr(Range(13, 13), AttrKind.SPACE),
+                        Event.attr(Range(14, 16), AttrKind.KEY),
+                        Event.attr(Range(17, 17), AttrKind.EQUAL_MARKER),
+                        Event.attr(Range(18, 22), AttrKind.VALUE),
+                        Event.attr(Range(23, 23), AttrKind.SPACE),
+                        Event.attr(Range(24, 27), AttrKind.KEY),
+                        Event.attr(Range(28, 28), AttrKind.EQUAL_MARKER),
+                        Event.attr(Range(29, 29), AttrKind.QUOTE_MARKER),
+                        Event.attr(Range(30, 38), AttrKind.VALUE),
+                        Event.attr(Range(39, 39), AttrKind.QUOTE_MARKER),
+                        Event.exit(Range(40, 40), BlockContainer.ATTRIBUTES),
+                    ]
+                )
+            )
+        ]
+
+        for name, args, expected in cases:
+            with self.subTest(f'{name}: {args.text}'):
+                parser = InlineParser(
+                    cursor=InputText(args.text),
+                    options=Options()
+                )
+                actual = parser._feed_attribute(args.pos, args.endpos)
+                self.assertEqual(actual, expected.pos)
+                self.assertEqual(parser.state.events, expected.events)
+
+    def test_feed_str_before_special(self):
+        strong = 'foo *bar*'
+        no_special = 'foo bar'
+        cases = [
+            (
+                'str before *',
+                Args(
+                    text=strong,
+                    pos=0,
+                    endpos=len(strong) - 1
+                ),
+                Expected(
+                    pos=4,
+                    events=[
+                        Event.str(0, 3)
+                    ]
+                )
+            ),
+            (
+                'no special',
+                Args(
+                    text=no_special,
+                    pos=0,
+                    endpos=len(no_special) - 1
+                ),
+                Expected(
+                    pos=7,
+                    events=[
+                        Event.str(0, 6)
+                    ]
+                )
+            )
+        ]
+
+        for name, args, expected in cases:
+            with self.subTest(f'{name}: {args.text}'):
+                parser = InlineParser(
+                    cursor=InputText(args.text),
+                    options=Options()
+                )
+                actual = parser._feed_str_before_special(args.pos, args.endpos)
+                self.assertEqual(actual, expected.pos)
+                self.assertEqual(parser.state.events, expected.events)
+
+    def test_feed_newline(self):
+        crlf = 'foo\r\n'
+        linefeed = 'foo\n'
+
+        cases = [
+            (
+                'cr and lf',
+                Args(
+                    text=crlf,
+                    pos=3,
+                    endpos=len(crlf) - 1
+                ),
+                Expected(
+                    pos=5,
+                    events=[
+                        Event.leaf(Range(3, 4), InlineLeaf.SOFT_BREAK)
+                    ]
+                )
+            ),
+            (
+                'linefeed',
+                Args(
+                    text=linefeed,
+                    pos=3,
+                    endpos=len(linefeed) - 1
+                ),
+                Expected(
+                    pos=4,
+                    events=[
+                        Event.leaf(Range(3, 3), InlineLeaf.SOFT_BREAK)
+                    ]
+                )
+            )
+        ]
+
+        for name, args, expected in cases:
+            with self.subTest(f'{name}: {args.text}'):
+                parser = InlineParser(
+                    cursor=InputText(args.text),
+                    options=Options()
+                )
+                actual = parser._feed_newline(args.pos, args.endpos)
+                self.assertEqual(actual, expected.pos)
+                self.assertEqual(parser.state.events, expected.events)
+
+    def test_feed_verbatim(self):
+
+        example = '`foo``bar`{=html}'
+        math = '$`x^2`'
+
+        cases = [
+            (
+                'unequal backtick',
+                Args(
+                    text=example,
+                    pos=4,
+                    endpos=len(example) - 1
+                ),
+                Expected(
+                    pos=6,
+                    events=[
+                        Event.str(4, 5)
+                    ]
+                ),
+                VerbArgs(len=1)
+            ),
+            (
+                'raw inline',
+                Args(
+                    text=example,
+                    pos=9,
+                    endpos=len(example) - 1
+                ),
+                Expected(
+                    pos=17,
+                    events=[
+                        Event.exit(Range(9, 9), VerbatimKind.VERBATIM),
+                        Event.leaf(Range(10, 16), InlineLeaf.RAW_FORMAT)
+                    ]
+                ),
+                VerbArgs(len=1)
+            ),
+            (
+                'math',
+                Args(
+                    text=math,
+                    pos=5,
+                    endpos=len(math) - 1
+                ),
+                Expected(
+                    pos=6,
+                    events=[
+                        Event.exit(Range(5, 5), VerbatimKind.INLINE_MATH),
+                    ]
+                ),
+                VerbArgs(len=1, typ=VerbatimKind.INLINE_MATH)
+            ),
+        ]
+
+        for name, args, expected, state_args in cases:
+            with self.subTest(f'{name}: {args.text}'):
+                parser = InlineParser(InputText(args.text), Options())
+                populate_verb_state(parser.state, state_args)
+                actual = parser._feed_closing_verbatim(args.pos, args.endpos)
+                self.assertEqual(actual, expected.pos)
+                self.assertEqual(parser.state.events, expected.events)
+
+    def test_feed_matcher(self):
+        example = 'foo.'
+
+        cases = [
+            (
+                'matcher fallback',
+                Args(
+                    text=example,
+                    pos=3,
+                    endpos=len(example) - 1
+                ),
+                Expected(
+                    pos=4,
+                    events=[
+                        Event.str(3, 3)
+                    ]
+                )
+            )
+        ]
+
+        for name, args, expected in cases:
+            with self.subTest(f'{name}: {args.text}'):
+                parser = InlineParser(
+                    cursor=InputText(args.text),
+                    options=Options()
+                )
+                actual = parser._feed_matcher(args.pos, args.endpos)
+                self.assertEqual(actual, expected.pos)
+                self.assertEqual(parser.state.events, expected.events)
+
+    def test_feed(self):
+        cases = [
+            (
+                'simple text'
+            )
+        ]
 
 if __name__ == '__main__':
     unittest.main()
