@@ -1934,11 +1934,79 @@ class TestInlineParser(unittest.TestCase):
                 self.assertEqual(parser.state.events, expected.events)
 
     def test_feed(self):
+        simple_text = 'foo bar'
+        complex_text = '*a*, _b_, ~c~, ^d^, {=e=}, {+f+}, {-g-}'
+        
         cases = [
-            (
-                'simple text'
+            TestCase(
+                'simple text',
+                Args(
+                    text=simple_text,
+                    pos=0,
+                    endpos=len(simple_text) - 1
+                ),
+                Expected(
+                    pos=-1,
+                    events=[
+                        Event.str(0, 6)
+                    ]
+                )
+            ),
+            TestCase(
+                'complex text',
+                Args(
+                    text=complex_text,
+                    pos=0,
+                    endpos=len(complex_text) - 1
+                ),
+                Expected(
+                    pos=-1,
+                    events=[
+                        Event.enter(Range(0, 0), InlineContainer.STRONG),
+                        Event.str(1, 1),
+                        Event.exit(Range(2, 2), InlineContainer.STRONG),
+                        Event.str(3, 4),
+                        Event.enter(Range(5, 5), InlineContainer.EMPH),
+                        Event.str(6, 6),
+                        Event.exit(Range(7, 7), InlineContainer.EMPH),
+                        Event.str(8, 9),
+                        Event.enter(Range(10, 10), InlineContainer.SUBSCRIPT),
+                        Event.str(11, 11),
+                        Event.exit(Range(12, 12), InlineContainer.SUBSCRIPT),
+                        Event.str(13, 14),
+                        Event.enter(Range(15, 15), InlineContainer.SUPERSCRIPT),
+                        Event.str(16, 16),
+                        Event.exit(Range(17, 17), InlineContainer.SUPERSCRIPT),
+                        Event.str(18, 19),
+                        Event.leaf(Range(20, 20), InlineLeaf.OPEN_MARKER),
+                        Event.enter(Range(20, 21), InlineContainer.MARK),
+                        Event.str(22, 22),
+                        Event.exit(Range(23, 24), InlineContainer.MARK),
+                        Event.str(25, 26),
+                        Event.leaf(Range(27, 27), InlineLeaf.OPEN_MARKER),
+                        Event.enter(Range(27, 28), InlineContainer.INSERT),
+                        Event.str(29, 29),
+                        Event.exit(Range(30, 31), InlineContainer.INSERT),
+                        Event.str(32, 33),
+                        Event.leaf(Range(34, 34), InlineLeaf.OPEN_MARKER),
+                        Event.enter(Range(34, 35), InlineContainer.DELETE),
+                        Event.str(36, 36),
+                        Event.exit(Range(37, 38), InlineContainer.DELETE),
+                    ]
+                )
             )
         ]
+
+        for name, args, expected, _ in cases:
+            with self.subTest(f'{name}: {args.text}'):
+                parser = InlineParser(
+                    cursor=InputText(args.text),
+                    options=Options()
+                )
+                parser.feed(args.pos, args.endpos)
+                self.assertEqual(parser.state.events, expected.events)
+                # for i, e in enumerate(parser.state.events):
+                #     print(f'{i}: {e}')
 
 if __name__ == '__main__':
     unittest.main()
