@@ -72,7 +72,7 @@ class ParsingContext:
         is_covered: Is a container shadowned by innner container?
         last_span_end: last event's ending position
             
-    Notes:
+    NOTE:
         `is_covered` indicates top containers in a stack have higher precedence over a lower one. 
         For example, if a fenced div wraps code block, 
         the code block should claim the owership of any line starting with ::: rather than letting the containing fenced div to take it as ending markup.
@@ -100,7 +100,7 @@ class Container(Generic[T]):
         return self.rule.accepts_content
 
     @property
-    def can_child_be_block(self) -> bool:
+    def accepts_block(self) -> bool:
         return self.rule.accepts_blocks()
 
     def can_nest(self, other: 'Container') -> bool:
@@ -182,12 +182,18 @@ class BlockRule(ABC):
     
     Attributes:
         kind: The type of current node in a tree.
-        accepts_content: what kind of nodes are allowed to be attached to current node..
+        accepts_content: what kind of nodes are allowed to be attached to current node.
+
+    NOTE:
+
+    I think these two fields are actually describing a DAG,
+    directed acyclic graph. `accepts_content` is an edge to children.
+    However this is not a real a DAG, as it contains cyclic loop.
     """
     kind: ContainerCap
     accepts_content: ContainerCap
 
-    def can_be_root_or_nested(self, container: Optional[Container]) -> bool:
+    def can_be_root_or_child_of(self, container: Optional[Container]) -> bool:
         """Whether current node can be root or be nested
         
         If there's no parent node, and current rule is block, then it can be a root node.
@@ -199,6 +205,7 @@ class BlockRule(ABC):
         return self.kind == container.children_type
 
     def accepts_blocks(self) -> bool:
+        """Check if current rule could have block child"""
         return self.accepts_content in (ContainerCap.BLOCK, ContainerCap.LIST_ITEM)
 
     def accepts_inline_only(self) -> bool:
