@@ -66,20 +66,23 @@ class HeadingRule(BlockRule):
         if not cursor.is_whitespace(cursor.pos + level):
             return RuleResult.fail()
 
-        endchar = cursor.pos + level - 1
-        event = Event.enter(
-            kind=BlockContainer.HEADING,
-            span=cursor.current_span(endchar),
-        )
-        container = Container(
-            rule=self,
-            data=HeadingData(level=level)
-        )
+        start = cursor.pos
+        endchar = start + level - 1
+
         cursor.advance(endchar + 1) # move to after ending #
+        
         return RuleResult(
             status=FlowControl.OPEN,
-            container=container,
-            events=[event]
+            container=Container(
+                rule=self,
+                data=HeadingData(level=level)
+            ),
+            events=[
+                Event.enter(
+                    kind=BlockContainer.HEADING,
+                    span=cursor.new_span(start, endchar),
+                )
+            ]
         )
 
     def on_continue(
