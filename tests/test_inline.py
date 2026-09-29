@@ -11,7 +11,7 @@ from djot.event import (
     VerbatimKind,
 )
 from djot.common import Range
-from djot.inline.state import InlineState, OpenerKind, OpenerV2
+from djot.inline.state import InlineState, OpenerKind, Opener
 from djot.input import InputText
 from djot.options import Options
 from djot.inline.backslash import BackslashMatcher

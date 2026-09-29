@@ -12,7 +12,7 @@ from ..event import (
 )
 from ..input import InputText
 from .matcher import Matcher
-from .state import InlineState, OpenerV2
+from .state import InlineState, Opener
 
 class DelimiterCap(IntFlag):
     """Position of delimiter relative to space
@@ -167,7 +167,7 @@ class BetweenMatcher(Matcher):
         state: InlineState,
         pos: int,
         ctx: MatchContext,
-        opener: OpenerV2,
+        opener: Opener,
     ) -> Optional[int]:
         # For example, `**` should not produce a container.
         if opener.endpos == pos-1: # exlude empty emph

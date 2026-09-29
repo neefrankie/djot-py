@@ -34,12 +34,44 @@ class EventPointer(NamedTuple):
             start=event.span.start,
             end=event.span.end
         )
-    
+
+
 @dataclass(slots=True)
 class Opener:
-    """
-    Take `[foo][bar]` for example.
+    """Remember each phase when parsing ambiguous delimiters
 
+    In my opinion there are two groups of paired delimiters in Djot/Markdown:
+    `{* bold *}` and `[Text][foo]`. They roughly correspond to 
+    primivate value vs composite value in a programming langauge.
+
+    BTW, I was told by Gemini that John MacFarlane proposed simiar ideas.
+    I'm not sure what he called this pattern.
+
+    It takes 3 phases to figure out the exact meaning of a composite value.
+
+    Phase 1.
+    When you see opening bracket, is it an reference link? Inline link? Span?
+    We are not sure. So treat it as plain str and remember its position in event list.
+    It happens in LeftBracketMatcher.
+
+    Phase 2.
+    When you the first ], you can peek the char following ].
+    Is it paren, or another opening bracket, or opening brace?
+    Now we can determine the the purpose the the first pair of `[]`.
+    But we still cannot make sure whether it is valid or not.
+    It happens in RightBracketMatcher.
+
+    Phase 3.
+    When you see the the final ] or ), we are sure it is realy a reference link,
+    or explicit link, of attributes following a Span.
+    Now we can use the record save here to modify the events already generated.
+    It happens in RightBracketMatcher and LeftParenMatcher.
+
+    NOTE:
+    The following is my brainstorm on how this class came into being.
+
+    Take `[foo][bar]` for example.
+    
     When the first [ is seen, create Opener instance and append an event (name it EA).
     `event_index` is the index of the event we just added.
     `startpos` and `endpos` is the same as EA's span.
@@ -80,75 +112,6 @@ class Opener:
         text_opener: EventPointer # exists upon creation
         text_closer: EventPointer | None = None # known when we see ]
         dest_or_label_opener: EventPointer | None = None
-    """
-    event_index: int # Index in Event list.
-    startpos: int # point to the first [
-    endpos: int
-    kind: OpenerKind | None # cannot be determined upon creation. Only clear when sub_startpos is seen
-    sub_event_index: int # points to the first closing ]
-    sub_startpos: int | None # point to first closing ]
-    sub_endpos: int | None # point to second [
-
-    def is_within(self, startpos: int, endpos: int) -> bool:
-        return startpos <= self.startpos and endpos >= endpos
-
-    def is_subrange_within(self, startpos: int, endpos: int) -> bool:
-        if self.sub_startpos is None or self.sub_endpos is None:
-            return False
-        return startpos <= self.sub_startpos and self.sub_endpos <= endpos
-
-    def set_first_closer(self, pointer: EventPointer):
-        self.sub_event_index = pointer.idx
-        self.sub_startpos = pointer.start
-
-    def set_second_opener(self, pointer: EventPointer, kind: OpenerKind):
-        self.sub_endpos = pointer.start
-        self.kind = kind
-
-    @classmethod
-    def new(cls, event: Event, evt_idx: int) -> 'Opener':
-        return Opener(
-            event_index=evt_idx,
-            startpos=event.span.start,
-            endpos=event.span.end,
-            kind=None,
-            sub_event_index=evt_idx,
-            sub_startpos=None,
-            sub_endpos=None,
-        )
-
-
-
-@dataclass(slots=True)
-class OpenerV2:
-    """Remember each phase when parsing ambiguous delimiters
-
-    In my opinion there are two groups of paired delimiters in Djot/Markdown:
-    `{* bold *}` and `[Text][foo]`. They roughly correspond to 
-    primivate value vs composite value in a programming langauge.
-
-    BTW, I was told by Gemini that John MacFarlane proposed simiar ideas.
-    I'm not sure what he called this pattern.
-
-    It takes 3 phases to figure out the exact meaning of a composite value.
-
-    Phase 1.
-    When you see opening bracket, is it an reference link? Inline link? Span?
-    We are not sure. So treat it as plain str and remember its position in event list.
-    It happens in LeftBracketMatcher.
-
-    Phase 2.
-    When you the first ], you can peek the char following ].
-    Is it paren, or another opening bracket, or opening brace?
-    Now we can determine the the purpose the the first pair of `[]`.
-    But we still cannot make sure whether it is valid or not.
-    It happens in RightBracketMatcher.
-
-    Phase 3.
-    When you see the the final ] or ), we are sure it is realy a reference link,
-    or explicit link, of attributes following a Span.
-    Now we can use the record save here to modify the events already generated.
-    It happens in RightBracketMatcher and LeftParenMatcher.
     """
     text_opener: EventPointer
     text_closer: Optional[EventPointer] = None
@@ -218,7 +181,7 @@ class OpenerV2:
         return startpos <= self.sub_startpos and self.sub_endpos <= endpos
 
     @classmethod
-    def new(cls, event: Event, evt_idx: int) -> 'OpenerV2':
+    def new(cls, event: Event, evt_idx: int) -> 'Opener':
         return cls(
             text_opener=EventPointer(
                 idx=evt_idx,
@@ -248,7 +211,7 @@ class InlineState:
 
         self.events: List[Event] = []
         # map from opener type to Opener[] in reverse order
-        self.openers: Dict[str, List[OpenerV2]] = {}
+        self.openers: Dict[str, List[Opener]] = {}
         self.destination: bool = False # If inside link destination
 
         # parsing a verbatim span to be ended by N backticks
@@ -347,7 +310,7 @@ class InlineState:
         self.events.append(event)
         return ep
 
-    def add_image_marker(self, opener: OpenerV2):
+    def add_image_marker(self, opener: Opener):
         """Move ! from previous event to the one pointed by opener.
 
         For example, `hello ![image](image.png)` might generated
@@ -390,13 +353,13 @@ class InlineState:
 
         ep = self.add_candidate_event(default_event)
 
-        opener = OpenerV2.new(default_event, ep.idx)
+        opener = Opener.new(default_event, ep.idx)
         self.openers[name].append(opener)
 
         return opener
 
 
-    def get_openers(self, name: str) -> List[OpenerV2]:
+    def get_openers(self, name: str) -> List[Opener]:
         return self.openers.get(name, [])
 
     def reset_openers(self, name: str):
@@ -445,7 +408,7 @@ class InlineState:
     def reset_attribute_state(self):
         self.in_attribute = False
 
-    def set_pending_span(self, opener: OpenerV2):
+    def set_pending_span(self, opener: Opener):
         self.pending_span = PendingSpan(
             open_event_idx=opener.text_opener.idx,
             close_event_idx=len(self.events)-1

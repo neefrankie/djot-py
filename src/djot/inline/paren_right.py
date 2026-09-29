@@ -8,7 +8,7 @@ from ..event import (
     InlineContainer
 )
 from .matcher import Matcher
-from .state import InlineState, OpenerKind, OpenerV2
+from .state import InlineState, OpenerKind, Opener
 
 class RightParenMatcher(Matcher):
 
@@ -75,7 +75,7 @@ class RightParenMatcher(Matcher):
         state.clear_openers(opener.startpos, pos) # From [ to )
         return pos+1 # after )
 
-    def _commit_image(self, state: InlineState, opener: OpenerV2):
+    def _commit_image(self, state: InlineState, opener: Opener):
             state.add_image_marker(opener)
             
             state.replace_event( # Opening [
@@ -97,7 +97,7 @@ class RightParenMatcher(Matcher):
                 opener.sub_event_index,
             )
 
-    def _commit_link(self, state: InlineState, opener: OpenerV2):
+    def _commit_link(self, state: InlineState, opener: Opener):
         state.replace_event( # Update [
             Event.enter(
                 Range(opener.startpos, opener.endpos),

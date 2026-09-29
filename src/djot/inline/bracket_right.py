@@ -12,7 +12,7 @@ from .matcher import Matcher
 from .state import (
     InlineState,
     OpenerKind,
-    OpenerV2,
+    Opener,
 )
 
 class RightBracketMatcher(Matcher):
@@ -79,7 +79,7 @@ class RightBracketMatcher(Matcher):
         
         return None
 
-    def _commit_note_reference(self, state: InlineState, opener: OpenerV2, pos: int) -> int:
+    def _commit_note_reference(self, state: InlineState, opener: Opener, pos: int) -> int:
         i = state.pop_events_upto(opener.startpos)
         state.clear_openers(opener.startpos, pos)
         state.events[i].switch_to_leaf(InlineLeaf.FOOTNOTE_REF)
@@ -87,7 +87,7 @@ class RightBracketMatcher(Matcher):
 
         return pos+1
 
-    def _commit_reference(self, state: InlineState, opener: OpenerV2, pos: int) -> int:
+    def _commit_reference(self, state: InlineState, opener: Opener, pos: int) -> int:
         # convert all matches inside reference label to str
         state.str_matches((opener.sub_endpos or opener.endpos)+1, pos-1)
 
@@ -122,7 +122,7 @@ class RightBracketMatcher(Matcher):
         state.clear_openers(opener.startpos, pos)
         return pos+1 # after ]
 
-    def _commit_image(self, state: InlineState, opener: OpenerV2):
+    def _commit_image(self, state: InlineState, opener: Opener):
         # ![picture of a cat][cat.jpg]
         # Modify events aleady emitted for `!`, `[` and `]`.
         state.add_image_marker(opener)
@@ -145,7 +145,7 @@ class RightBracketMatcher(Matcher):
             opener.sub_event_index
         )
 
-    def _commit_link(self, state: InlineState, opener: OpenerV2):
+    def _commit_link(self, state: InlineState, opener: Opener):
         # [My link text][http://example.com]
         # Modify events for first pair of `[` and `]`
         state.replace_event(
@@ -166,7 +166,7 @@ class RightBracketMatcher(Matcher):
             opener.sub_event_index,
         )
 
-    def _prepare_reference(self, state: InlineState, opener: OpenerV2, pos: int):
+    def _prepare_reference(self, state: InlineState, opener: Opener, pos: int):
 
         # In this example [Text][foo],
         # pos is pointing to the first right bracket now.
@@ -204,7 +204,7 @@ class RightBracketMatcher(Matcher):
         state.clear_openers(opener.startpos+1, pos-1)
         return pos+2 # after ][
 
-    def _prepare_explicit(self, state: InlineState, opener: OpenerV2, pos: int):
+    def _prepare_explicit(self, state: InlineState, opener: Opener, pos: int):
         
         state.reset_openers('(') # clear ( openers. Why?
 
@@ -232,7 +232,7 @@ class RightBracketMatcher(Matcher):
         state.clear_openers(opener.startpos + 1, pos - 1)
         return pos + 2 # after ](
 
-    def _prepare_span(self, state: InlineState, opener: OpenerV2, pos: int):
+    def _prepare_span(self, state: InlineState, opener: Opener, pos: int):
         # assume this is attributes, bracketed span.
         # [a span]{.some-class #some-id some-key="some val"}
         state.replace_event( # [ is opening span
