@@ -41,7 +41,6 @@ def find(
 class InputText:
     
     _PATT_NON_WHITESPACE = re.compile(r'[^ \t\r\n]')
-    _PATT_BLOCKQUOTE_PREFIX = re.compile(r'[>][ \t\r\n]')
     _PATT_CAPTION_START = re.compile(r'\^[ \t]+')
     _PATT_FOOTNOTE_START = re.compile(r'\[\^([^\]]+)\]:[ \t\r\n]')
     _PATT_REFERENCE_DEFINITION = re.compile(r'\[([^\]\r\n]*)\]:([ \t]+[^ \t\r\n]*|)[\r\n]')
@@ -323,6 +322,12 @@ class InputText:
             return True
         return self.src[pos] in self._WHITESPACE
 
+    def peek_is_whitespace(self) -> bool:
+        if self.pos < 0 or self.pos >= self.length:
+            return False
+
+        return self.src[self.pos] in self._WHITESPACE
+
     def is_not_whitespace(self, pos: int) -> bool:
         """
         Minics the regex "[^ \t\r\n]".
@@ -338,11 +343,16 @@ class InputText:
 
         return self.src[pos] not in self._WHITESPACE
 
-    def peek_is_whitespace(self) -> bool:
-        if self.pos < 0 or self.pos >= self.length:
+    # TODO: drop it?
+    def find_non_whitespace(self) -> Optional[MatchedRange]:
+        return find(self.src, self._PATT_NON_WHITESPACE, self.pos)
+
+    # re.compile(r'[>][ \t\r\n]')
+    def peek_is_blockquote_prefix(self) -> bool:
+        if self.pos < 0 or self.pos + 1 >= self.length:
             return False
 
-        return self.src[self.pos] in self._WHITESPACE
+        return self.src[self.pos] == '>' and self.src[self.pos+1] in self._WHITESPACE
 
     def is_crlf(self, i: int):
         """
@@ -382,8 +392,7 @@ class InputText:
     def find(self, patt: re.Pattern) -> Optional[MatchedRange]:
         return find(self.src, patt, self.pos)
 
-    def find_blockquote_prefix(self) -> Optional[MatchedRange]:
-        return find(self.src, self._PATT_BLOCKQUOTE_PREFIX, self.pos)
+    
 
     def find_caption_start(self) -> Optional[MatchedRange]:
         """Matches ^ followed by any number of space or tab"""
@@ -524,8 +533,7 @@ class InputText:
         self.indent = newpos - self.line_start
         self.pos = newpos
 
-    def find_non_whitespace(self) -> Optional[MatchedRange]:
-        return find(self.src, self._PATT_NON_WHITESPACE, self.pos)
+    
 
     
 
