@@ -62,6 +62,7 @@ class EventParser:
         # with higher precedence shadowing outer container.
         # -1 mean the stack does not have such a container.
         self.raw_barrier_idx: int = -1
+
         self.para_rule = ParaRule()
         self.block_rules: List[BlockRule] = [
             BlockquoteRule(),
@@ -124,7 +125,7 @@ class EventParser:
 
         # If new container is opaquee like CodeBlock,
         # and there is no record of such container, remember its index.
-        if container.accepts_raw_text() and self.raw_barrier_idx == -1:
+        if container.accepts_raw_text and self.raw_barrier_idx == -1:
             self.raw_barrier_idx = len(self.container_stack) - 1
 
         return container
@@ -146,7 +147,7 @@ class EventParser:
         events: List[Event] = []
 
         while self.container_stack:
-            if self.container_stack[-1].can_nest(new_container):
+            if self.container_stack[-1].can_cantain(new_container):
                 break
 
             top = self._pop_containier()
@@ -279,38 +280,42 @@ class EventParser:
             finished_line=line_is_finished
         )
 
-
     def _try_open_new_cotainer(self, last_matched_idx: int) -> OpenContainerResult:
-        result = OpenContainerResult(
-            last_matched_idx=last_matched_idx
-        )
-
         # Fast Pass Guard
         self.input.skip_space()
         if self.input.is_blank_line:
-            return result
+            return OpenContainerResult(last_matched_idx)
 
         # If found last matched container, but the container does not allow
         # block type as its child, stop.
-        last_match = self.last_matched_container(last_matched_idx)
-        if last_match:
-            if not last_match.accepts_block:
-                return result
+        parent = self.last_matched_container(last_matched_idx)
+        if parent and not parent.accepts_block:
+                return OpenContainerResult(last_matched_idx)
 
         # Why finding words stops?
         if self.input.find_word():
-            return result
+            return OpenContainerResult(last_matched_idx)
 
         # Cascade Open
+        return self._apply_rules(parent, last_matched_idx)
+
+    def _apply_rules(self, parent: Optional[Container], parent_idx: int):
+        
+        result = OpenContainerResult(
+            last_matched_idx=parent_idx
+        )
+
         while True:
-            opend_any = False
+            opened_any = False
 
             for rule in self.block_rules:
                 # Check relationship to parent element.
-                if not rule.can_be_root_or_child_of(last_match):
+                if parent and not parent.can_nest(rule):
+                    continue
+                elif not rule.can_be_root():
                     continue
 
-                open_res: RuleResult = rule.try_open(self.input)
+                open_res = rule.try_open(self.input)
 
                 if open_res.status != FlowControl.OPEN:
                     continue
@@ -323,33 +328,26 @@ class EventParser:
 
                 # Explicitly close sibling containers before adding current one.
                 closed_events = self._close_siblings_of(open_res.container)
+                parent = self._push_container(open_res.container)
+
                 result.events.extend(closed_events)
-
-                tip = self._push_container(open_res.container)
-
-                # Update last matched index after stack push.
                 result.last_matched_idx = len(self.container_stack)-1
                 result.new_starts_created = True
 
-                last_match = tip
-                opend_any = True
+                opened_any = True
 
-                # If the whole line is handle by the the open action.
                 if open_res.finished_line:
                     result.finished_line = True
                     return result
 
-                # Not end of line. Skip space and try another rule.
                 self.input.skip_space()
 
-                # If current rule does not accept blocks as its children.
                 if not rule.accepts_blocks():
                     return result
 
-            # After exhausting all rules, no one applies.
-            if not opend_any:
+            if not opened_any:
                 break
-
+        
         return result
 
     def _handle_container_closures(
