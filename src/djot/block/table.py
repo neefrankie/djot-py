@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, NamedTuple, Optional
 
 from ..input import InputText
@@ -43,9 +43,10 @@ class TableRule(BlockRule):
     | apple  |  4    |
     | banana |  10   |
     """
-    options: Options
+    
     kind: ContainerCap = ContainerCap.BLOCK
     accepts_content: ContainerCap = ContainerCap.CELLS
+    options: Options = field(default_factory=Options)
 
     def try_open(self, cursor: InputText) -> RuleResult:
         # Try to find a row.
