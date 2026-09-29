@@ -294,7 +294,7 @@ class EventParser:
         # block type as its child, stop.
         last_match = self.last_matched_container(last_matched_idx)
         if last_match:
-            if not last_match.can_child_be_block:
+            if not last_match.accepts_block:
                 return result
 
         # Why finding words stops?
@@ -306,44 +306,45 @@ class EventParser:
             opend_any = False
 
             for rule in self.block_rules:
-                # Check container nesting if stack top container permit current rule to be nested
-                if not rule.can_be_root_or_nested(last_match):
+                # Check relationship to parent element.
+                if not rule.can_be_root_or_child_of(last_match):
                     continue
 
                 open_res: RuleResult = rule.try_open(self.input)
 
-                if open_res.status == FlowControl.OPEN:
-                    if open_res.events:
-                        result.events.extend(open_res.events)
+                if open_res.status != FlowControl.OPEN:
+                    continue
 
-                    tip = open_res.container
-                    if not tip:
-                        raise Exception('No tip after opening cotainer')
+                if open_res.events:
+                    result.events.extend(open_res.events)
 
-                    # Explicitly close sibling containers before adding current one.
-                    closed_events = self._close_siblings_of(tip)
-                    result.events.extend(closed_events)
+                if open_res.container is None:
+                    raise Exception('No container created after opening an element')
 
-                    tip = self._push_container(tip)
+                # Explicitly close sibling containers before adding current one.
+                closed_events = self._close_siblings_of(open_res.container)
+                result.events.extend(closed_events)
 
-                    # Update last matched index after stack push.
-                    result.last_matched_idx = len(self.container_stack)-1
-                    result.new_starts_created = True
+                tip = self._push_container(open_res.container)
 
-                    last_match = tip
-                    opend_any = True
+                # Update last matched index after stack push.
+                result.last_matched_idx = len(self.container_stack)-1
+                result.new_starts_created = True
 
-                    # If the whole line is handle by the the open action.
-                    if open_res.finished_line:
-                        result.finished_line = True
-                        return result
+                last_match = tip
+                opend_any = True
 
-                    # Not end of line. Skip space and try another rule.
-                    self.input.skip_space()
+                # If the whole line is handle by the the open action.
+                if open_res.finished_line:
+                    result.finished_line = True
+                    return result
 
-                    # If current rule does not accept blocks as its children.
-                    if not rule.accepts_blocks():
-                        return result
+                # Not end of line. Skip space and try another rule.
+                self.input.skip_space()
+
+                # If current rule does not accept blocks as its children.
+                if not rule.accepts_blocks():
+                    return result
 
             # After exhausting all rules, no one applies.
             if not opend_any:
