@@ -103,14 +103,15 @@ class Container(Generic[T]):
     def accepts_block(self) -> bool:
         return self.rule.accepts_blocks()
 
-    def can_nest(self, other: 'Container') -> bool:
+    @property
+    def accepts_raw_text(self):
+        return self.children_type == ContainerCap.TEXT
+
+    def can_cantain(self, other: 'Container') -> bool:
         return self.children_type == other.node_type
 
-    def allow_nest(self, rule: 'BlockRule') -> bool:
+    def can_nest(self, rule: 'BlockRule') -> bool:
         return self.children_type == rule.kind
-
-    def accepts_raw_text(self):
-        return self.rule.accepts_content == ContainerCap.TEXT
 
     def on_continue(self, ctx: ParsingContext) -> 'RuleResult':
         return self.rule.on_continue(self, ctx)
@@ -193,16 +194,12 @@ class BlockRule(ABC):
     kind: ContainerCap
     accepts_content: ContainerCap
 
-    def can_be_root_or_child_of(self, container: Optional[Container]) -> bool:
-        """Whether current node can be root or be nested
-        
+    def can_be_root(self):
+        """Whether current node can be root node or not.
+                
         If there's no parent node, and current rule is block, then it can be a root node.
-        If parent node exists, parent node's allowed children type must agree with current rule.
         """
-        if not container:
-            return ContainerCap.BLOCK == self.kind
-
-        return self.kind == container.children_type
+        return self.kind == ContainerCap.BLOCK
 
     def accepts_blocks(self) -> bool:
         """Check if current rule could have block child"""
