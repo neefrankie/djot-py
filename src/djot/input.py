@@ -358,7 +358,7 @@ class InputText:
         """
         Check if the char at i is \r and the next is \n.
         """
-        if i >= self.length:
+        if i+1 >= self.length:
             return False
         return self.src[i] == '\r' and self.src[i+1] == '\n'
 
