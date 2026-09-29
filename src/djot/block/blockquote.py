@@ -21,23 +21,25 @@ class BlockquoteRule(BlockRule):
     accepts_content: ContainerCap = ContainerCap.BLOCK
 
     def try_open(self, cursor: InputText) -> RuleResult:
-        if not cursor.find_blockquote_prefix():
+        if not cursor.peek_is_blockquote_prefix():
             return RuleResult.fail()
 
-        event = Event.enter(
-            kind=BlockContainer.BLOCK_QUOTE,
-            span=cursor.current_span()
-        )
-        container = Container(
-            rule=self,
-            data=None
-        )
+        pos = cursor.pos
+
         cursor.advance() # after >
 
         return RuleResult(
             status=FlowControl.OPEN,
-            container=container,
-            events=[event]
+            container=Container(
+                rule=self,
+                data=None
+            ),
+            events=[
+                Event.enter(
+                    kind=BlockContainer.BLOCK_QUOTE,
+                    span=cursor.new_span(pos, pos)
+                )
+            ]
         )
 
     def on_continue(
@@ -45,11 +47,11 @@ class BlockquoteRule(BlockRule):
         container: Container,
         ctx: ParsingContext
     ) -> RuleResult:
-        if ctx.cursor.find_blockquote_prefix():
+        if ctx.cursor.peek_is_blockquote_prefix():
             ctx.cursor.advance() # Eat starting >
             return RuleResult.continue_ok()
-        else:
-            return RuleResult.fail()
+        
+        return RuleResult.fail()
 
     def on_close(
         self, 
