@@ -62,7 +62,7 @@ class ParaRule(BlockRule):
         return RuleResult(
             status=FlowControl.CLOSE,
             events=[
-                Event.enter(
+                Event.exit(
                     kind=BlockContainer.PARA,
                     span=ctx.cursor.new_span(ep, ep)
                 )
