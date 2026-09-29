@@ -1,8 +1,7 @@
 from dataclasses import dataclass, field
-from typing import Any, Iterator, List, NamedTuple, Optional
+from typing import Iterator, List, NamedTuple, Optional
 
 
-from ..inline import InlineParser
 from ..input import InputText
 from ..event import (
     Event,
@@ -14,11 +13,12 @@ from ..common import Range
 
 from .container import (
     ParsingContext,
-    ContainerCap,
     Container,
     FlowControl,
-    RuleResult,
     BlockRule,
+)
+from .state import (
+    BlockState,
 )
 
 from .para import ParaRule
@@ -53,15 +53,7 @@ class EventParser:
         self.input = InputText(src)
         self.options = options or Options()
 
-        self.events: List[Event] = []
-
-        # A container stack describes a path in a tree from root to a leaf.
-        # When we push a new container, we are exiting a node and switch to a sibling.
-        self.container_stack: List[Container[Any]] = []
-        # Index of container with opaque content, a block of raw text
-        # with higher precedence shadowing outer container.
-        # -1 mean the stack does not have such a container.
-        self.raw_barrier_idx: int = -1
+        self.state = BlockState(InputText(src))
 
         self.para_rule = ParaRule()
         self.block_rules: List[BlockRule] = [
@@ -79,120 +71,6 @@ class EventParser:
             CodeBlockRule()
         ]
 
-    @property
-    def top_container(self) -> Optional[Container]:
-        """获取当前 AST 活跃路径中最内层的容器节点"""
-        return self.container_stack[-1] if self.container_stack else None
-
-    @property
-    def last_event(self) -> Optional[Event]:
-        if self.events:
-            return self.events[-1]
-
-        return None
-
-    @property
-    def last_event_endpos(self) -> Optional[int]:
-        if self.events:
-            return self.events[-1].span.end
-
-        return None
-        
-
-    def last_matched_container(self, idx: int) -> Optional[Container]:
-        if not self.container_stack:
-            return None
-        if idx < 0 or idx >= len(self.container_stack):
-            return None
-
-        return self.container_stack[idx]
-
-    def _push_container(
-        self, 
-        container: Container, 
-    ) -> Container:
-
-        if container.children_type == ContainerCap.INLINE:
-            # Why not attach the InlineParser when the container is created?
-            # Or attach it lazily when it is first accessed?
-            # Why here?
-            container.inline_parser = InlineParser(
-                cursor=self.input, 
-                options=self.options,
-            )
-
-        self.container_stack.append(container)
-
-        # If new container is opaquee like CodeBlock,
-        # and there is no record of such container, remember its index.
-        if container.accepts_raw_text and self.raw_barrier_idx == -1:
-            self.raw_barrier_idx = len(self.container_stack) - 1
-
-        return container
-
-    def _pop_containier(self) -> Optional[Container]:
-        if not self.container_stack:
-            return None
-
-        top = self.container_stack.pop()
-
-        # If the popped container happens to be the shadowing container,
-        # reset index.
-        if len(self.container_stack) <= self.raw_barrier_idx:
-            self.raw_barrier_idx = -1
-
-        return top
-
-    def _close_siblings_of(self, new_container: Container) -> List[Event]:
-        events: List[Event] = []
-
-        while self.container_stack:
-            if self.container_stack[-1].can_cantain(new_container):
-                break
-
-            top = self._pop_containier()
-            if not top:
-                break
-
-            close_result = top.on_close(ParsingContext(
-                cursor=self.input,
-                last_span_end=self.last_event_endpos
-            ))
-            events.extend(close_result.events)
-
-
-        return events
-
-    def _close_container_to_depth(
-        self,
-        last_matched_idx: int
-    ) -> List[Event]:
-        """ Close containers from innermost element to the specified index (exclusive).
-
-        In a tree view, it closes all children nodes under last_matched_idx.
-
-        Args:
-            last_matched_idx (int): The index of the last matched container. -1 means close all.
-
-        Retursn:
-            List[Event]: The events collected in close step.
-        """
-
-        events: List[Event] = []
-
-        while len(self.container_stack)-1 > last_matched_idx:
-            top = self._pop_containier()
-            if not top:
-                break
-
-            close_result = top.on_close(ParsingContext(
-                cursor=self.input,
-                last_span_end=self.last_event_endpos
-            ))
-            events.extend(close_result.events)
-
-        return events
-
     def process_line(self) -> List[Event]:
         self.input.start_newline()
 
@@ -205,7 +83,7 @@ class EventParser:
 
         # If Step 1 gobbles whole line, close the container and return
         if cont_result.finished_line:
-            close_events = self._close_container_to_depth(cont_result.last_matched_idx)
+            close_events = self.state.close_container_to_depth(cont_result.last_matched_idx)
             events.extend(close_events)
             return events
 
@@ -244,16 +122,16 @@ class EventParser:
         line_is_finished = False
 
         # 1. Determine if the top of curent stack has a raw block like CodeBlock.
-        has_raw_barrierr = (self.raw_barrier_idx != -1)
+        has_raw_barrierr = (self.state.raw_barrier_idx != -1)
 
-        for idx, container in enumerate(self.container_stack):
+        for idx, container in enumerate(self.state.container_stack):
             # 1. Prepare cursor for rule
             self.input.skip_space()
 
             # 2. If current container contains a raw text block,
             # flag it as is_covered, indicating that you are shadowed
             # by inner containers, yield your right to children.
-            is_covered = has_raw_barrierr and (idx < self.raw_barrier_idx)
+            is_covered = has_raw_barrierr and (idx < self.state.raw_barrier_idx)
 
             res = container.on_continue(ParsingContext(
                 cursor=self.input,
@@ -288,7 +166,7 @@ class EventParser:
 
         # If found last matched container, but the container does not allow
         # block type as its child, stop.
-        parent = self.last_matched_container(last_matched_idx)
+        parent = self.state.last_matched_container(last_matched_idx)
         if parent and not parent.accepts_block:
                 return OpenContainerResult(last_matched_idx)
 
@@ -327,11 +205,11 @@ class EventParser:
                     raise Exception('No container created after opening an element')
 
                 # Explicitly close sibling containers before adding current one.
-                closed_events = self._close_siblings_of(open_res.container)
-                parent = self._push_container(open_res.container)
+                closed_events = self.state.close_siblings_of(open_res.container)
+                parent = self.state.push_container(open_res.container, self.options)
 
                 result.events.extend(closed_events)
-                result.last_matched_idx = len(self.container_stack)-1
+                result.last_matched_idx = len(self.state.container_stack)-1
                 result.new_starts_created = True
 
                 opened_any = True
@@ -359,13 +237,13 @@ class EventParser:
         Check if the following content is lazy.
         """
         events: List[Event] = []
-        tip = self.top_container
+        tip = self.state.top_container
 
         # 判定是否为 Lazy Paragraph Continuation
         is_lazy = (
             not self.input.is_blank_line
             and not new_starts_created
-            and last_matched_idx < len(self.container_stack) - 1 # not last one
+            and last_matched_idx < len(self.state.container_stack) - 1 # not last one
             and tip is not None
             and tip.rule.accepts_inline_only()
         )
@@ -373,7 +251,7 @@ class EventParser:
         if not is_lazy:
             # Stack might change here.
             # Therefore djot.js perform tip = self.tip() again after here.
-            events.extend(self._close_container_to_depth(last_matched_idx))
+            events.extend(self.state.close_container_to_depth(last_matched_idx))
 
         return events
 
@@ -383,7 +261,7 @@ class EventParser:
     ) -> List[Event]:
         events = []
         is_blank = self.input.is_blank_line
-        tip = self.top_container
+        tip = self.state.top_container
 
         if tip is None or tip.rule.accepts_block_only():
             if is_blank:
@@ -402,10 +280,10 @@ class EventParser:
                 # ParaRule could always open a new container.
                 assert open_result.container is not None
 
-                closed_events = self._close_siblings_of(open_result.container)
+                closed_events = self.state.close_siblings_of(open_result.container)
                 events.extend(closed_events)
                 
-                para_container = self._push_container(open_result.container)
+                para_container = self.state.push_container(open_result.container, self.options)
                 events.extend(open_result.events)
 
                 tip = para_container
@@ -437,6 +315,6 @@ class EventParser:
             self.input.advance_to_new_line()
 
 
-        for event in self._close_container_to_depth(-1):
+        for event in self.state.close_container_to_depth(-1):
             yield event
 
