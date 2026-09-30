@@ -126,7 +126,7 @@ class BlockState:
 
         events: List[Event] = []
 
-        while len(self.container_stack)-1 > last_matched_idx:
+        while self.container_stack and last_matched_idx < len(self.container_stack)-1:
             top = self.pop_containier()
             if not top:
                 break
