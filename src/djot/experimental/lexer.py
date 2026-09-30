@@ -23,10 +23,7 @@ class Line:
     indent: int
     
 class LineLexer:
-    _PATT_EOL = re.compile(r'[\r\n]')
-    _WHITESPACE = ' \t\r\n'
-    _SPACE_TAB = ' \t'
-    
+
     def __init__(self, src: str):
         self.src = src
         self.length = len(src)
