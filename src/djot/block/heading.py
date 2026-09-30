@@ -116,7 +116,8 @@ class HeadingRule(BlockRule):
         container: Container, 
         ctx: ParsingContext,
     ) -> RuleResult:
-        
+        # Use last event end position so that end pos points to heading end
+        # rather than next block start
         ep = ctx.last_span_end + 1 if ctx.last_span_end else ctx.cursor.pos
         return RuleResult(
             status=FlowControl.CLOSE,
