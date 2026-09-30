@@ -38,6 +38,13 @@ def find(
             captures=list(m.groups()) # Match.groups() returns a tuple containing string or None.
         )
 
+@dataclass(slots=True, frozen=True)
+class LineSpan:
+    start: int
+    eol_start: int
+    eol_end: int
+    indent: int
+
 class InputText:
     
     _PATT_NON_WHITESPACE = re.compile(r'[^ \t\r\n]')
