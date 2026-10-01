@@ -206,10 +206,10 @@ class TestAttributeParser(unittest.TestCase):
             (
                 '{#ident .dark key=value}',
                 [
-                    Event.attr(Range(1, 1), AttrKind.ID_START),
+                    Event.attr(Range(1, 1), AttrKind.ID_MARKER),
                     Event.attr(Range(2, 6), AttrKind.ID),
                     Event.attr(Range(7, 7), AttrKind.SPACE),
-                    Event.attr(Range(8, 8), AttrKind.CLASS_START),
+                    Event.attr(Range(8, 8), AttrKind.CLASS_MARKER),
                     Event.attr(Range(9, 12), AttrKind.CLASS),
                     Event.attr(Range(13, 13), AttrKind.SPACE),
                     Event.attr(Range(14, 16), AttrKind.KEY),
