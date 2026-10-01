@@ -248,6 +248,30 @@ class Event:
         )
 
     @classmethod
+    def blockquote(cls, startpos: int, endpos: int, open: bool = True) -> 'Event':
+        return cls(
+            span=Range(startpos, endpos),
+            kind=BlockContainer.BLOCK_QUOTE,
+            action=Action.ENTER if open else Action.EXIT,
+        )
+
+    @classmethod
+    def heading(cls, startpos: int, endpos: int, open: bool = True) -> 'Event':
+        return cls(
+            span=Range(startpos, endpos),
+            kind=BlockContainer.HEADING,
+            action=Action.ENTER if open else Action.EXIT,
+        )
+
+    @classmethod
+    def ref_def(cls, startpos: int, endpos: int, open: bool = True) -> 'Event':
+        return cls(
+            span=Range(startpos, endpos),
+            kind=BlockContainer.REFERENCE_DEFINITION,
+            action=Action.ENTER if open else Action.EXIT,
+        )
+
+    @classmethod
     def emph(cls, starpos: int, endpos: int, open: bool = True) -> 'Event':
         return cls(
             span=Range(starpos, endpos),
@@ -328,6 +352,14 @@ class Event:
         )
 
     @classmethod
+    def softbreak(cls, startpos: int, endpos: int) -> 'Event':
+        return cls(
+            span=Range(startpos, endpos),
+            kind=InlineLeaf.SOFT_BREAK,
+            action=None
+        )
+
+    @classmethod
     def blankline(cls, startpos: int, endpos: int) -> 'Event':
         return cls(
             span=Range(startpos, endpos),
@@ -340,6 +372,22 @@ class Event:
         return cls(
             span=Range(startpos, endpos),
             kind=InlineLeaf.RIGHT_SINGLE_QUOTE,
+            action=None
+        )
+
+    @classmethod
+    def ref_key(cls, startpos: int, endpos: int) -> 'Event':
+        return cls(
+            span=Range(startpos, endpos),
+            kind=InlineLeaf.REFERENCE_KEY,
+            action=None
+        )
+
+    @classmethod
+    def ref_value(cls, startpos: int, endpos: int) -> 'Event':
+        return cls(
+            span=Range(startpos, endpos),
+            kind=InlineLeaf.REFERENCE_VALUE,
             action=None
         )
 
