@@ -1,10 +1,12 @@
-from typing import Dict, NamedTuple, Optional
+from typing import Dict, List, NamedTuple, Optional
 import unittest
 
 from djot.common import Range
 from djot.event import (
     Event,
     BlockContainer,
+    InlineContainer,
+    VerbatimKind,
 )
 from djot.input import InputText
 from djot.block.container import (
@@ -16,6 +18,41 @@ from djot.block.container import (
 )
 from djot.block.para import ParaRule
 from djot.block.blockquote import BlockquoteRule
+from djot.block import EventParser
+
+def enter(start: int, end: int, kind: BlockContainer | InlineContainer | VerbatimKind):
+    return Event.enter(
+        Range(start, end),
+        kind,
+    )
+
+def exit(start: int, end: int, kind: BlockContainer | InlineContainer | VerbatimKind):
+    return Event.exit(
+        Range(start, end),
+        kind,
+    )
+
+class TestEventParser(unittest.TestCase):
+    def test_paragraphs(self):
+
+        text = "hello *world*\n\nfoo"
+
+        expected = [
+            Event.para(0, 0),
+            Event.str(0, 5),
+            Event.strong(6, 6),
+            Event.str(7, 11),
+            Event.strong(12, 12, False),
+            Event.para(13, 13, False),
+            Event.blankline(14, 14),
+            Event.para(15, 15),
+            Event.str(15, 17),
+            Event.para(18, 18, False),
+        ]
+
+        parser = EventParser(text)
+        events = list(parser.parse())
+        self.assertEqual(events, expected)
 
 
 class Args(NamedTuple):
