@@ -76,7 +76,6 @@ class ReferenceDefinitionRule(BlockRule):
             )
 
         cursor.advance_to(cursor.eol_start - 1) # move to EOL
-        # TODO: why not flag finished_line = True since the whole line is gobbled.
         return RuleResult(
             status=FlowControl.OPEN,
             container=container,
