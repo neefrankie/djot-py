@@ -99,9 +99,11 @@ class ReferenceDefinitionRule(BlockRule):
             return RuleResult.fail()
         # Current position should not exceed the end of the line,
         # and content should be ended with a newline.
-        if ctx.cursor.pos >= ctx.cursor.eol_start:
+        if not ctx.cursor.is_current_before_eol:
             return RuleResult.fail()
-        if nws.end != ctx.cursor.eol_start - 1:
+        if not nws:
+            return RuleResult.fail()
+        if nws.end != ctx.cursor.eol_start - 1: # non-whitespace extends to EOL.
             return RuleResult.fail()
         
         event = Event.leaf(
@@ -122,15 +124,14 @@ class ReferenceDefinitionRule(BlockRule):
         container: Container, 
         ctx: ParsingContext,
     ) -> RuleResult:
+        pos = ctx.cursor.pos
+
         return RuleResult(
             status=FlowControl.CLOSE,
             events=[
                 Event.exit(
                     kind=BlockContainer.REFERENCE_DEFINITION,
-                    span=Range(
-                        start=ctx.cursor.pos,
-                        end=ctx.cursor.pos,
-                    )
+                    span=ctx.cursor.new_span(pos, pos)
                 )
             ]
         )
