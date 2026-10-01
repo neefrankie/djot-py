@@ -273,9 +273,9 @@ class EventParser:
         if not is_lazy:
             # Stack might change here.
             # Therefore djot.js perform tip = self.tip() again after here.
-            events.extend(self.state.close_container_to_depth(last_matched_idx))
+            return self.state.close_container_to_depth(last_matched_idx)
 
-        return events
+        return []
 
     def _consume_line_text(
         self,
