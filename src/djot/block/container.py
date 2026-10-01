@@ -91,6 +91,9 @@ class Container(Generic[T]):
     attribute_parser: Optional[AttributeParser] = None # parse block attributes
     data: Optional[T] = None
 
+    def __repr__(self) -> str:
+        return f'Container<{self.rule.__class__.__name__}>'
+
     @property
     def node_type(self) -> ContainerCap:
         return self.rule.kind
@@ -142,6 +145,17 @@ class RuleResult:
     events: List[Event] = field(default_factory=list)
     container: Optional[Container[Any]] = None
     finished_line: bool = False
+
+    def __repr__(self) -> str:
+        return f'RuleResult(status={self.status.name}, new events: {len(self.events)}, new container: {self.container}, finished_line={self.finished_line})'
+
+    @property
+    def is_continue(self) -> bool:
+        return self.status == FlowControl.CONTINUE
+
+    @property
+    def is_open(self) -> bool:
+        return self.status == FlowControl.OPEN
 
     @classmethod
     def open(cls) -> 'RuleResult':
