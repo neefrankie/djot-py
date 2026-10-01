@@ -143,7 +143,7 @@ class EventParser:
             ))
 
             # The moment a container cannot continue, stop immediately
-            if res == FlowControl.CONTINUE:
+            if res.is_continue:
                 last_matched_idx = idx
                 if res.events:
                     events.extend(res.events)
