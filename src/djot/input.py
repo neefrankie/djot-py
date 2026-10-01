@@ -396,6 +396,9 @@ class InputText:
     def is_dash(self, i: int) -> bool:
         return self.src[i] == '-'
 
+    def is_backtick(self, i: int) -> bool:
+        return self.src[i] == '`'
+
     def find(self, patt: re.Pattern) -> Optional[MatchedRange]:
         return find(self.src, patt, self.pos)
 
@@ -451,8 +454,16 @@ class InputText:
         return find(self.src, self._PATT_CODE_FENCE, self.pos)
 
     def find_special(self, start: int, end: int) -> Optional[int]:
-        """Find special characters"""
-        m = self._RE_SPECIAL.search(self.src, start, end)
+        """Find special characters
+        
+        This functions tries to follow the behavior in of 
+        findSpecial in djot.js, which includes endpos based on
+        if (result && result.index <= endpos).
+        Python Pattern.search, however, does not include endpos.
+        Here's the doc:
+        The optional parameter endpos limits how far the string will be searched; it will be as if the string is endpos characters long, so only the characters from pos to endpos - 1 will be searched for a match. 
+        """
+        m = self._RE_SPECIAL.search(self.src, start, end+1)
 
         if m:
             return m.start()
@@ -523,14 +534,14 @@ class InputText:
     def find_trailing_space(self, span: Range) -> int:
         start = span.start
         end = span.end
-        while end >= start  and self.src[end] == ' ':
+        while end >= start and self.src[end] == ' ':
             end = end - 1
 
         return end
 
     def skip_space(self):
         """
-        跳过当前行的前导空格，并更新 self.indent
+        Ignore leading space and update self.indent
         """
         newpos = self.pos
 
