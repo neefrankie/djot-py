@@ -106,10 +106,11 @@ class InlineParser:
                     end=current.span.end
                 )
                 continue
-            
-            # Current event is str, and it is not adjacent to last str, 
-            # yield it and cache the current event.
-            last_str = current
+            else:
+                # Current event is str, and it is not adjacent to last str, 
+                # yield it and cache the current event.
+                yield last_str
+                last_str = current
 
         if last_str:
             yield last_str
@@ -227,7 +228,7 @@ class InlineParser:
     def _feed_newline(self, pos: int, endpos: int) -> Optional[int]:
 
         if self.state.cursor.is_cr_or_lf(pos):
-            if self.state.cursor.is_crlf(pos):
+            if self.state.cursor.is_crlf(pos) and pos+1 <= endpos:
                 self.state.events.append(
                     Event.leaf(
                         span=Range(pos, pos+1),
