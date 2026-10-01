@@ -47,7 +47,7 @@ class LineSpan:
 
 class InputText:
     
-    _PATT_NON_WHITESPACE = re.compile(r'[^ \t\r\n]')
+    _PATT_NON_WHITESPACE = re.compile(r'[^ \t\r\n]+')
     _PATT_CAPTION_START = re.compile(r'\^[ \t]+')
     _PATT_FOOTNOTE_START = re.compile(r'\[\^([^\]]+)\]:[ \t\r\n]')
     _PATT_REFERENCE_DEFINITION = re.compile(r'\[([^\]\r\n]*)\]:([ \t]+[^ \t\r\n]*|)[\r\n]')
@@ -124,6 +124,10 @@ class InputText:
     @property
     def is_blank_line(self) -> bool:
         return self.pos == self.eol_start
+
+    @property
+    def is_current_before_eol(self) -> bool:
+        return self.pos < self.eol_start
 
     def is_eof(self) -> bool:
         return self.pos >= self.length
@@ -350,7 +354,6 @@ class InputText:
 
         return self.src[pos] not in self._WHITESPACE
 
-    # TODO: drop it?
     def find_non_whitespace(self) -> Optional[MatchedRange]:
         return find(self.src, self._PATT_NON_WHITESPACE, self.pos)
 
