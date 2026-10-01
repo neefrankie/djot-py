@@ -257,7 +257,7 @@ class AttributeParser:
                 self.events.append(
                     Event.attr(
                         Range(pos, pos), 
-                        AttrKind.ID_START
+                        AttrKind.ID_MARKER
                     )
                 )
                 return State.SCANNING_ID
@@ -266,7 +266,7 @@ class AttributeParser:
                 self.add_event(
                     Event.attr(
                         Range(pos, pos),
-                        AttrKind.CLASS_START
+                        AttrKind.CLASS_MARKER
                     )
                 )
                 return State.SCANNING_CLASS
