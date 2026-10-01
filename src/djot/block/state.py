@@ -10,13 +10,13 @@ from .container import (
     Container,
     ContainerCap,
     ParsingContext,
+    RuleResult,
 )
 
 class BlockState:
     def __init__(self, cursor: InputText):
         self.cursor = cursor
 
-        self.events: List[Event] = []
         # A container stack describes a path in a tree from root to a leaf.
         # When we push a new container, we are exiting a node and switch to a sibling.
         self.container_stack: List[Container[Any]] = []
@@ -25,24 +25,26 @@ class BlockState:
         # -1 mean the stack does not have such a container.
         self.raw_barrier_idx: int = -1
 
+        # This is a strange hack.
+        self.last_event: Optional[Event] = None
+
     @property
     def top_container(self) -> Optional[Container]:
         """Get the innermost node in current active AST path"""
         return self.container_stack[-1] if self.container_stack else None
 
     @property
-    def last_event(self) -> Optional[Event]:
-        if self.events:
-            return self.events[-1]
+    def is_blank_line(self) -> bool:
+        return self.cursor.is_blank_line
 
-        return None
+    def start_newline(self):
+        self.cursor.start_newline()
 
-    @property
-    def last_event_endpos(self) -> Optional[int]:
-        if self.events:
-            return self.events[-1].span.end
+    def skip_space(self):
+        self.cursor.skip_space()
 
-        return None
+    def get_adjusted_text_start(self, indent: int | None):
+        return self.cursor.get_adjusted_text_start(indent)
 
     def last_matched_container(self, idx: int) -> Optional[Container]:
         if not self.container_stack:
@@ -89,7 +91,12 @@ class BlockState:
 
         return top
 
-    def close_siblings_of(self, new_container: Container) -> List[Event]:
+    def close_siblings_of(
+        self,
+        new_container: Container
+    ) -> List[Event]:
+        """Close sibling nodes when pushing a new container"""
+        print(f'Close siblings of {new_container.__class__.__name__}')
         events: List[Event] = []
 
         while self.container_stack:
@@ -100,14 +107,31 @@ class BlockState:
             if not top:
                 break
 
-            close_result = top.on_close(ParsingContext(
-                cursor=self.cursor,
-                last_span_end=self.last_event_endpos
-            ))
+            close_result = self._close_container(top)
             events.extend(close_result.events)
 
 
         return events
+
+    # This is a horrible hack.
+    def update_last_event(self, events: List[Event]):
+        if events:
+            print(f'Update last event to {events[-1]}')
+            self.last_event = events[-1]
+
+    def _close_container(self, container: Container) -> RuleResult:
+        events: List[Event] = []
+        if container.inline_parser:
+            events.extend(container.inline_parser.iter_merged_events())
+        self.update_last_event(events)
+
+        result = container.on_close(ParsingContext(
+            cursor=self.cursor,
+            last_span_end=self.last_event.span.end if self.last_event else None
+        ))
+        result.events = events + result.events
+        return result
+
 
     def close_container_to_depth(
         self,
@@ -123,7 +147,7 @@ class BlockState:
         Retursn:
             List[Event]: The events collected in close step.
         """
-
+        print(f"close_container_to_depth: {last_matched_idx}")
         events: List[Event] = []
 
         while self.container_stack and last_matched_idx < len(self.container_stack)-1:
@@ -131,10 +155,7 @@ class BlockState:
             if not top:
                 break
 
-            close_result = top.on_close(ParsingContext(
-                cursor=self.cursor,
-                last_span_end=self.last_event_endpos
-            ))
+            close_result = self._close_container(top)
             events.extend(close_result.events)
 
         return events
