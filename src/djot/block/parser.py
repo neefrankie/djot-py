@@ -43,7 +43,7 @@ class LineStepFrame:
 
 class EventParser:
     def __init__(self, src: str, options: Options | None = None) -> None:
-        self.input = InputText(src)
+
         self.options = options or Options()
 
         self.state = BlockState(InputText(src))
@@ -65,27 +65,29 @@ class EventParser:
         ]
 
     def process_line(self) -> List[Event]:
-        self.input.start_newline()
-
+        self.state.start_newline()
         events: List[Event] = []
 
         # 1. Check container continuation (Step 1)
         frame = self._check_continuations()
         events.extend(frame.events)
+        self.state.update_last_event(events)
 
         #  if we hit a close fence, we can move to next line
         if frame.finished_line:
             close_events = self.state.close_container_to_depth(frame.last_matched_idx)
             events.extend(close_events)
+            self.state.update_last_event(events)
             return events
 
         # Check for new container
-        self.input.skip_space()
+        self.state.skip_space()
 
         frame = self._try_open_new_cotainer(
             frame.last_matched_idx
         )
         events.extend(frame.events)
+        self.state.update_last_event(events)
         if frame.finished_line:
             return events
 
@@ -95,6 +97,7 @@ class EventParser:
             new_starts_created=frame.new_starts_created,
         )
         events.extend(closure_events)
+        self.state.update_last_event(events)
 
         # add paragraph by default if there's text
         text_events = self._consume_line_text(
@@ -102,6 +105,7 @@ class EventParser:
             new_starts_created=frame.new_starts_created
         )
         events.extend(text_events)
+        self.state.update_last_event(events)
 
         return events
 
@@ -123,7 +127,7 @@ class EventParser:
 
         for idx, container in enumerate(self.state.container_stack):
             # 1. Prepare cursor for rule
-            self.input.skip_space()
+            self.state.skip_space()
 
             # 2. If current container contains a raw text block,
             # flag it as is_covered, indicating that you are shadowed
@@ -131,17 +135,11 @@ class EventParser:
             is_covered = has_raw_barrierr and (idx < self.state.raw_barrier_idx)
 
             res = container.on_continue(ParsingContext(
-                cursor=self.input,
+                cursor=self.state.cursor,
                 is_covered=is_covered,
             ))
 
             # The moment a container cannot continue, stop immediately
-            if res != FlowControl.CONTINUE:
-                return LineStepFrame(
-                    last_matched_idx=last_matched_idx,
-                    events=events,
-                )
-
             if res == FlowControl.CONTINUE:
                 last_matched_idx = idx
                 if res.events:
@@ -161,8 +159,8 @@ class EventParser:
 
     def _try_open_new_cotainer(self, last_matched_idx: int) -> LineStepFrame:
         # Fast Pass Guard
-        self.input.skip_space()
-        if self.input.is_blank_line:
+        self.state.skip_space()
+        if self.state.is_blank_line:
             return LineStepFrame(last_matched_idx=last_matched_idx)
 
         # If found last matched container, but the container does not allow
@@ -172,14 +170,13 @@ class EventParser:
             return LineStepFrame(last_matched_idx=last_matched_idx)
 
         # Why finding words stops?
-        if self.input.find_word():
+        if self.state.cursor.find_word():
             return LineStepFrame(last_matched_idx=last_matched_idx)
 
         # Cascade Open
         return self._apply_rules(parent, last_matched_idx)
 
     def _apply_rules(self, parent: Optional[Container], parent_idx: int) -> LineStepFrame:
-
         events: List[Event] = []
         last_matched_idx = parent_idx
         new_starts_created = False
@@ -212,7 +209,7 @@ class EventParser:
                         events=events,
                     )
 
-                self.input.skip_space()
+                self.state.skip_space()
 
                 if not rule.accepts_blocks():
                     return LineStepFrame(
@@ -231,7 +228,7 @@ class EventParser:
         )
 
     def _try_open(self, rule: BlockRule) -> RuleResult | None:
-        result = rule.try_open(self.input)
+        result = rule.try_open(self.state.cursor)
         
         if result.status != FlowControl.OPEN:
             return None
@@ -263,7 +260,7 @@ class EventParser:
 
         # 判定是否为 Lazy Paragraph Continuation
         is_lazy = (
-            not self.input.is_blank_line
+            not self.state.is_blank_line
             and not new_starts_created
             and last_matched_idx < len(self.state.container_stack) - 1 # not last one
             and tip is not None
@@ -283,7 +280,7 @@ class EventParser:
         new_starts_created: bool,
     ) -> List[Event]:
         events = []
-        is_blank = self.input.is_blank_line
+        is_blank = self.state.is_blank_line
 
         if tip is None or tip.rule.accepts_block_only():
             if is_blank:
@@ -292,13 +289,13 @@ class EventParser:
                     events.append(
                         Event.leaf(
                             kind=BlockLeaf.BLANKLINE,
-                            span=self.input.rest_line_span()
+                            span=self.state.cursor.rest_line_span()
                         )
                     )
                 return events
             else:
                 # In djot.js, open paragraph adds a new container and event.
-                open_result = self.para_rule.try_open(self.input)
+                open_result = self.para_rule.try_open(self.state.cursor)
                 # ParaRule could always open a new container.
                 assert open_result.container is not None
 
@@ -311,27 +308,30 @@ class EventParser:
                 tip = para_container
 
         if tip.rule.accepts_text_only(): # if child node is text only.
-            start_pos = self.input.get_adjusted_text_start(tip.indent)
+            start_pos = self.state.get_adjusted_text_start(tip.indent)
             events.append(
                 Event.leaf(
                     kind=InlineLeaf.STR,
-                    span=self.input.new_span(start_pos, self.input.eol_start)
+                    span=self.state.cursor.new_span(start_pos, self.state.cursor.eol_start)
                 )
             ) # gobble the whole line.
         elif tip.rule.accepts_inline_only and not is_blank: # if child nodes are inline elements.
             if tip.inline_parser: # guard inline parse is set.
-                tip.inline_parser.feed(self.input.pos, self.input.eol_start)
+                tip.inline_parser.feed(
+                    self.state.cursor.pos,
+                    self.state.cursor.eol_end
+                )
 
         return events
 
     def parse(self) -> Iterator[Event]:
-        while not self.input.is_eof():
+        while not self.state.cursor.is_eof():
             line_events = self.process_line()
 
             for event in line_events:
                 yield event
 
-            self.input.advance_to_new_line()
+            self.state.cursor.advance_to_new_line()
 
 
         for event in self.state.close_container_to_depth(-1):
