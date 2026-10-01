@@ -27,12 +27,13 @@ class ParaRule(BlockRule):
             data=None,
         )
 
+        pos = cursor.pos
         return RuleResult(
             status=FlowControl.OPEN,
             events=[
                 Event.enter(
                     kind=BlockContainer.PARA,
-                    span=cursor.current_span()
+                    span=cursor.new_span(pos, pos)
                 )
             ],
             container=container,
