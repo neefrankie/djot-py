@@ -29,8 +29,8 @@ class BackslashMatcher(Matcher):
         # Hardbreak.
         if line_end_pos is not None:
             # see if there were preceding spaces and remove them.
-            # Look like: `hello  \   \n`
-            state.trim_last_event_if_str()
+            # Example: `\a \\n`
+            state.trim_space_before_hardbreak()
 
             # \ is escape
             state.events.append(
