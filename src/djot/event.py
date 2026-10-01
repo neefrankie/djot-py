@@ -240,6 +240,14 @@ class Event:
         )
 
     @classmethod
+    def para(cls, startpos: int, endpos: int, open: bool = True) -> 'Event':
+        return cls(
+            span=Range(startpos, endpos),
+            kind=BlockContainer.PARA,
+            action=Action.ENTER if open else Action.EXIT,
+        )
+
+    @classmethod
     def emph(cls, starpos: int, endpos: int, open: bool = True) -> 'Event':
         return cls(
             span=Range(starpos, endpos),
