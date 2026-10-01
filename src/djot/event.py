@@ -85,10 +85,10 @@ class InlineLeaf(Enum):
 class AttrKind(Enum):
     COMMENT = auto()
     CLASS = auto()
-    CLASS_START = auto()
+    CLASS_MARKER = auto()
     EQUAL_MARKER = auto()
     ID = auto()
-    ID_START = auto()
+    ID_MARKER = auto()
     KEY = auto()
     QUOTE_MARKER = auto()
     SPACE = auto()
@@ -240,6 +240,46 @@ class Event:
         )
 
     @classmethod
+    def emph(cls, starpos: int, endpos: int, open: bool = True) -> 'Event':
+        return cls(
+            span=Range(starpos, endpos),
+            kind=InlineContainer.EMPH,
+            action=Action.ENTER if open else Action.EXIT,
+        )
+
+    @classmethod
+    def strong(cls, starpos: int, endpos: int, open: bool = True) -> 'Event':
+        return cls(
+            span=Range(starpos, endpos),
+            kind=InlineContainer.STRONG,
+            action=Action.ENTER if open else Action.EXIT,
+        )
+
+    @classmethod
+    def mark(cls, startpos: int, endpos: int, open: bool = True) -> 'Event':
+        return cls(
+            span=Range(startpos, endpos),
+            kind=InlineContainer.MARK,
+            action=Action.ENTER if open else Action.EXIT,
+        )
+
+    @classmethod
+    def insert(cls, startpos: int, endpos: int, open: bool = True) -> 'Event':
+        return cls(
+            span=Range(startpos, endpos),
+            kind=InlineContainer.INSERT,
+            action=Action.ENTER if open else Action.EXIT,
+        )
+
+    @classmethod
+    def double_quoted(cls, startpos: int, endpos: int, open: bool = True) -> 'Event':
+        return cls(
+            span=Range(startpos, endpos),
+            kind=InlineContainer.DOUBLE_QUOTED,
+            action=Action.ENTER if open else Action.EXIT,
+        )
+
+    @classmethod
     def leaf(cls, span: Range, kind: BlockLeaf | InlineLeaf) -> 'Event':
         return cls(
             span=span,
@@ -284,6 +324,14 @@ class Event:
         return cls(
             span=Range(startpos, endpos),
             kind=BlockLeaf.BLANKLINE,
+            action=None
+        )
+
+    @classmethod
+    def right_single_quote(cls, startpos: int, endpos: int) -> 'Event':
+        return cls(
+            span=Range(startpos, endpos),
+            kind=InlineLeaf.RIGHT_SINGLE_QUOTE,
             action=None
         )
 
