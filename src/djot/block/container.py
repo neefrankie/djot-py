@@ -117,12 +117,7 @@ class Container(Generic[T]):
         return self.rule.on_continue(self, ctx)
 
     def on_close(self, ctx: ParsingContext) -> 'RuleResult':
-        events: List[Event] = []
-        if self.inline_parser:
-            events.extend(self.inline_parser.iter_merged_events())
-        result = self.rule.on_close(self, ctx)
-        result.events = events + result.events
-        return result
+        return self.rule.on_close(self, ctx)
         
 
 class FlowControl(Enum):
