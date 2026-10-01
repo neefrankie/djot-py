@@ -138,6 +138,9 @@ class Event:
     action: Optional[Action]
     payload: Optional[Payload] = None
 
+    def __repr__(self) -> str:
+        return f'Event(span=({self.span.start},{self.span.end}), kind={self.kind.name}, action={self.action.name if self.action else None}, payload={self.payload})'
+
     @property
     def startpos(self) -> int:
         return self.span.start
@@ -249,6 +252,38 @@ class Event:
         return cls(
             span=Range(startpos, endpos),
             kind=InlineLeaf.STR,
+            action=None
+        )
+
+    @classmethod
+    def escape(cls, startpos: int, endpos: int) -> 'Event':
+        return cls(
+            span=Range(startpos, endpos),
+            kind=InlineLeaf.ESCAPE,
+            action=None
+        )
+
+    @classmethod
+    def nbsp(cls, startpos: int, endpos: int) -> 'Event':
+        return cls(
+            span=Range(startpos, endpos),
+            kind=InlineLeaf.NBSP,
+            action=None
+        )
+
+    @classmethod
+    def hardbreak(cls, startpos: int, endpos: int) -> 'Event':
+        return cls(
+            span=Range(startpos, endpos),
+            kind=InlineLeaf.HARD_BREAK,
+            action=None
+        )
+
+    @classmethod
+    def blankline(cls, startpos: int, endpos: int) -> 'Event':
+        return cls(
+            span=Range(startpos, endpos),
+            kind=BlockLeaf.BLANKLINE,
             action=None
         )
 
