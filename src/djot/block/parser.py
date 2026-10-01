@@ -41,6 +41,9 @@ class LineStepFrame:
     new_starts_created: bool = False
     events: List[Event] = field(default_factory=list)
 
+    def __repr__(self) -> str:
+        return f'LineStepFrame(last_matched_idx={self.last_matched_idx}, finished_line={self.finished_line}, new_starts_created={self.new_starts_created}, events[{len(self.events)}])'
+
 class EventParser:
     def __init__(self, src: str, options: Options | None = None) -> None:
 
