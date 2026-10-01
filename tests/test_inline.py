@@ -9,9 +9,11 @@ from djot.event import (
     AttrKind,
     BlockContainer,
     VerbatimKind,
+    BlockContainer,
+    Action
 )
 from djot.common import Range
-from djot.inline.state import InlineState, OpenerKind, Opener
+from djot.inline.state import InlineState, OpenerKind
 from djot.input import InputText
 from djot.options import Options
 from djot.inline.backslash import BackslashMatcher
@@ -41,6 +43,476 @@ from djot.inline.between import (
 )
 from djot.inline.hyphen import HyphenMatcher
 from djot.inline.parser import InlineParser
+
+def event_opener_marker(startpos: int, endpos: int) -> Event:
+    return Event.leaf(
+        Range(startpos, endpos),
+        InlineLeaf.OPEN_MARKER
+    )
+
+def event_attributes(startpos: int, endpos: int, open: bool = True) -> Event:
+    return Event(
+        span=Range(startpos, endpos),
+        kind=BlockContainer.ATTRIBUTES,
+        action=Action.ENTER if open else Action.EXIT,
+    )
+
+def event_span(startpos: int, endpos: int, open: bool = True) -> Event:
+    return Event(
+        span=Range(startpos, endpos),
+        kind=InlineContainer.SPAN,
+        action=Action.ENTER if open else Action.EXIT,
+    )
+
+def attr_id_marker(startpos: int, endpos: int) -> Event:
+    return Event.attr(
+        Range(startpos, endpos),
+        AttrKind.ID_MARKER
+    )
+
+def attr_id(startpos: int, endpos: int) -> Event:
+    return Event.attr(
+        Range(startpos, endpos),
+        AttrKind.ID
+    )
+
+def attr_space(startpos: int, endpos: int) -> Event:
+    return Event.attr(
+        Range(startpos, endpos),
+        AttrKind.SPACE
+    )
+
+def attr_class_marker(startpos: int, endpos: int) -> Event:
+    return Event.attr(
+        Range(startpos, endpos),
+        AttrKind.CLASS_MARKER
+    )
+
+def attr_class(startpos: int, endpos: int) -> Event:
+    return Event.attr(
+        Range(startpos, endpos),
+        AttrKind.CLASS
+    )
+
+def attr_key(startpos: int, endpos: int) -> Event:
+    return Event.attr(
+        Range(startpos, endpos),
+        AttrKind.KEY
+    )
+
+def attr_equal_marker(startpos: int, endpos: int) -> Event:
+    return Event.attr(
+        Range(startpos, endpos),
+        AttrKind.EQUAL_MARKER
+    )
+
+def attr_quote_marker(startpos: int, endpos: int) -> Event:
+    return Event.attr(
+        Range(startpos, endpos),
+        AttrKind.QUOTE_MARKER
+    )
+
+def attr_value(startpos: int, endpos: int) -> Event:
+    return Event.attr(
+        Range(startpos, endpos),
+        AttrKind.VALUE
+    )
+
+def event_link_text(startpos: int, endpos: int, open: bool = True) -> Event:
+    return Event(
+        span=Range(startpos, endpos),
+        kind=InlineContainer.LINK_TEXT,
+        action=Action.ENTER if open else Action.EXIT,
+    )
+
+def event_dest(startpos: int, endpos: int, open: bool = True) -> Event:
+    return Event(
+        span=Range(startpos, endpos),
+        kind=InlineContainer.DESTINATION,
+        action=Action.ENTER if open else Action.EXIT,
+    )
+
+def event_reference(starpos: int, endpos: int, open: bool = True) -> Event:
+    return Event(
+        span=Range(starpos, endpos),
+        kind=InlineContainer.REFERENCE,
+        action=Action.ENTER if open else Action.EXIT,
+    )
+
+def event_image_marker(startpos: int, endpos: int) -> Event:
+    return Event.leaf(
+        span=Range(startpos, endpos),
+        kind=InlineLeaf.IMAGE_MARKER,
+    )
+
+def event_image_text(startpos: int, endpos: int, open: bool = True) -> Event:
+    return Event(
+        span=Range(startpos, endpos),
+        kind=InlineContainer.IMAGE_TEXT,
+        action=Action.ENTER if open else Action.EXIT,
+    )
+
+class TestInlineParser(unittest.TestCase):
+
+    def test_basic_parsing(self):
+        text = 'hello there'
+
+        parser = InlineParser(
+            cursor=InputText(text),
+            options=Options()
+        )
+
+        parser.feed(0, 6)
+        parser.feed(8, 10)
+
+        expected = [
+            Event.str(0, 6),
+            Event.str(8, 10)
+        ]
+
+        self.assertEqual(parser.state.get_matches(), expected)
+
+    def test_verbatim(self):
+        text = "x ``` hello ``there ``` x"
+        parser = InlineParser(
+            cursor=InputText(text),
+            options=Options()
+        )
+
+        parser.feed(0, 24)
+
+        expected = [
+            Event.str(0, 1),
+            Event.enter(Range(2, 4), VerbatimKind.VERBATIM),
+            Event.str(5, 11),
+            Event.str(12, 13),
+            Event.str(14, 19),
+            Event.exit(Range(20, 22), VerbatimKind.VERBATIM),
+            Event.str(23, 24)
+        ]
+
+        self.assertEqual(parser.state.get_matches(), expected)
+
+    def test_parse_escaped(self):
+        text = '\\"\\*\\ \\a \\\n'
+        parser = InlineParser(
+            cursor=InputText(text),
+            options=Options()
+        )
+        parser.feed(0, 10)
+
+        expected = [
+            Event.escape(0, 0),
+            Event.str(1, 1),
+            Event.escape(2, 2),
+            Event.str(3, 3),
+            Event.escape(4, 4),
+            Event.nbsp(5, 5),
+            Event.str(6, 6),
+            Event.str(7, 7),
+            Event.escape(9, 9),
+            Event.hardbreak(10, 10)
+        ]
+
+        self.assertEqual(parser.state.get_matches(), expected)
+
+    def test_parse_autolinks(self):
+        parser = InlineParser(
+            cursor=InputText('<http://example.com?foo=bar&baz=&amp;x2>'),
+            options=Options()
+        )
+
+        parser.feed(0, 39)
+
+        expected = [
+            Event.enter(Range(0, 0), InlineContainer.URL),
+            Event.str(1, 38),
+            Event.exit(Range(39, 39), InlineContainer.URL),
+        ]
+
+        self.assertEqual(parser.state.get_matches(), expected)
+
+    def test_parse_email_autolinks(self):
+            parser = InlineParser(
+                cursor=InputText('<me@example.com>'),
+                options=Options()
+            )
+    
+            parser.feed(0, 15)
+    
+            expected = [
+                Event.enter(Range(0, 0), InlineContainer.EMAIL),
+                Event.str(1, 14),
+                Event.exit(Range(15, 15), InlineContainer.EMAIL),
+            ]
+    
+            self.assertEqual(parser.state.get_matches(), expected)
+
+    def test_super_subscript(self):
+        parser = InlineParser(
+            cursor=InputText('H~2~O e=mc^2^ test{^two words^}'),
+            options=Options()
+        )
+
+        parser.feed(0, 30)
+
+        expected = [
+             Event.str(0, 0),
+             Event.enter(Range(1, 1), InlineContainer.SUBSCRIPT),
+             Event.str(2, 2),
+             Event.exit(Range(3, 3), InlineContainer.SUBSCRIPT),
+             Event.str(4, 6),
+             Event.str(7, 7),
+             Event.str(8, 9),
+             Event.enter(Range(10, 10), InlineContainer.SUPERSCRIPT),
+             Event.str(11, 11),
+             Event.exit(Range(12, 12), InlineContainer.SUPERSCRIPT),
+             Event.str(13, 17),
+             Event.leaf(Range(18, 18), InlineLeaf.OPEN_MARKER),
+             Event.enter(Range(18, 19), InlineContainer.SUPERSCRIPT),
+             Event.str(20, 28),
+             Event.exit(Range(29, 30), InlineContainer.SUPERSCRIPT),
+        ]
+
+        self.assertEqual(parser.state.get_matches(), expected)
+
+    def test_emphasis(self):
+        parser = InlineParser(
+            cursor=InputText('_hello *there*_ world'),
+            options=Options()
+        )
+
+        parser.feed(0, 20)
+
+        expected = [
+            Event.emph(0, 0),
+            Event.str(1, 6),
+            Event.strong(7, 7),
+            Event.str(8, 12),
+            Event.strong(13, 13, False),
+            Event.emph(14, 14, False),
+            Event.str(15, 20)
+        ]
+
+        self.assertEqual(parser.state.get_matches(), expected)
+
+    def test_mark(self):
+        parser = InlineParser(
+            cursor=InputText('{=hello=}'),
+            options=Options()
+        )
+        parser.feed(0, 8)
+        expected = [
+            event_opener_marker(0, 0),
+            Event.mark(0, 1),
+            Event.str(2, 6),
+            Event.mark(7, 8, False)
+        ]
+
+        self.assertEqual(parser.state.get_matches(), expected)
+
+    def test_inserted(self):
+        parser = InlineParser(
+            cursor=InputText('{+hello+}'),
+            options=Options()
+        )
+        parser.feed(0, 8)
+        expected = [
+            event_opener_marker(0, 0),
+            Event.insert(0, 1),
+            Event.str(2, 6),
+            Event.insert(7, 8, False)
+        ]
+
+        self.assertEqual(parser.state.get_matches(), expected)
+
+    def test_quoted(self):
+        parser = InlineParser(
+            cursor=InputText('"dog\'s breakfast"'),
+            options=Options()
+        )
+
+        parser.feed(0, 16)
+
+        expected = [
+            Event.double_quoted(0, 0),
+            Event.str(1, 3),
+            Event.right_single_quote(4, 4),
+            Event.str(5, 15),
+            Event.double_quoted(16, 16, False),
+        ]
+
+        self.assertEqual(parser.state.get_matches(), expected)
+
+    def test_parse_attributes(self):
+        parser = InlineParser(
+            cursor=InputText('{#foo .bar baz="bim"}'),
+            options=Options()
+        )
+
+        parser.feed(0, 20)
+
+        expected = [
+            event_attributes(0, 0),
+            Event.attr(Range(1, 1), AttrKind.ID_MARKER),
+            Event.attr(Range(2, 4), AttrKind.ID),
+            Event.attr(Range(5, 5), AttrKind.SPACE),
+            Event.attr(Range(6, 6), AttrKind.CLASS_MARKER),
+            Event.attr(Range(7, 9), AttrKind.CLASS),
+            Event.attr(Range(10, 10), AttrKind.SPACE),
+            Event.attr(Range(11, 13), AttrKind.KEY),
+            Event.attr(Range(14, 14), AttrKind.EQUAL_MARKER),
+            Event.attr(Range(15, 15), AttrKind.QUOTE_MARKER),
+            Event.attr(Range(16, 18), AttrKind.VALUE),
+            Event.attr(Range(19, 19), AttrKind.QUOTE_MARKER),
+            event_attributes(20, 20, False),
+        ]
+
+        self.assertEqual(parser.state.get_matches(), expected)
+
+    def test_spans(self):
+        parser = InlineParser(
+            cursor=InputText('[hi]{#foo .bar baz="bim"}'),
+            options=Options()
+        )
+
+        parser.feed(0, 24)
+
+        expected = [
+            event_span(0, 0),
+            Event.str(1, 2),
+            event_span(3, 3, False),
+            event_attributes(4, 4),
+            attr_id_marker(5, 5),
+            attr_id(6, 8),
+            attr_space(9, 9),
+            attr_class_marker(10, 10),
+            attr_class(11, 13),
+            attr_space(14, 14),
+            attr_key(15, 17),
+            attr_equal_marker(18, 18),
+            attr_quote_marker(19, 19),
+            attr_value(20, 22),
+            attr_quote_marker(23, 23),
+            event_attributes(24, 24, False),
+        ]
+
+        self.assertEqual(parser.state.get_matches(), expected)
+
+    def test_inline_links(self):
+        parser = InlineParser(
+            cursor=InputText('[foobar](url)'),
+            options=Options()
+        )
+
+        parser.feed(0, 12)
+
+        expected = [
+            event_link_text(0, 0),
+            Event.str(1, 6),
+            event_link_text(7, 7, False),
+            event_dest(8, 8),
+            Event.str(9, 11),
+            event_dest(12, 12, False)
+        ]
+
+        self.assertEqual(parser.state.get_matches(), expected)
+
+    def test_refrence_links(self):
+        parser = InlineParser(
+            cursor=InputText('[foobar][1]'),
+            options=Options()
+        )
+
+        parser.feed(0, 10)
+
+        expected = [
+            event_link_text(0, 0),
+            Event.str(1, 6),
+            event_link_text(7, 7, False),
+            event_reference(8, 8),
+            Event.str(9, 9),
+            event_reference(10, 10, False),
+        ]
+
+        self.assertEqual(parser.state.get_matches(), expected)
+
+    def test_inline_image(self):
+        parser = InlineParser(
+            cursor=InputText('![foobar](url)'),
+            options=Options()
+        )
+        parser.feed(0, 13)
+        expected = [
+            event_image_marker(0, 0),
+            event_image_text(1, 1),
+            Event.str(2, 7),
+            event_image_text(8, 8, False),
+            event_dest(9, 9),
+            Event.str(10, 12),
+            event_dest(13, 13, False)
+        ]
+
+        self.assertEqual(parser.state.get_matches(), expected)
+
+    def test_symbs(self):
+        parser = InlineParser(
+            cursor=InputText(':+1:'),
+            options=Options()
+        )
+
+        parser.feed(0, 3)
+
+        expected = [
+            Event.leaf(Range(0, 3), InlineLeaf.SYMBOL),
+        ]
+
+        self.assertEqual(parser.state.get_matches(), expected)
+
+    def test_ellipses(self):
+        parser = InlineParser(
+            cursor=InputText('...'),
+            options=Options()
+        )
+
+        parser.feed(0, 2)
+
+        expected = [
+            Event.leaf(Range(0, 2), InlineLeaf.ELLIPSES),
+        ]
+
+        self.assertEqual(parser.state.get_matches(), expected)
+
+    def test_dashes(self):
+        parser = InlineParser(
+            cursor=InputText('a---b--c'),
+            options=Options()
+        )
+        parser.feed(0, 7)
+
+        expected = [
+            Event.str(0, 0),
+            Event.leaf(Range(1, 3), InlineLeaf.EM_DASH),
+            Event.str(4, 4),
+            Event.leaf(Range(5, 6), InlineLeaf.EN_DASH),
+            Event.str(7, 7),
+        ]
+
+        self.assertEqual(parser.state.get_matches(), expected)
+
+    def test_note_reference(self):
+        parser = InlineParser(
+            cursor=InputText('[^ref]'),
+            options=Options()
+        )
+
+        parser.feed(0, 5)
+
+        expected = [
+            Event.leaf(Range(0, 5), InlineLeaf.FOOTNOTE_REF)
+        ]
+
+        self.assertEqual(parser.state.get_matches(), expected)
 
 class Args(NamedTuple):
     text: str
@@ -1706,307 +2178,7 @@ class TestBetweenMatcher(unittest.TestCase):
                 self.assertEqual(state.events, expected.events)
 
 
-class TestInlineParser(unittest.TestCase):
-    def test_feed_attribute(self):
-        attr = '{#ident .dark key=value key2="val2 val3"}'
-        cases = [
-            (
-                'inline attributes',
-                Args(
-                    text=attr,
-                    pos=0,
-                    endpos=len(attr) - 1
-                ),
-                Expected(
-                    pos=len(attr),
-                    events=[
-                        Event.enter(Range(0, 0), BlockContainer.ATTRIBUTES),
-                        Event.attr(Range(1, 1), AttrKind.ID_START),
-                        Event.attr(Range(2, 6), AttrKind.ID),
-                        Event.attr(Range(7, 7), AttrKind.SPACE),
-                        Event.attr(Range(8, 8), AttrKind.CLASS_START),
-                        Event.attr(Range(9, 12), AttrKind.CLASS),
-                        Event.attr(Range(13, 13), AttrKind.SPACE),
-                        Event.attr(Range(14, 16), AttrKind.KEY),
-                        Event.attr(Range(17, 17), AttrKind.EQUAL_MARKER),
-                        Event.attr(Range(18, 22), AttrKind.VALUE),
-                        Event.attr(Range(23, 23), AttrKind.SPACE),
-                        Event.attr(Range(24, 27), AttrKind.KEY),
-                        Event.attr(Range(28, 28), AttrKind.EQUAL_MARKER),
-                        Event.attr(Range(29, 29), AttrKind.QUOTE_MARKER),
-                        Event.attr(Range(30, 38), AttrKind.VALUE),
-                        Event.attr(Range(39, 39), AttrKind.QUOTE_MARKER),
-                        Event.exit(Range(40, 40), BlockContainer.ATTRIBUTES),
-                    ]
-                )
-            )
-        ]
 
-        for name, args, expected in cases:
-            with self.subTest(f'{name}: {args.text}'):
-                parser = InlineParser(
-                    cursor=InputText(args.text),
-                    options=Options()
-                )
-                actual = parser._feed_attribute(args.pos, args.endpos)
-                self.assertEqual(actual, expected.pos)
-                self.assertEqual(parser.state.events, expected.events)
-
-    def test_feed_str_before_special(self):
-        strong = 'foo *bar*'
-        no_special = 'foo bar'
-        cases = [
-            (
-                'str before *',
-                Args(
-                    text=strong,
-                    pos=0,
-                    endpos=len(strong) - 1
-                ),
-                Expected(
-                    pos=4,
-                    events=[
-                        Event.str(0, 3)
-                    ]
-                )
-            ),
-            (
-                'no special',
-                Args(
-                    text=no_special,
-                    pos=0,
-                    endpos=len(no_special) - 1
-                ),
-                Expected(
-                    pos=7,
-                    events=[
-                        Event.str(0, 6)
-                    ]
-                )
-            )
-        ]
-
-        for name, args, expected in cases:
-            with self.subTest(f'{name}: {args.text}'):
-                parser = InlineParser(
-                    cursor=InputText(args.text),
-                    options=Options()
-                )
-                actual = parser._feed_str_before_special(args.pos, args.endpos)
-                self.assertEqual(actual, expected.pos)
-                self.assertEqual(parser.state.events, expected.events)
-
-    def test_feed_newline(self):
-        crlf = 'foo\r\n'
-        linefeed = 'foo\n'
-
-        cases = [
-            (
-                'cr and lf',
-                Args(
-                    text=crlf,
-                    pos=3,
-                    endpos=len(crlf) - 1
-                ),
-                Expected(
-                    pos=5,
-                    events=[
-                        Event.leaf(Range(3, 4), InlineLeaf.SOFT_BREAK)
-                    ]
-                )
-            ),
-            (
-                'linefeed',
-                Args(
-                    text=linefeed,
-                    pos=3,
-                    endpos=len(linefeed) - 1
-                ),
-                Expected(
-                    pos=4,
-                    events=[
-                        Event.leaf(Range(3, 3), InlineLeaf.SOFT_BREAK)
-                    ]
-                )
-            )
-        ]
-
-        for name, args, expected in cases:
-            with self.subTest(f'{name}: {args.text}'):
-                parser = InlineParser(
-                    cursor=InputText(args.text),
-                    options=Options()
-                )
-                actual = parser._feed_newline(args.pos, args.endpos)
-                self.assertEqual(actual, expected.pos)
-                self.assertEqual(parser.state.events, expected.events)
-
-    def test_feed_verbatim(self):
-
-        example = '`foo``bar`{=html}'
-        math = '$`x^2`'
-
-        cases = [
-            (
-                'unequal backtick',
-                Args(
-                    text=example,
-                    pos=4,
-                    endpos=len(example) - 1
-                ),
-                Expected(
-                    pos=6,
-                    events=[
-                        Event.str(4, 5)
-                    ]
-                ),
-                VerbArgs(len=1)
-            ),
-            (
-                'raw inline',
-                Args(
-                    text=example,
-                    pos=9,
-                    endpos=len(example) - 1
-                ),
-                Expected(
-                    pos=17,
-                    events=[
-                        Event.exit(Range(9, 9), VerbatimKind.VERBATIM),
-                        Event.leaf(Range(10, 16), InlineLeaf.RAW_FORMAT)
-                    ]
-                ),
-                VerbArgs(len=1)
-            ),
-            (
-                'math',
-                Args(
-                    text=math,
-                    pos=5,
-                    endpos=len(math) - 1
-                ),
-                Expected(
-                    pos=6,
-                    events=[
-                        Event.exit(Range(5, 5), VerbatimKind.INLINE_MATH),
-                    ]
-                ),
-                VerbArgs(len=1, typ=VerbatimKind.INLINE_MATH)
-            ),
-        ]
-
-        for name, args, expected, state_args in cases:
-            with self.subTest(f'{name}: {args.text}'):
-                parser = InlineParser(InputText(args.text), Options())
-                populate_verb_state(parser.state, state_args)
-                actual = parser._feed_closing_verbatim(args.pos, args.endpos)
-                self.assertEqual(actual, expected.pos)
-                self.assertEqual(parser.state.events, expected.events)
-
-    def test_feed_matcher(self):
-        example = 'foo.'
-
-        cases = [
-            (
-                'matcher fallback',
-                Args(
-                    text=example,
-                    pos=3,
-                    endpos=len(example) - 1
-                ),
-                Expected(
-                    pos=4,
-                    events=[
-                        Event.str(3, 3)
-                    ]
-                )
-            )
-        ]
-
-        for name, args, expected in cases:
-            with self.subTest(f'{name}: {args.text}'):
-                parser = InlineParser(
-                    cursor=InputText(args.text),
-                    options=Options()
-                )
-                actual = parser._feed_matcher(args.pos, args.endpos)
-                self.assertEqual(actual, expected.pos)
-                self.assertEqual(parser.state.events, expected.events)
-
-    def test_feed(self):
-        simple_text = 'foo bar'
-        complex_text = '*a*, _b_, ~c~, ^d^, {=e=}, {+f+}, {-g-}'
-        
-        cases = [
-            TestCase(
-                'simple text',
-                Args(
-                    text=simple_text,
-                    pos=0,
-                    endpos=len(simple_text) - 1
-                ),
-                Expected(
-                    pos=-1,
-                    events=[
-                        Event.str(0, 6)
-                    ]
-                )
-            ),
-            TestCase(
-                'complex text',
-                Args(
-                    text=complex_text,
-                    pos=0,
-                    endpos=len(complex_text) - 1
-                ),
-                Expected(
-                    pos=-1,
-                    events=[
-                        Event.enter(Range(0, 0), InlineContainer.STRONG),
-                        Event.str(1, 1),
-                        Event.exit(Range(2, 2), InlineContainer.STRONG),
-                        Event.str(3, 4),
-                        Event.enter(Range(5, 5), InlineContainer.EMPH),
-                        Event.str(6, 6),
-                        Event.exit(Range(7, 7), InlineContainer.EMPH),
-                        Event.str(8, 9),
-                        Event.enter(Range(10, 10), InlineContainer.SUBSCRIPT),
-                        Event.str(11, 11),
-                        Event.exit(Range(12, 12), InlineContainer.SUBSCRIPT),
-                        Event.str(13, 14),
-                        Event.enter(Range(15, 15), InlineContainer.SUPERSCRIPT),
-                        Event.str(16, 16),
-                        Event.exit(Range(17, 17), InlineContainer.SUPERSCRIPT),
-                        Event.str(18, 19),
-                        Event.leaf(Range(20, 20), InlineLeaf.OPEN_MARKER),
-                        Event.enter(Range(20, 21), InlineContainer.MARK),
-                        Event.str(22, 22),
-                        Event.exit(Range(23, 24), InlineContainer.MARK),
-                        Event.str(25, 26),
-                        Event.leaf(Range(27, 27), InlineLeaf.OPEN_MARKER),
-                        Event.enter(Range(27, 28), InlineContainer.INSERT),
-                        Event.str(29, 29),
-                        Event.exit(Range(30, 31), InlineContainer.INSERT),
-                        Event.str(32, 33),
-                        Event.leaf(Range(34, 34), InlineLeaf.OPEN_MARKER),
-                        Event.enter(Range(34, 35), InlineContainer.DELETE),
-                        Event.str(36, 36),
-                        Event.exit(Range(37, 38), InlineContainer.DELETE),
-                    ]
-                )
-            )
-        ]
-
-        for name, args, expected, _ in cases:
-            with self.subTest(f'{name}: {args.text}'):
-                parser = InlineParser(
-                    cursor=InputText(args.text),
-                    options=Options()
-                )
-                parser.feed(args.pos, args.endpos)
-                self.assertEqual(parser.state.events, expected.events)
-                # for i, e in enumerate(parser.state.events):
-                #     print(f'{i}: {e}')
 
 if __name__ == '__main__':
     unittest.main()
