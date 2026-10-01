@@ -262,7 +262,7 @@ class InlineState:
     def push_event(self, event: Event):
         self.events.append(event)
 
-    def trim_last_event_if_str(self):
+    def trim_space_before_hardbreak(self):
         if not self.events:
             return
 
@@ -270,11 +270,12 @@ class InlineState:
         if not last_match.is_str:
             return
 
-        ep = self.cursor.find_trailing_space(last_match.span)
+        ep = self.cursor.find_trailing_space_tab(last_match.span)
+        
         if ep < last_match.span.start:
             self.events.pop() # space only
         else:
-            last_match.span.adjust_end(ep) # change end position to first non-space char.
+            last_match.adjust_end(ep) # change end position to first non-space char.
 
 
     def is_cross_link_boudnary(self, opener_startpos: int) -> bool:
@@ -430,8 +431,6 @@ class InlineState:
 
         If verbatim is not closed, it will be closed.
         """
-        # if self.attribute_parser:
-        #     self.reparse_attributes()
         if not self.events:
             return []
 
@@ -452,9 +451,9 @@ class InlineState:
 
         if not self.events:
             return []
-        
+
+        # add -verbatim if needed.
         if self.verbatim_len > 0:
-            # unclosed verbatim
             last = self.events[-1]
             self.options.warn(Warning(
                 message='Unclosed verbatim',
