@@ -136,7 +136,7 @@ class CodeBlockRule(BlockRule):
             end=m.start + len(m.captures[0]) - 1
         )
 
-        ctx.cursor.advance_to(m.end) # \n
+        ctx.cursor.advance_to(m.end) # before newline
 
         return RuleResult(
             status=FlowControl.FAIL, # TODO: change to CLOSE
