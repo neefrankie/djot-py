@@ -39,6 +39,15 @@ from .paren_left import LeftParenMatcher
 from .paren_right import RightParenMatcher
 from .hyphen import HyphenMatcher
 
+# TODO: is it possible to handle table row parsing by adding a '|'?
+# When block parser deteced a table row, it put inline parser into table mode.
+# When in table mode, inline parser delegate to PipeMatcher when it sees a '|'.
+# In verbatim mode, a pipe is always text;
+# In table mode, pipe is a cell delimiter unless it is escapedm.
+# So we need to handle '\|' in BackslashMatcher and PipeMatcher won't see escaped pipe.
+# Therefore, PipeMatcher always know a vertical bar is cell delimiter.
+# In PipeMatcher, how do we distinguish if a pipe is first or last?
+# Use openers?
 MATCHERS: Dict[str, Matcher] = {
     '`': BacktickMatcher(),
     '\\': BackslashMatcher(),
