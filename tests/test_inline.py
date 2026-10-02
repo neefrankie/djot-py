@@ -1768,14 +1768,14 @@ class TestMatcher(unittest.TestCase):
         ]
 
         for name, args, expected, state_args in cases:
-                with self.subTest(f'{name}: {args.text}'):
-                    state = InlineState(InputText(args.text), Options())
-                    if isinstance(state_args, OpenerArgs):
-                        populate_between_state(state, state_args)
-                matcher = MarkMatcher()
-                actual_pos = matcher(state, args.pos, args.endpos)
-                self.assertEqual(actual_pos, expected.pos)
-                self.assertEqual(state.events, expected.events)
+            with self.subTest(f'{name}: {args.text}'):
+                state = InlineState(InputText(args.text), Options())
+                if isinstance(state_args, OpenerArgs):
+                    populate_between_state(state, state_args)
+            matcher = MarkMatcher()
+            actual_pos = matcher(state, args.pos, args.endpos)
+            self.assertEqual(actual_pos, expected.pos)
+            self.assertEqual(state.events, expected.events)
 
     def test_single_quote(self):
         cases = [
