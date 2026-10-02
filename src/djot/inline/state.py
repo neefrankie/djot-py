@@ -424,6 +424,26 @@ class InlineState:
 
         self.pending_span = None
 
+    def trim_last_space(self, pop_empty: bool = True):
+        if not self.events:
+            return
+        
+        last_event = self.events[-1]
+
+        if not last_event.is_str:
+            return
+        
+        if not self.cursor.is_space(last_event.span.end):
+            return
+
+        ep = self.cursor.find_trailing_space(last_event.span)
+
+        if ep < last_event.span.start:
+            if pop_empty:
+                self.events.pop()
+        else:
+            last_event.adjust_end(ep)
+
     def get_matches(self) -> List[Event]:
         """Get parsed events.
         
@@ -440,14 +460,7 @@ class InlineState:
             if not self.events:
                 return []
 
-            last_event = self.events[-1]
-            
-            if last_event.is_str and self.cursor.is_space(last_event.span.end):
-
-                last_event.span.end = self.cursor.find_trailing_space(last_event.span)
-
-                if last_event.span.end < last_event.span.start:
-                    self.events.pop()
+            self.trim_last_space()
 
         if not self.events:
             return []
