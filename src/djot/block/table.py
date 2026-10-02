@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import List, NamedTuple, Optional
 
-from ..input import InputText
+from ..input import InputText, MatchedRange
 from ..inline import InlineParser
 from ..event import (
     BlockContainer,
@@ -24,13 +24,265 @@ from .container import (
 
 
 
-class ParsedDataCell(NamedTuple):
+class ParsedCell(NamedTuple):
     events: List[Event] # multiple events since a data cell could have inline elements.
     span: Range
 
 class ParsedSeparatorCell(NamedTuple):
     event: Event # The event only spans the separator like :---:
     end_pos: int # End position of a separator cell. It could be the the end pipe, or any amount of space after ending pipe.
+
+
+class SepInfo(NamedTuple):
+    align: Alignment
+    sep_start: int
+    sep_end: int
+    next_start: int
+
+    @classmethod
+    def new(cls, m: MatchedRange) -> 'SepInfo':
+        left = m.captures[0] # left optional colon
+        right = m.captures[1] # right optional colon
+        trailing = m.captures[2] # trailing pipe surrouned by space
+        align = Alignment.DEFAULT
+        if len(left) > 0 and len(right) > 0:
+            align = Alignment.CENTER
+        elif len(right) > 0:
+            align = Alignment.RIGHT
+        elif len(left) > 0:
+            align = Alignment.LEFT
+
+        return cls(
+            align=align,
+            sep_start=m.start,
+            sep_end=m.end - len(trailing), # trim pipe surrouned by space
+            next_start=m.end+1
+        )
+
+def parse_separator_row(
+    cursor: InputText,
+    span: Range, # | :---:  | :---: |
+) -> Optional[List[Event]]:
+    
+    events: List[Event] = [
+        Event.enter(
+            kind=BlockContainer.TABLE_ROW,
+            span=cursor.new_span(
+                start=span.start,
+                end=span.start,
+            )
+        ) # |
+    ]
+
+    search_start = span.start
+    if cursor.is_pipe(search_start):
+        search_start += 1 # after starting pipe.
+
+    sep_found = False
+
+    # Try to find all patterns like `:---: |   `.
+    while not sep_found:
+        # If
+        m = cursor.find_table_sep_cell(search_start)
+        if m is None:
+            break
+
+        minfo = SepInfo.new(m)
+        event = Event.leaf(
+            span=cursor.new_span(
+                start=minfo.sep_start,
+                end=minfo.sep_end # Drop everything after :---:
+            ),
+            kind=InlineLeaf.TABLE_SEPARATOR,
+        ).with_table_alignment(minfo.align)
+
+        # add one separator cell.
+        events.append(event) 
+
+        # move to non-space char of next cell.
+        search_start = minfo.next_start
+        
+        # Break at EOL.
+        # The pointer is moved in this way:
+        # :---: \t | \t
+        # If this is the last cell, cell.end_pos + 1 should points
+        # to the start of EOL, \r or \n.
+        if search_start == cursor.eol_start:
+            sep_found = True
+            break
+
+    if not sep_found:
+        return None
+
+    events.append(Event.exit(
+        kind=BlockContainer.TABLE_ROW,
+        span=cursor.new_span(
+            start=cursor.eol_start - 1,
+            end=cursor.eol_start - 1
+        ),
+    ))
+    
+    return events
+
+def scan_table_pipe(cursor: InputText, startpos: int, endpos: int) -> Optional[int]:
+    i = startpos
+    in_verbatim = False
+    verbatim_ticks = 0
+
+    while i <= endpos:
+        ch = cursor.src[i]
+
+        if ch in '\r\n':
+            return None
+
+        if ch == '\\' and not in_verbatim:
+            i += 2
+            continue
+
+        if ch == '`':
+            ticks = cursor.count_char('`', i)
+            if not in_verbatim:
+                in_verbatim = True
+                verbatim_ticks = ticks
+            elif ticks == verbatim_ticks:
+                in_verbatim = False
+            i += ticks
+            continue
+
+        if ch == '|' and not in_verbatim:
+            return i
+
+        i += 1
+
+    return None
+
+def parse_data_cell(inline_parser: InlineParser, pipe_start: int, limit: int) -> Optional[int]:
+    """
+    Parse one cell of a table row.
+    """
+    # The original documentation "we start on char after |"
+    # is misleading. It's not we are starting parsing from |.
+    # It's a save point.
+
+    search_start = pipe_start + 1 # after pipe
+
+    search_start = inline_parser.state.cursor.skip_space_from(search_start)
+
+    nextbar = scan_table_pipe(
+        inline_parser.state.cursor,
+        search_start,
+        limit
+    )
+
+    if not nextbar:
+        return None
+
+    inline_parser.feed(search_start, nextbar-1)
+
+    return nextbar
+
+def parse_data_row(
+    cursor: InputText,
+    span: Range, # | fruit  | price |
+    options: Options,
+) -> Optional[List[Event]]:
+    
+    events: List[Event] = [
+        Event.enter(
+            kind=BlockContainer.TABLE_ROW,
+            span=cursor.new_span(
+                start=span.start,
+                end=span.start,
+            )
+        ) # |
+    ]
+
+    pipe_start = span.start
+
+    inline_parser = InlineParser(
+        cursor=cursor,
+        options=options,
+    )
+
+    while pipe_start < span.end:
+        # Parse a single cell
+        inline_parser.state.push_event(
+            Event.enter(
+                kind=BlockContainer.TABLE_CELL,
+                span=cursor.new_span(
+                    start=pipe_start, # the start pipe of a cell
+                    end=pipe_start,
+                )
+            )
+        )
+        nextbar = parse_data_cell(inline_parser, pipe_start, span.end)
+        # If any cell parsing fails, the whole row is taken as invalid.
+        if nextbar is None:
+            # rewind, this is not a valid table row
+            return None
+
+        inline_parser.state.trim_last_space(pop_empty=False)
+
+        inline_parser.state.push_event(
+            Event.exit(
+                kind=BlockContainer.TABLE_CELL,
+                span=cursor.new_span(
+                    start=nextbar, # The end pipe of a cell.
+                    end=nextbar
+                )
+            )
+        )
+
+        pipe_start = nextbar
+
+    events.extend(inline_parser.iter_merged_events())
+        
+
+    # if we get here, we've parsed a table row.
+    events.append(
+        Event.exit(
+            kind=BlockContainer.TABLE_ROW,
+            span=cursor.new_span(
+                start=span.end+1,
+                end=span.end+1,
+            )
+        )
+    )
+
+    return events
+
+
+def parse_row(
+    cursor: InputText, 
+    row_span: Range,
+    options: Options
+) -> List[Event] | None:
+    """
+    Parse a piped row like:
+
+    | fruit  | price |
+
+    Params:
+        start_pos: the starting pipe.
+        end_pos: the ending pipe.
+    """
+
+    # The js implementation says: skip | and any initial space in the cell:
+    # However, plus one only skips the starting |, not any space.
+
+    # check to see if we have a separator line
+    # A table row could be either a separator row, or a data row.
+    sep_events = parse_separator_row(cursor, span=row_span)
+    if sep_events:
+        return sep_events
+
+    # If the row is not parsed as separator, try to parse as data.
+    # | fruit  | price |
+    data_events = parse_data_row(cursor, span=row_span, options=options)
+    if data_events is None:
+        return None
+
+    return data_events
 
 @dataclass
 class TableRule(BlockRule):
@@ -51,6 +303,7 @@ class TableRule(BlockRule):
     def try_open(self, cursor: InputText) -> RuleResult:
         # Try to find a row.
         # m.start points to starting `|`, m.end points to EOL `\n`
+        # From cursor.pos, search pattern: r'(\|[^\r\n]*\|)[ \t]*\r?\n'
         m = cursor.find_table_row()
         if not m:
             return RuleResult.fail()
@@ -74,10 +327,13 @@ class TableRule(BlockRule):
         
         raw_row = m.captures[0] # | fruit  | price |
 
-        row_parsed = self.parse_row(
+        row_parsed = parse_row(
             cursor=cursor,
-            start_pipe=m.start, 
-            end_pipe=m.start + len(raw_row) - 1 # ignore trailing whitespace.
+            row_span=Range(
+                start=m.start, # save as cursor.pos
+                end=m.start + len(raw_row) - 1 # ignore trailing whitespace.
+            ),
+            options=self.options,
         )
 
         # If parse table row failed, the original implementation 
@@ -89,6 +345,9 @@ class TableRule(BlockRule):
             return RuleResult.fail()
 
         events.extend(row_parsed)
+        print(f'Row events: {len(events)}')
+
+        cursor.advance_to_eol()
         
         return RuleResult(
             status=FlowControl.OPEN,
@@ -96,237 +355,6 @@ class TableRule(BlockRule):
             events=events,
             finished_line=True # if we successfully parsed a row, the whole line is gobbled.
         )
-
-    
-    def parse_row(
-        self, 
-        cursor: InputText, 
-        start_pipe: int, 
-        end_pipe: int
-    ) -> List[Event] | None:
-        """
-        Parse a piped row like:
-
-        | fruit  | price |
-
-        Params:
-            start_pos: the starting pipe.
-            end_pos: the ending pipe.
-        """
-        rewind_point = cursor.pos # save current position to revert
-
-        # | fruit  | price |
-        events: List[Event] = [
-            Event.enter(
-                kind=BlockContainer.TABLE_ROW,
-                span=cursor.new_span(
-                    start=start_pipe,
-                    end=start_pipe,
-                )
-            ) # |
-        ]
-        # The js implementation says: skip | and any initial space in the cell:
-        # However, plus one only skips the starting |, not any space.
-        cursor.advance() # eat starting |
-
-        # check to see if we have a separator line
-        # A table row could be either a separator row, or a data row.
-        sep_found = self.parse_separator_row(cursor)
-        if sep_found:
-            events.extend(sep_found)
-            return events
-
-        # If the row is not parsed as separator, try to parse as data.
-        # | fruit  | price |
-        cells = self.parse_data_row(cursor, end_pipe)
-        if cells is None:
-            cursor.advance_to(rewind_point)
-            return None
-
-        # if we get here, we've parsed a table row.
-        events.append(
-            Event.exit(
-                kind=BlockContainer.TABLE_ROW,
-                span=cursor.current_span()
-            )
-        )
-        cursor.advance_to_eol()
-
-        return events
-
-    def parse_data_row(self, cursor: InputText, end_pipe: int) -> Optional[List[Event]]:
-        # If the row is not parsed as separator, try to parse as data.
-        # | fruit  | price |
-        events: List[Event] = []
-
-        while cursor.pos <= end_pipe:
-            # Parse a single cell
-            cell = self.parse_data_cell(cursor)
-            # If any cell parsing fails, the whole row is taken as invalid.
-            if cell is None:
-                # rewind, this is not a valid table row
-                return None
-
-            # cursor.pos points to ending pipe of a cell.
-            events.append(
-                Event.enter(
-                    kind=BlockContainer.TABLE_CELL,
-                    span=cursor.new_span(
-                        start=cell.span.start, # the start pipe of a cell
-                        end=cell.span.start,
-                    )
-                )
-            )
-
-            last = cell.events[-1]
-            # if last cell is str
-            if last.kind == InlineLeaf.STR:
-                e = last.span.end
-                # strip trailing space
-                while cursor.src[e] == ' ' and e >= last.span.start:
-                    e = e - 1
-                last.span.end = e
-
-            events.extend(cell.events)
-
-            events.append(
-                Event.exit(
-                    kind=BlockContainer.TABLE_CELL,
-                    span=Range(
-                        start=cell.span.end, # The end pipe of a cell.
-                        end=cell.span.end
-                    )
-                )
-            )
-
-        return events
-
-
-    def parse_data_cell(self, cursor: InputText) -> ParsedDataCell | None:
-        """
-        Parse one cell of a table row.
-        """
-        inline_parser = InlineParser(
-            cursor=cursor,
-            options=self.options,
-        )
-        cell_complete = False
-        # The original documentation "we start on char after |"
-        # is misleading. It's not we are starting parsing from |.
-        # It's a save point.
-        span_start = cursor.pos - 1 # we start on char after |
-        ep = span_start
-        cursor.skip_space()
-        while not cell_complete:
-            # The match starts after previous |
-            m = cursor.find_next_bar_or_tick()
-            if m is None:
-                cell_complete = False
-                break
-            # we matched a | or `+
-            nextbar = m.end
-            # How does this regex works? [^`|\r\n]*(?:[|]|`+)
-            # | just two \| `|` | cells in this table |
-            if cursor.src[nextbar] == '`' or inline_parser.in_verbatim:
-                inline_parser.feed(cursor.pos, nextbar)
-            elif cursor.src[nextbar-1] == '\\': # escaped |
-                # This handles \|.
-                # What is the string is `\\|`?
-                # `\\|` means escape the backsalsh itself, then followed by a pipe.
-                inline_parser.feed(cursor.pos, nextbar)
-            else:
-                inline_parser.feed(cursor.pos, nextbar - 1)
-                ep = nextbar
-                cell_complete = True # break the loop as soon as we saw first table pipe.
-
-            self.pos = nextbar + 1
-
-        if not cell_complete:
-            return None
-
-        cell_matches = list(inline_parser.iter_merged_events())
-        return ParsedDataCell(
-            events=cell_matches,
-            span=Range(
-                start=span_start, # starting pipe
-                end=ep # ending pipe
-            )
-        )
-
-    def parse_separator_row(
-        self,
-        cursor: InputText
-    ) -> Optional[List[Event]]:
-        seps: List[Event] = []
-        p = cursor.pos # after starting pipe.
-        sep_found = False
-
-        # Try to find all patterns like `:---: |   `.
-        while not sep_found:
-            cell = self.parse_separator_cell(cursor, p)
-            if cell is None:
-                break
-
-            # add one separator cell.
-            seps.append(cell.event) 
-
-            # move to non-space char of next cell.
-            p = cell.end_pos + 1
-            
-            # Break at EOL.
-            # The pointer is moved in this way:
-            # (:?)--*(:?)([ \t]*\|[ \t]*)
-            # cell.end_pos point to the ending pipe, or any trailing space.
-            # If this is the last cell, cell.end_pos + 1 should points
-            # to the start of EOL, \r or \n.
-            if p == cursor.eol_start:
-                sep_found = True
-                break
-
-        if not sep_found:
-            return None
-
-        seps.append(Event.exit(
-            kind=BlockContainer.TABLE_ROW,
-            span=cursor.new_span(
-                start=cursor.eol_start - 1,
-                end=cursor.eol_start - 1
-            ),
-        ))
-        cursor.advance_to_eol()
-        
-        return seps
-
-    def parse_separator_cell(self, cursor: InputText, search_start: int) -> ParsedSeparatorCell | None:
-        m = cursor.find_table_row(search_start)
-        if m is None:
-            return None
-
-        left = m.captures[0] # left optional colon
-        right = m.captures[1] # right optional colon
-        trailing = m.captures[2] # trailing pipe surrouned by space
-        align = Alignment.DEFAULT
-        if len(left) > 0 and len(right) > 0:
-            align = Alignment.CENTER
-        elif len(right) > 0:
-            align = Alignment.RIGHT
-        elif len(left) > 0:
-            align = Alignment.LEFT
-
-        # Each cell produces an event.
-        event = Event.leaf(
-            span=cursor.new_span(
-                start=m.start,
-                end=m.end - len(trailing) # Pipe is dropped. Keep only the :---: portion
-            ),
-            kind=InlineLeaf.TABLE_SEPARATOR,
-        ).with_table_alignment(align)
-
-        return ParsedSeparatorCell(
-            event=event,
-            end_pos=m.end
-        ) # Returns event and current match end index.
-    
 
     def on_continue(
         self,
@@ -338,15 +366,16 @@ class TableRule(BlockRule):
             return RuleResult.fail()
 
         rawrow = m.captures[0] # | fruit  | price |
-        parsed_row = self.parse_row(
+        parsed_row = parse_row(
             cursor=ctx.cursor,
-            start_pipe=m.start,
-            end_pipe=m.start + len(rawrow) - 1
+            row_span=Range(m.start, m.start+len(rawrow)-1),
+            options=self.options
         )
 
         if parsed_row is None:
             return RuleResult.fail()
 
+        ctx.cursor.advance_to_eol()
         return RuleResult(
             status=FlowControl.CONTINUE,
             events=parsed_row,
