@@ -240,74 +240,18 @@ class Event:
         )
 
     @classmethod
-    def para(cls, startpos: int, endpos: int, open: bool = True) -> 'Event':
+    def row(cls, startpos: int, endpos: int, open: bool = True) -> 'Event':
         return cls(
             span=Range(startpos, endpos),
-            kind=BlockContainer.PARA,
+            kind=BlockContainer.TABLE_ROW,
             action=Action.ENTER if open else Action.EXIT,
         )
 
     @classmethod
-    def blockquote(cls, startpos: int, endpos: int, open: bool = True) -> 'Event':
+    def cell(cls, startpos: int, endpos: int, open: bool = True) -> 'Event':
         return cls(
             span=Range(startpos, endpos),
-            kind=BlockContainer.BLOCK_QUOTE,
-            action=Action.ENTER if open else Action.EXIT,
-        )
-
-    @classmethod
-    def heading(cls, startpos: int, endpos: int, open: bool = True) -> 'Event':
-        return cls(
-            span=Range(startpos, endpos),
-            kind=BlockContainer.HEADING,
-            action=Action.ENTER if open else Action.EXIT,
-        )
-
-    @classmethod
-    def ref_def(cls, startpos: int, endpos: int, open: bool = True) -> 'Event':
-        return cls(
-            span=Range(startpos, endpos),
-            kind=BlockContainer.REFERENCE_DEFINITION,
-            action=Action.ENTER if open else Action.EXIT,
-        )
-
-    @classmethod
-    def emph(cls, starpos: int, endpos: int, open: bool = True) -> 'Event':
-        return cls(
-            span=Range(starpos, endpos),
-            kind=InlineContainer.EMPH,
-            action=Action.ENTER if open else Action.EXIT,
-        )
-
-    @classmethod
-    def strong(cls, starpos: int, endpos: int, open: bool = True) -> 'Event':
-        return cls(
-            span=Range(starpos, endpos),
-            kind=InlineContainer.STRONG,
-            action=Action.ENTER if open else Action.EXIT,
-        )
-
-    @classmethod
-    def mark(cls, startpos: int, endpos: int, open: bool = True) -> 'Event':
-        return cls(
-            span=Range(startpos, endpos),
-            kind=InlineContainer.MARK,
-            action=Action.ENTER if open else Action.EXIT,
-        )
-
-    @classmethod
-    def insert(cls, startpos: int, endpos: int, open: bool = True) -> 'Event':
-        return cls(
-            span=Range(startpos, endpos),
-            kind=InlineContainer.INSERT,
-            action=Action.ENTER if open else Action.EXIT,
-        )
-
-    @classmethod
-    def double_quoted(cls, startpos: int, endpos: int, open: bool = True) -> 'Event':
-        return cls(
-            span=Range(startpos, endpos),
-            kind=InlineContainer.DOUBLE_QUOTED,
+            kind=BlockContainer.TABLE_CELL,
             action=Action.ENTER if open else Action.EXIT,
         )
 
@@ -324,6 +268,30 @@ class Event:
         return cls(
             span=Range(startpos, endpos),
             kind=InlineLeaf.STR,
+            action=None
+        )
+
+    @classmethod
+    def ref_key(cls, startpos: int, endpos: int) -> 'Event':
+        return cls(
+            span=Range(startpos, endpos),
+            kind=InlineLeaf.REFERENCE_KEY,
+            action=None
+        )
+
+    @classmethod
+    def ref_value(cls, startpos: int, endpos: int) -> 'Event':
+        return cls(
+            span=Range(startpos, endpos),
+            kind=InlineLeaf.REFERENCE_VALUE,
+            action=None
+        )
+
+    @classmethod
+    def table_sep(cls, startpos: int, endpos: int) -> 'Event':
+        return cls(
+            span=Range(startpos, endpos),
+            kind=InlineLeaf.TABLE_SEPARATOR,
             action=None
         )
 
@@ -375,21 +343,7 @@ class Event:
             action=None
         )
 
-    @classmethod
-    def ref_key(cls, startpos: int, endpos: int) -> 'Event':
-        return cls(
-            span=Range(startpos, endpos),
-            kind=InlineLeaf.REFERENCE_KEY,
-            action=None
-        )
 
-    @classmethod
-    def ref_value(cls, startpos: int, endpos: int) -> 'Event':
-        return cls(
-            span=Range(startpos, endpos),
-            kind=InlineLeaf.REFERENCE_VALUE,
-            action=None
-        )
 
     @classmethod
     def attr(cls, span: Range, kind: AttrKind) -> 'Event':
