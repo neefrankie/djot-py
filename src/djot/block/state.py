@@ -96,7 +96,6 @@ class BlockState:
         new_container: Container
     ) -> List[Event]:
         """Close sibling nodes when pushing a new container"""
-        print(f'Close siblings of {new_container.__class__.__name__}')
         events: List[Event] = []
 
         while self.container_stack:
@@ -116,7 +115,6 @@ class BlockState:
     # This is a horrible hack.
     def update_last_event(self, events: List[Event]):
         if events:
-            print(f'Update last event to {events[-1]}')
             self.last_event = events[-1]
 
     def _close_container(self, container: Container) -> RuleResult:
@@ -147,7 +145,7 @@ class BlockState:
         Retursn:
             List[Event]: The events collected in close step.
         """
-        print(f"close_container_to_depth: {last_matched_idx}")
+        
         events: List[Event] = []
 
         while self.container_stack and last_matched_idx < len(self.container_stack)-1:
