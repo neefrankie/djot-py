@@ -285,12 +285,12 @@ class TestInlineParser(unittest.TestCase):
         parser.feed(0, 20)
 
         expected = [
-            Event.emph(0, 0),
+            Event.enter(Range(0, 0), InlineContainer.EMPH),
             Event.str(1, 6),
-            Event.strong(7, 7),
+            Event.enter(Range(7, 7), InlineContainer.STRONG),
             Event.str(8, 12),
-            Event.strong(13, 13, False),
-            Event.emph(14, 14, False),
+            Event.exit(Range(13, 13), InlineContainer.STRONG),
+            Event.exit(Range(14, 14), InlineContainer.EMPH),
             Event.str(15, 20)
         ]
 
@@ -304,9 +304,9 @@ class TestInlineParser(unittest.TestCase):
         parser.feed(0, 8)
         expected = [
             event_opener_marker(0, 0),
-            Event.mark(0, 1),
+            Event.enter(Range(0, 1), InlineContainer.MARK),
             Event.str(2, 6),
-            Event.mark(7, 8, False)
+            Event.exit(Range(7, 8), InlineContainer.MARK)
         ]
 
         self.assertEqual(parser.state.get_matches(), expected)
@@ -319,9 +319,9 @@ class TestInlineParser(unittest.TestCase):
         parser.feed(0, 8)
         expected = [
             event_opener_marker(0, 0),
-            Event.insert(0, 1),
+            Event.enter(Range(0, 1), InlineContainer.INSERT),
             Event.str(2, 6),
-            Event.insert(7, 8, False)
+            Event.exit(Range(7, 8), InlineContainer.INSERT)
         ]
 
         self.assertEqual(parser.state.get_matches(), expected)
@@ -335,11 +335,11 @@ class TestInlineParser(unittest.TestCase):
         parser.feed(0, 16)
 
         expected = [
-            Event.double_quoted(0, 0),
+            Event.enter(Range(0, 0), InlineContainer.DOUBLE_QUOTED),
             Event.str(1, 3),
             Event.right_single_quote(4, 4),
             Event.str(5, 15),
-            Event.double_quoted(16, 16, False),
+            Event.exit(Range(16, 16), InlineContainer.DOUBLE_QUOTED),
         ]
 
         self.assertEqual(parser.state.get_matches(), expected)
