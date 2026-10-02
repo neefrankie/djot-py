@@ -95,8 +95,7 @@ class ReferenceDefinitionRule(BlockRule):
 
         # Find URL split over multiple lines.
         nws = ctx.cursor.find_non_whitespace()
-        if not nws:
-            return RuleResult.fail()
+        
         # Current position should not exceed the end of the line,
         # and content should be ended with a newline.
         if not ctx.cursor.is_current_before_eol:
