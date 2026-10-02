@@ -55,9 +55,9 @@ class CaptionRule(BlockRule):
     ) -> RuleResult:
         # Check if the line is indented.
         if ctx.cursor.peek_is_whitespace():
-            return RuleResult.continue_ok()
+            return RuleResult.fail()
 
-        return RuleResult.fail()
+        return RuleResult.continue_ok()
 
     def on_close(
         self, 
