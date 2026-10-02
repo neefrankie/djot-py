@@ -339,6 +339,47 @@ class InputText:
 
         return self.src[self.pos] in self._WHITESPACE
 
+    def find_trailing_space_tab(self, span: Range) -> int:
+        """Find out trailing space starting position
+        
+        Returns:
+            int: the position of first non-space char from backward
+        """
+        start = span.start
+        end = span.end
+
+        while end >= start and self.src[end] in self._SPACE_TAB:
+            end = end - 1
+
+        return end
+
+    def find_trailing_space(self, span: Range) -> int:
+        start = span.start
+        end = span.end
+        while end >= start and self.src[end] == ' ':
+            end = end - 1
+
+        return end
+
+    def skip_space(self):
+        """
+        Ignore leading space and update self.indent
+        """
+        newpos = self.pos
+
+        while newpos < self.length and self.src[newpos] in self._SPACE_TAB:
+            newpos += 1
+
+        self.indent = newpos - self.line_start
+        self.pos = newpos
+
+    def skip_space_from(self, start: int) -> int:
+        newpos = start
+        while newpos < self.length and self.src[newpos] in self._SPACE_TAB:
+            newpos += 1
+
+        return newpos
+
     def is_not_whitespace(self, pos: int) -> bool:
         """
         Minics the regex "[^ \t\r\n]".
@@ -399,8 +440,8 @@ class InputText:
     def is_dash(self, i: int) -> bool:
         return self.src[i] == '-'
 
-    def is_backtick(self, i: int) -> bool:
-        return self.src[i] == '`'
+    def is_pipe(self, i: int) -> bool:
+        return self.src[i] == '|'
 
     def find(self, patt: re.Pattern) -> Optional[MatchedRange]:
         return find(self.src, patt, self.pos)
@@ -431,12 +472,12 @@ class InputText:
             start = self.pos
         return find(self.src, self._PATT_TABLE_ROW, start)
 
-    def find_row_sep(self):
+    def find_table_sep_cell(self, start: int):
         # :-: |
         # :- |
         # -: |
         # - |
-        return find(self.src, self._PATT_ROW_SEP, self.pos)
+        return find(self.src, self._PATT_ROW_SEP, start)
 
     def find_next_bar_or_tick(self):
         return find(self.src, self._PATT_NEXT_BAR_OR_TICK, self.pos)
@@ -520,39 +561,7 @@ class InputText:
 
         return self.src[pos-1] in ' \t\r\n"\'-(['    
 
-    def find_trailing_space_tab(self, span: Range) -> int:
-        """Find out trailing space starting position
-        
-        Returns:
-            int: the position of first non-space char from backward
-        """
-        start = span.start
-        end = span.end
-
-        while end >= start and self.src[end] in self._SPACE_TAB:
-            end = end - 1
-
-        return end
-
-    def find_trailing_space(self, span: Range) -> int:
-        start = span.start
-        end = span.end
-        while end >= start and self.src[end] == ' ':
-            end = end - 1
-
-        return end
-
-    def skip_space(self):
-        """
-        Ignore leading space and update self.indent
-        """
-        newpos = self.pos
-
-        while newpos < self.length and self.src[newpos] in self._SPACE_TAB:
-            newpos += 1
-
-        self.indent = newpos - self.line_start
-        self.pos = newpos
+    
 
     
 
