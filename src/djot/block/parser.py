@@ -142,16 +142,20 @@ class EventParser:
                 is_covered=is_covered,
             ))
 
+            if res.finished_line:
+                line_is_finished = True
+
             # The moment a container cannot continue, stop immediately
             if res.is_continue:
                 last_matched_idx = idx
                 if res.events:
                     events.extend(res.events)
-
-                if res.finished_line:
-                    line_is_finished = True
-                    break # If the line is processed, stop.
             else:
+                break
+
+            # NOTE: res.finished_line is not bound to res.status.
+            # Be very careful. Djot.js heavily relies on this unpredicated state.
+            if line_is_finished:
                 break
 
         return LineStepFrame(
@@ -233,7 +237,7 @@ class EventParser:
     def _try_open(self, rule: BlockRule) -> RuleResult | None:
         result = rule.try_open(self.state.cursor)
         
-        if result.status != FlowControl.OPEN:
+        if not result.is_open:
             return None
 
         if result.container is None:
@@ -258,10 +262,9 @@ class EventParser:
         """
         Check if the following content is lazy.
         """
-        events: List[Event] = []
         tip = self.state.top_container
 
-        # 判定是否为 Lazy Paragraph Continuation
+        # Lazy Paragraph Continuation
         is_lazy = (
             not self.state.is_blank_line
             and not new_starts_created
@@ -310,7 +313,7 @@ class EventParser:
 
                 tip = para_container
 
-        if tip.rule.accepts_text_only(): # if child node is text only.
+        if tip.rule.accepts_text_only(): # if child node is text only. Clode block.
             start_pos = self.state.get_adjusted_text_start(tip.indent)
             events.append(
                 Event.leaf(
