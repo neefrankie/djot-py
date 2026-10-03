@@ -173,7 +173,7 @@ class Event:
         self.span.end = to
 
     def with_list_styles(self, styles: List[str]):
-        if self.kind != BlockContainer.LIST or self.kind != BlockContainer.LIST_ITEM:
+        if self.kind != BlockContainer.LIST and self.kind != BlockContainer.LIST_ITEM:
             return self
         
         self.payload = ListPayload(
