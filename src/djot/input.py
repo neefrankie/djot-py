@@ -117,23 +117,43 @@ class InputText:
         self.eol_start = 0 # start of newline char
         self.eol_end = 0 # end of newline char
 
+    def __repr__(self) -> str:
+        return f'Cursor(line_start={self.line_start}, indent={self.indent}, eol_start={self.eol_start}, eol_end={self.eol_end})'
+
     @property
     def maxoffset(self) -> int:
         return self.length - 1
 
     @property
-    def is_blank_line(self) -> bool:
+    def is_eof(self) -> bool:
+        return self.pos >= self.length
+
+    @property
+    def is_eol(self) -> bool:
         return self.pos == self.eol_start
 
     @property
     def is_current_before_eol(self) -> bool:
         return self.pos < self.eol_start
 
-    def is_eof(self) -> bool:
-        return self.pos >= self.length
+    def skip_space(self):
+        """
+        Ignore leading space and update self.indent
+        """
+        newpos = self.pos
 
-    def is_eol(self) -> bool:
-        return self.pos == self.eol_start
+        while newpos < self.length and self.src[newpos] in self._SPACE_TAB:
+            newpos += 1
+
+        self.indent = newpos - self.line_start
+        self.pos = newpos
+
+    def skip_space_from(self, start: int) -> int:
+        newpos = start
+        while newpos < self.length and self.src[newpos] in self._SPACE_TAB:
+            newpos += 1
+
+        return newpos
 
     def is_eol_at(self, i: int) -> bool:
         """
@@ -165,6 +185,45 @@ class InputText:
         self.line_start = self.pos # 标记当前行的起始字符绝对位置（Cursor Offset）
         self._calculate_eol() # 预先扫描并定位当前行的行尾（\n 或 \r\n）位置
 
+    def is_rest_of_line_blank(self, start: int) -> bool:
+        while start < self.length:
+            c = self.src[start]
+            if c in self._SPACE_TAB:
+                start += 1
+            elif c in self._CR_LF:
+                return True
+            else:
+                return False # non-space
+
+        return False # EOF without newline.
+        
+    # re.compile(r'[ \t]*\r?\n')
+    def find_blank_end(self, pos: int, endpos: int) -> Optional[int]:
+        """
+        Scan from pos to the end of line, if there's only space in between,
+        return the EOL index; otherwise returns None.
+        """
+        curr = pos
+        # 计算实际扫描的上限
+        limit = min(self.length, endpos + 1)
+        
+        while curr < limit:
+            c = self.src[curr]
+            if c in self._SPACE_TAB:
+                curr += 1
+            elif c == '\n':
+                return curr  # match \n，return position
+            elif c == '\r':
+                # Handle \r\n
+                if curr + 1 < limit and self.src[curr + 1] == '\n':
+                    return curr + 1
+                return curr
+            else:
+                return None  # Non-space char (like '\a'), not Hard Break
+                
+        return None
+
+    
     def advance_to_new_line(self):
         self.pos = (self.eol_end or self.pos) + 1
     
@@ -243,43 +302,7 @@ class InputText:
         return i - pos
 
 
-    def is_rest_of_line_blank(self, start: int) -> bool:
-        while start < self.length:
-            c = self.src[start]
-            if c in self._SPACE_TAB:
-                start += 1
-            elif c in self._CR_LF:
-                return True
-            else:
-                return False # non-space
-
-        return False # EOF without newline.
-
-    # re.compile(r'[ \t]*\r?\n')
-    def find_blank_end(self, pos: int, endpos: int) -> Optional[int]:
-        """
-        Scan from pos to the end of line, if there's only space in between,
-        return the EOL index; otherwise returns None.
-        """
-        curr = pos
-        # 计算实际扫描的上限
-        limit = min(self.length, endpos + 1)
-        
-        while curr < limit:
-            c = self.src[curr]
-            if c in self._SPACE_TAB:
-                curr += 1
-            elif c == '\n':
-                return curr  # match \n，return position
-            elif c == '\r':
-                # Handle \r\n
-                if curr + 1 < limit and self.src[curr + 1] == '\n':
-                    return curr + 1
-                return curr
-            else:
-                return None  # Non-space char (like '\a'), not Hard Break
-                
-        return None
+    
 
     # re.compile(r'''['!"#%&\\'()*+,\-./:;<=>?@\[\]^`{|}~']''')
     def is_ascii_punct(self, pos: int) -> bool:
@@ -360,25 +383,6 @@ class InputText:
             end = end - 1
 
         return end
-
-    def skip_space(self):
-        """
-        Ignore leading space and update self.indent
-        """
-        newpos = self.pos
-
-        while newpos < self.length and self.src[newpos] in self._SPACE_TAB:
-            newpos += 1
-
-        self.indent = newpos - self.line_start
-        self.pos = newpos
-
-    def skip_space_from(self, start: int) -> int:
-        newpos = start
-        while newpos < self.length and self.src[newpos] in self._SPACE_TAB:
-            newpos += 1
-
-        return newpos
 
     def is_not_whitespace(self, pos: int) -> bool:
         """
