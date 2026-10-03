@@ -114,7 +114,7 @@ class Container(Generic[T]):
         return self.children_type == other.node_type
 
     def can_nest(self, rule: 'BlockRule') -> bool:
-        return self.children_type == rule.kind
+        return self.rule.accepts_content == rule.kind
 
     def on_continue(self, ctx: ParsingContext) -> 'RuleResult':
         return self.rule.on_continue(self, ctx)
@@ -202,6 +202,9 @@ class BlockRule(ABC):
     """
     kind: ContainerCap
     accepts_content: ContainerCap
+
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}({self.kind.name}->{self.accepts_content.name})'
 
     def can_be_root(self):
         """Whether current node can be root node or not.
