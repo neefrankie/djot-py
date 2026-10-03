@@ -5,6 +5,7 @@ from ..event import (
     BlockContainer,
     Event,
 )
+from ..logger import logger
 
 from .container import (
     ContainerCap,
@@ -60,6 +61,7 @@ class ParaRule(BlockRule):
         # 3. query last event's endpos
         # 4. emit exit para event.
         ep = ctx.last_span_end + 1 if ctx.last_span_end else ctx.cursor.pos
+        logger.debug(f'Close para at {ep}. Current cursor: {ctx.cursor.pos}')
         return RuleResult(
             status=FlowControl.CLOSE,
             events=[
