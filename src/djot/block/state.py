@@ -1,5 +1,6 @@
 from typing import Any, List, Optional
 
+from ..logger import logger
 from ..options import Options
 from ..input import InputText
 from ..event import (
@@ -32,10 +33,6 @@ class BlockState:
     def top_container(self) -> Optional[Container]:
         """Get the innermost node in current active AST path"""
         return self.container_stack[-1] if self.container_stack else None
-
-    @property
-    def is_blank_line(self) -> bool:
-        return self.cursor.is_blank_line
 
     def start_newline(self):
         self.cursor.start_newline()
@@ -78,6 +75,11 @@ class BlockState:
 
         return container
 
+    def close_containers(self, last_matched_idx: int, new_container: Container) -> List[Event]:
+        unmatched = self.close_container_to_depth(last_matched_idx)
+        siblings = self.close_siblings_of(new_container)
+        return unmatched + siblings
+
     def pop_containier(self) -> Optional[Container]:
         if not self.container_stack:
             return None
@@ -96,6 +98,7 @@ class BlockState:
         new_container: Container
     ) -> List[Event]:
         """Close sibling nodes when pushing a new container"""
+        logger.debug(f'close siblings of {new_container}. current stack: {len(self.container_stack)}')
         events: List[Event] = []
 
         while self.container_stack:
@@ -123,6 +126,7 @@ class BlockState:
             events.extend(container.inline_parser.iter_merged_events())
         self.update_last_event(events)
 
+        logger.debug(f'🚪{self.cursor.pos}. Close {container}')
         result = container.on_close(ParsingContext(
             cursor=self.cursor,
             last_span_end=self.last_event.span.end if self.last_event else None
@@ -145,7 +149,7 @@ class BlockState:
         Retursn:
             List[Event]: The events collected in close step.
         """
-        
+        logger.debug(f'Close container to depth {last_matched_idx}, current stack: {len(self.container_stack)}')
         events: List[Event] = []
 
         while self.container_stack and last_matched_idx < len(self.container_stack)-1:
