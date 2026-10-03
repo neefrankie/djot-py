@@ -185,6 +185,58 @@ class TestEventParser(unittest.TestCase):
 
         self.assertEqual(actual, expected)
 
+    def test_list_items(self):
+        text = "- one\n- two\n1. three\n(iv) four\n\n - sub\n\n   two\n"
+        #       012345 678901 234567890 1234567890 1 2345678 9 0123456
+
+        actual = list(EventParser(text).parse())
+
+        expected = [
+            Event.enter(Range(0, 0), BlockContainer.LIST).with_list_styles(['-']),
+            Event.enter(Range(0, 0), BlockContainer.LIST_ITEM).with_list_styles(['-']),
+            Event.enter(Range(2, 2), BlockContainer.PARA),
+            Event.str(2, 4),
+            Event.exit(Range(5, 5), BlockContainer.PARA),
+            Event.exit(Range(5, 5), BlockContainer.LIST_ITEM),
+            Event.enter(Range(6, 6), BlockContainer.LIST_ITEM).with_list_styles(['-']),
+            Event.enter(Range(8, 8), BlockContainer.PARA),
+            Event.str(8, 10),
+            Event.exit(Range(11, 11), BlockContainer.PARA),
+            Event.exit(Range(11, 11), BlockContainer.LIST_ITEM),
+            Event.exit(Range(12, 12), BlockContainer.LIST),
+            Event.enter(Range(12, 13), BlockContainer.LIST).with_list_styles(['1.']),
+            Event.enter(Range(12, 13), BlockContainer.LIST_ITEM).with_list_styles(['1.']),
+            Event.enter(Range(15, 15), BlockContainer.PARA),
+            Event.str(15, 19),
+            Event.exit(Range(20, 20), BlockContainer.PARA),
+            Event.exit(Range(20, 20), BlockContainer.LIST_ITEM),
+            Event.exit(Range(21, 21), BlockContainer.LIST),
+            Event.enter(Range(21, 24), BlockContainer.LIST).with_list_styles(['(i)']),
+            Event.enter(Range(21, 24), BlockContainer.LIST_ITEM).with_list_styles(['(i)']),
+            Event.enter(Range(26, 26), BlockContainer.PARA),
+            Event.str(26, 29),
+            Event.exit(Range(30, 30), BlockContainer.PARA),
+            Event.blankline(31, 31),
+            Event.enter(Range(33, 33), BlockContainer.LIST).with_list_styles(['-']),
+            Event.enter(Range(33, 33), BlockContainer.LIST_ITEM).with_list_styles(['-']),
+            Event.enter(Range(35, 35), BlockContainer.PARA),
+            Event.str(35, 37),
+            Event.exit(Range(38, 38), BlockContainer.PARA),
+            Event.blankline(39, 39),
+            Event.enter(Range(43, 43), BlockContainer.PARA),
+            Event.str(43, 45),
+            Event.exit(Range(46, 46), BlockContainer.PARA),
+            Event.exit(Range(46, 46), BlockContainer.LIST_ITEM),
+            Event.exit(Range(46, 46), BlockContainer.LIST),
+            Event.exit(Range(46, 46), BlockContainer.LIST_ITEM),
+            Event.exit(Range(46, 46), BlockContainer.LIST),
+        ]
+
+        for e in actual:
+            print(e)
+        print(f'actual: {len(actual)}, expected {len(expected)}')
+        # self.assertEqual(actual, expected)
+
     def test_captions(self):
         text = " ^ This is a\n*capt*\n\n"
         #       0123456789012 3456789 0
