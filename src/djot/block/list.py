@@ -10,6 +10,7 @@ from ..event import (
     Event,
     InlineLeaf,
 )
+from ..logger import logger
 
 from .container import (
     ContainerCap,
@@ -102,20 +103,21 @@ class ListRule(BlockRule):
     accepts_content: ContainerCap = ContainerCap.LIST_ITEM
 
     def try_open(self, cursor: InputText) -> RuleResult:
-        m = cursor.find_list_marker()
+        m = cursor.find_list_marker() # matches the marker followed by a whitespace.
         if not m:
             return RuleResult.fail()
         start_pos = m.start
         end_pos = m.end # whitespace
-        marker = cursor.src[start_pos:end_pos]
+        marker = cursor.src[start_pos:end_pos] # content before whitespace.
         # A bullete list item that begins with [ ], [X] or [x]
         # followed by a space is a task list item.
-        # - [ ]SPACE
-        # - [X]SPACE
-        # - [x]SPACE
+        # - [ ]
+        # - [X]
+        # - [x]
+        # 01234
         mtask = cursor.find_task_list_marker()
         if mtask is not None:
-            marker = cursor.src[mtask.start:mtask.start + 5] # total length 6 chars. +5 points to trailng space.
+            marker = cursor.src[mtask.start:mtask.start + 5] # '- [ ]'
 
         # ['+'], ['-'], ['*'], [':']
         # ['-X']
@@ -127,6 +129,7 @@ class ListRule(BlockRule):
         # ['(a)'], ['a.'], ['a)']
         # ['(A)'], ['A.'], ['A)']
         styles = get_list_styles(marker)
+        logger.debug(f'⏺ styles: {styles}')
         if len(styles) == 0:
             return RuleResult.fail()
         
@@ -194,12 +197,15 @@ class ListRule(BlockRule):
         container: Container, 
         ctx: ParsingContext,
     ) -> RuleResult:
+        pos = ctx.cursor.pos
         return RuleResult(
             status=FlowControl.CLOSE,
-            events=[Event.exit(
-                kind=BlockContainer.LIST,
-                span=ctx.cursor.current_span()
-            )]
+            events=[
+                Event.exit(
+                    kind=BlockContainer.LIST,
+                    span=ctx.cursor.new_span(pos, pos)
+                )
+            ]
         )
 
 
@@ -244,7 +250,9 @@ class ListItemRule(BlockRule):
                 indent=cursor.indent
             )
         )
-        
+        # TODO: Container is added at this point.
+        # So previous container close point happens here!
+        # You cannot rely the cursor.pos after the method finished.
         events: List[Event] = [
             Event.enter(
                 kind=BlockContainer.LIST_ITEM,
@@ -296,13 +304,17 @@ class ListItemRule(BlockRule):
         container: Container, 
         ctx: ParsingContext,
     ) -> RuleResult:
+        pos = ctx.cursor.pos
+        logger.debug(f'Close list item at {pos-1}. Current cursor: {ctx.cursor.pos}')
         return RuleResult(
             status=FlowControl.CLOSE,
-            events=[Event.exit(
-                kind=BlockContainer.LIST_ITEM,
-                span=ctx.cursor.new_span(
-                    start=ctx.cursor.pos - 1,
-                    end=ctx.cursor.pos - 1,
+            events=[
+                Event.exit(
+                    kind=BlockContainer.LIST_ITEM,
+                    span=ctx.cursor.new_span(
+                        start=pos - 1,
+                        end=pos - 1,
+                    )
                 )
-            )]
+            ]
         )
