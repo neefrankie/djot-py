@@ -107,7 +107,7 @@ def parse_separator_row(
         # :---: \t | \t
         # If this is the last cell, cell.end_pos + 1 should points
         # to the start of EOL, \r or \n.
-        if search_start == cursor.eol_start:
+        if search_start == cursor.line_end:
             sep_found = True
             break
 
@@ -117,8 +117,8 @@ def parse_separator_row(
     events.append(Event.exit(
         kind=BlockContainer.TABLE_ROW,
         span=cursor.new_span(
-            start=cursor.eol_start - 1,
-            end=cursor.eol_start - 1
+            start=cursor.line_end - 1,
+            end=cursor.line_end - 1
         ),
     ))
     
@@ -314,7 +314,7 @@ class TableRule(BlockRule):
                 columns=0
             ),
             start_pos=cursor.pos,
-            last_eol=cursor.eol_end
+            closing_boundary=Range(cursor.line_end, cursor.line_end)
         )
 
         events: List[Event] = [
@@ -350,7 +350,7 @@ class TableRule(BlockRule):
         print(f'Row events: {len(events)}')
 
         # cursor.advance_to_eol()
-        next_pos = cursor.eol_end
+        next_pos = cursor.line_end
         
         return RuleResult(
             status=FlowControl.OPEN,
@@ -379,12 +379,13 @@ class TableRule(BlockRule):
         if parsed_row is None:
             return RuleResult.fail()
 
-        # ctx.cursor.advance_to_eol()
-        container.last_eol = ctx.cursor.eol_end
+        container.update_closing_boundary(ctx.cursor.line_end, ctx.cursor.line_end)
+
         return RuleResult(
             status=FlowControl.CONTINUE,
             events=parsed_row,
-            finished_line=True
+            finished_line=True,
+            next_pos=ctx.cursor.line_end,
         )
 
     def on_close(
@@ -392,10 +393,14 @@ class TableRule(BlockRule):
         container: Container, 
         ctx: ParsingContext,
     ) -> RuleResult:
+        assert container.closing_boundary is not None
         return RuleResult(
             status=FlowControl.CLOSE,
             events=[Event.exit(
                 kind=BlockContainer.TABLE,
-                span=ctx.cursor.new_span(container.last_eol, container.last_eol)
+                span=ctx.cursor.new_span(
+                    container.closing_boundary.start,
+                    container.closing_boundary.end,
+                )
             )]
         )
