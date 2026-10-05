@@ -105,8 +105,10 @@ class InputText:
     _CR_LF = '\r\n'
     
     def __init__(self, src: str) -> None:
+        src = src.replace('\r\n', '\n')
         if src and src[-1] != '\n':
             src += '\n'
+
         self.src = src
         self.pos = 0
         self.length = len(src)
