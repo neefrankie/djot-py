@@ -5,6 +5,7 @@ from ..event import (
     BlockContainer,
     Event,
 )
+from ..common import Range
 
 from .container import (
     ContainerCap,
@@ -33,19 +34,23 @@ class CaptionRule(BlockRule):
         if not m:
             return RuleResult.fail()
 
-        cursor.advance_to(m.end + 1) # move to the first char after space
         container = Container(
             rule=self,
-            data=None
+            start_pos=m.start,
+            closing_boundary=Range(cursor.pos, cursor.line_end)
         )
+
+        next_pos = m.end + 1 # the first char after space
+        
         event = Event.enter(
             kind=BlockContainer.CAPTION,
-            span=cursor.current_span(), # ^ is ignored. Start from first non-space char.
+            span=cursor.new_span(next_pos, next_pos), # ^ is ignored. Start from first non-space char.
         ) 
         return RuleResult(
             status=FlowControl.OPEN,
             container=container,
-            events=[event]
+            events=[event],
+            next_pos=next_pos,
         )
 
     def on_continue(
@@ -57,6 +62,10 @@ class CaptionRule(BlockRule):
         if ctx.cursor.peek_is_whitespace():
             return RuleResult.fail()
 
+        container.update_closing_boundary(
+            ctx.cursor.line_end,
+            ctx.cursor.line_end,
+        )
         return RuleResult.continue_ok()
 
     def on_close(
@@ -64,14 +73,18 @@ class CaptionRule(BlockRule):
         container: Container, 
         ctx: ParsingContext,
     ) -> RuleResult:
+        assert container.closing_boundary is not None
+
         return RuleResult(
             status=FlowControl.CLOSE,
-            events=[Event.exit(
-                kind=BlockContainer.CAPTION,
-                span=ctx.cursor.new_span(
-                    start=ctx.cursor.pos-1, # TODO: figure out why subtract 1
-                    end=ctx.cursor.pos-1
+            events=[
+                Event.exit(
+                    kind=BlockContainer.CAPTION,
+                    span=ctx.cursor.new_span(
+                        start=container.closing_boundary.start,
+                        end=container.closing_boundary.end,
+                    )
                 )
-            )]
+            ]
         )
         
