@@ -6,6 +6,7 @@ from ..event import (
     Event,
 )
 from ..logger import logger
+from ..common import Range
 
 from .container import (
     ContainerCap,
@@ -26,7 +27,7 @@ class ParaRule(BlockRule):
         container = Container(
             rule=self,
             start_pos=cursor.pos,
-            last_eol=cursor.eol_end,
+            closing_boundary=Range(cursor.line_end, cursor.line_end)
         )
 
         pos = cursor.pos
@@ -50,7 +51,10 @@ class ParaRule(BlockRule):
         # TODO This won't handle all cases.
         # Lazy content checking is determined in main loop, resulting to inconsistency.
         if not ctx.cursor.peek_is_whitespace():
-            container.last_eol = ctx.cursor.eol_end
+            container.update_closing_boundary(
+                ctx.cursor.line_end,
+                ctx.cursor.line_end
+            )
             return RuleResult.continue_ok()
 
         return RuleResult.fail()
@@ -65,13 +69,16 @@ class ParaRule(BlockRule):
         # 2. pop container
         # 3. query last event's endpos
         # 4. emit exit para event.
-        logger.debug(f'Close para at {container.last_eol}. Current cursor: {ctx.cursor.pos}')
+        assert container.closing_boundary is not None
         return RuleResult(
             status=FlowControl.CLOSE,
             events=[
                 Event.exit(
                     kind=BlockContainer.PARA,
-                    span=ctx.cursor.new_span(container.last_eol, container.last_eol)
+                    span=ctx.cursor.new_span(
+                        container.closing_boundary.start,
+                        container.closing_boundary.end,
+                    )
                 )
             ]
         )
