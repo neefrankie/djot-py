@@ -86,6 +86,8 @@ T = TypeVar('T')
 @dataclass
 class Container(Generic[T]):
     rule: 'BlockRule'
+    start_pos: int = 0 # snapshot of cursor position the moment this container is created.
+    last_eol: int = 0 # the position where this container could continue the last time.
     indent: Optional[int] = None
     inline_parser: Optional[InlineParser] = None
     attribute_parser: Optional[AttributeParser] = None # parse block attributes
@@ -145,6 +147,7 @@ class RuleResult:
     events: List[Event] = field(default_factory=list)
     container: Optional[Container[Any]] = None
     finished_line: bool = False
+    next_pos: Optional[int] = None
 
     def __repr__(self) -> str:
         return f'RuleResult(status={self.status.name}, new events: {len(self.events)}, new container: {self.container}, finished_line={self.finished_line})'
