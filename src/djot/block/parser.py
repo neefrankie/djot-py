@@ -108,6 +108,8 @@ class EventParser:
             new_starts_created=frame.new_starts_created
         )
 
+        logger.debug(f'{self.state.cursor.pos}. Is lazy content: {is_lazy}')
+
         if not is_lazy:
             logger.debug(f'{self.state.cursor.pos}. Not lazy content. Close containers to {frame.last_matched_idx}.')
             # Stack might change here.
@@ -341,32 +343,43 @@ class EventParser:
         return (result.container, events)
 
     def _parse_inline(self, tip: Container):
+        """Parse inline content for paragraph, heading and caption.
+
+        When they are in lazy mode, they escaped the on_continue check.
+        This is tricky since we rely on on_continue to update
+        this container's closing position.
+        """
         if tip.inline_parser: # guard inline parse is set.
-            logger.debug(f'{self.state.cursor.pos}. Parse inline content to {self.state.cursor.eol_end}')
+            logger.debug(f'{self.state.cursor.pos}. Parse inline content to {self.state.cursor.line_end}')
             tip.inline_parser.feed(
                 self.state.cursor.pos,
-                self.state.cursor.eol_end
+                self.state.cursor.line_end
             )
-            tip.last_eol = self.state.cursor.eol_end # TODO: a temporary solution for lazy content
+            line_end = self.state.cursor.line_end
+            tip.update_closing_boundary(line_end, line_end) # TODO: a temporary solution for lazy content
 
     def _parse_text(self, tip: Container) -> Event:
+        """Code block"""
         start_pos = self.state.get_adjusted_text_start(tip.indent)
         logger.debug(f'{self.state.cursor.pos}. Text only.')
         event = Event.leaf(
             kind=InlineLeaf.STR,
-            span=self.state.cursor.new_span(start_pos, self.state.cursor.eol_start)
+            span=self.state.cursor.new_span(start_pos, self.state.cursor.line_end)
         ) # gobble the whole line.
-        tip.last_eol = self.state.cursor.eol_end
+        # tip.last_eol = self.state.cursor.eol_end
 
         return event
 
-    def _parse_blankline(self) -> Event:
-        pos = self.state.cursor.pos
-        line_end = self.state.cursor.eol_end
+    def _parse_blankline(self, tip: Container | None) -> Event:
+        line_end = self.state.cursor.line_end
+
+        if tip and tip.closing_boundary:
+            logger.debug(f'{self.state.cursor.pos}. parse bankline: {tip} updates last closing boundary to {line_end}')
+            tip.update_closing_boundary(line_end, line_end)
         
         return Event.leaf(
             kind=BlockLeaf.BLANKLINE,
-            span=self.state.cursor.new_span(pos, line_end)
+            span=self.state.cursor.new_span(line_end, line_end)
         )
         
 
@@ -418,7 +431,7 @@ class EventParser:
                     # A blockquote line with '>' symbol only.
                     # The blanklin defined in markdown/djot is different
                     # from physical blankline.
-                    event = self._parse_blankline()
+                    event = self._parse_blankline(tip)
                     events.append(event)
                 return events
             else:
