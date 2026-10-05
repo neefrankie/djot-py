@@ -116,11 +116,10 @@ class InputText:
         # Current line context
         self.indent = 0
         self.line_start = 0
-        self.eol_start = 0 # start of newline char
-        self.eol_end = 0 # end of newline char
+        self.line_end = 0 # end of newline char
 
     def __repr__(self) -> str:
-        return f'Cursor(line_start={self.line_start}, indent={self.indent}, eol_start={self.eol_start}, eol_end={self.eol_end})'
+        return f'Cursor(line_start={self.line_start}, indent={self.indent}, line_end={self.line_end})'
 
     @property
     def maxoffset(self) -> int:
@@ -132,11 +131,11 @@ class InputText:
 
     @property
     def is_eol(self) -> bool:
-        return self.pos == self.eol_start
+        return self.pos == self.line_end
 
     @property
     def is_current_before_eol(self) -> bool:
-        return self.pos < self.eol_start
+        return self.pos < self.line_end
 
     def skip_space(self):
         """
@@ -164,19 +163,14 @@ class InputText:
         if i >= self.length:
             return False
 
-        return self.src[i] in '\r\n'
+        return self.src[i] == '\n'
 
     def _calculate_eol(self):
         i = self.pos
-        while not self.is_eol_at(i):
+        while not self.src[i] != '\n':
             i += 1
 
-        self.eol_start = i
-        # \r\n
-        if self.is_crlf(i):
-            self.eol_end = i + 1
-        else: # \n
-            self.eol_end = i
+        self.line_end = i
 
     def start_newline(self):
         """
@@ -192,7 +186,7 @@ class InputText:
             c = self.src[start]
             if c in self._SPACE_TAB:
                 start += 1
-            elif c in self._CR_LF:
+            elif c == '\n':
                 return True
             else:
                 return False # non-space
@@ -215,11 +209,6 @@ class InputText:
                 curr += 1
             elif c == '\n':
                 return curr  # match \n，return position
-            elif c == '\r':
-                # Handle \r\n
-                if curr + 1 < limit and self.src[curr + 1] == '\n':
-                    return curr + 1
-                return curr
             else:
                 return None  # Non-space char (like '\a'), not Hard Break
                 
@@ -227,21 +216,10 @@ class InputText:
 
     
     def advance_to_new_line(self):
-        self.pos = (self.eol_end or self.pos) + 1
-    
-    def advance(self, n: int = 1):
-        """Move cursor by n steps
-        
-        Args:
-            n: The number to steps to move. Default to 1
-        """
-        self.pos += n
+        self.pos = (self.line_end or self.pos) + 1
     
     def advance_to(self, newpos: int):
         self.pos = newpos
-
-    def advance_to_eol(self):
-        self.pos = self.eol_start
 
     def get_adjusted_text_start(self, indent: Optional[int]) -> int:
         if indent is None:
@@ -255,20 +233,6 @@ class InputText:
         return Range(
             start=min(start, self.maxoffset),
             end=min(end, self.maxoffset)
-        )
-
-    def current_span(self, end: Optional[int] = None) -> Range:
-        """Create a Range at curent position"""
-        return Range(
-            start=min(self.pos, self.maxoffset),
-            end=min(end or self.pos, self.maxoffset)
-        )
-
-    def rest_line_span(self) -> Range:
-        """Create a Range from current position to end of line."""
-        return Range(
-            start=min(self.pos, self.maxoffset),
-            end=min(self.eol_end, self.maxoffset)
         )
     
     def char_at(self, i: int) -> Optional[str]:
