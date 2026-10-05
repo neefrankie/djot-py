@@ -39,9 +39,10 @@ def exit(start: int, end: int, kind: BlockContainer | InlineContainer | Verbatim
     )
 
 class TestEventParser(unittest.TestCase):
-    def test_paragraphs(self):
+    def test_para(self):
 
         text = "hello *world*\n\nfoo"
+        #       01234567890123 4 567
 
         expected = [
             Event.enter(Range(0, 0), BlockContainer.PARA),
@@ -62,6 +63,7 @@ class TestEventParser(unittest.TestCase):
 
     def test_blockquote(self):
         parser = EventParser("> hello\n> there\nlazy\n>\n> hi\n")
+        #                     01234567 89012345 67890 12 34567
         expected = [
             Event.enter(Range(0, 0), BlockContainer.BLOCK_QUOTE),
             Event.enter(Range(2, 2), BlockContainer.PARA),
@@ -78,10 +80,13 @@ class TestEventParser(unittest.TestCase):
             Event.exit(Range(27, 27), BlockContainer.BLOCK_QUOTE),
         ]
 
-        self.assertEqual(list(parser.parse()), expected)
+        actual = list(parser.parse())
+
+        self.assertEqual(actual, expected)
 
     def test_heading(self):
         parser = EventParser("## hello\n## there\nlazy\n")
+        actual = list(parser.parse())
 
         expected = [
             Event.enter(Range(0, 1), BlockContainer.HEADING),
@@ -93,7 +98,7 @@ class TestEventParser(unittest.TestCase):
             Event.exit(Range(22, 22), BlockContainer.HEADING)
         ]
 
-        self.assertEqual(list(parser.parse()), expected)
+        self.assertEqual(actual, expected)
 
     def test_reference_definitions(self):
         cases = [
@@ -232,10 +237,7 @@ class TestEventParser(unittest.TestCase):
             Event.exit(Range(46, 46), BlockContainer.LIST),
         ]
 
-        for e in actual:
-            print(e)
-        print(f'actual: {len(actual)}, expected {len(expected)}')
-        # self.assertEqual(actual, expected)
+        self.assertEqual(actual, expected)
 
     def test_captions(self):
         text = " ^ This is a\n*capt*\n\n"
