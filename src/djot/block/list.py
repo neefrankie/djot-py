@@ -135,11 +135,16 @@ class ListRule(BlockRule):
         
         container = Container(
             rule=self,
+            start_pos=cursor.pos,
+            last_eol=cursor.eol_end,
             data=ListData(
                 styles=styles,
                 indent=cursor.indent
             )
         )
+        # In djot.js. container is added here.
+        # So anything unmatched container will
+        # be closed at this cursor.pos.
 
         event = Event.enter(
             kind=BlockContainer.LIST,
@@ -154,6 +159,7 @@ class ListRule(BlockRule):
             status=FlowControl.OPEN,
             container=container,
             events=[event],
+            next_pos=cursor.pos,
         )
 
     def on_continue(
@@ -165,9 +171,11 @@ class ListRule(BlockRule):
             return RuleResult.fail()
 
         if ctx.cursor.indent > container.data.indent:
+            container.last_eol = ctx.cursor.eol_end
             return RuleResult.continue_ok()
 
         if ctx.cursor.pos == ctx.cursor.eol_start:
+            container.last_eol = ctx.cursor.eol_end
             return RuleResult.continue_ok()
 
         m = ctx.cursor.find_list_marker()
@@ -190,6 +198,7 @@ class ListRule(BlockRule):
             return RuleResult.fail()
 
         container.data.styles = newstyles
+        container.last_eol = ctx.cursor.eol_end
         return RuleResult.continue_ok()
 
     def on_close(
@@ -197,13 +206,16 @@ class ListRule(BlockRule):
         container: Container, 
         ctx: ParsingContext,
     ) -> RuleResult:
-        pos = ctx.cursor.pos
         return RuleResult(
             status=FlowControl.CLOSE,
             events=[
                 Event.exit(
                     kind=BlockContainer.LIST,
-                    span=ctx.cursor.new_span(pos, pos)
+                    # TODO: this is a very weired behavior. In djot.js, this position is non-deterministic.
+                    # Most of time it ends at next line start.
+                    # However, at EOF, it ends at EOF.
+                    # A more reasonable position should always be the end of line of last list item.
+                    span=ctx.cursor.new_span(container.last_eol+1, container.last_eol+1)
                 )
             ]
         )
@@ -245,6 +257,8 @@ class ListItemRule(BlockRule):
 
         container = Container(
             rule=self,
+            start_pos=cursor.pos,
+            last_eol=cursor.eol_end,
             data=ListData(
                 styles=styles,
                 indent=cursor.indent
@@ -262,7 +276,8 @@ class ListItemRule(BlockRule):
                 ),
             ).with_list_styles(styles)
         ]
-        cursor.advance_to(ep)
+        # cursor.advance_to(ep)
+        next_pos = ep
 
         if checkbox is not None:
             # For checkbox, its range only includes [X]
@@ -275,12 +290,14 @@ class ListItemRule(BlockRule):
                     kind=InlineLeaf.CHECKBOX,
                 ).with_checkbox(checkbox==' ')
             )
-            cursor.advance_to(sp+5)
+            # cursor.advance_to(sp+5)
+            next_pos = sp+5
 
         return RuleResult(
             status=FlowControl.OPEN,
             container=container,
             events=events,
+            next_pos=next_pos
         )
 
     def on_continue(
@@ -292,9 +309,11 @@ class ListItemRule(BlockRule):
             return RuleResult.fail()
 
         if ctx.cursor.indent > container.data.indent:
+            container.last_eol = ctx.cursor.eol_end
             return RuleResult.continue_ok()
 
         if ctx.cursor.pos == ctx.cursor.eol_start:
+            container.last_eol = ctx.cursor.eol_end
             return RuleResult.continue_ok()
 
         return RuleResult.fail()
@@ -312,8 +331,8 @@ class ListItemRule(BlockRule):
                 Event.exit(
                     kind=BlockContainer.LIST_ITEM,
                     span=ctx.cursor.new_span(
-                        start=pos - 1,
-                        end=pos - 1,
+                        start=container.last_eol,
+                        end=container.last_eol,
                     )
                 )
             ]
