@@ -7,7 +7,7 @@ from ..event import (
     AttrKind,
     Event,
 )
-from ..common import Range
+from ..logger import logger
 
 from .container import (
     ContainerCap,
@@ -65,7 +65,8 @@ class FencedDivRule(BlockRule):
             data=FencedDivData(
                 colons=len(colons),
                 span=None
-            )
+            ),
+            start_pos=cursor.pos,
         )
 
         events: List[Event] = [
@@ -85,13 +86,14 @@ class FencedDivRule(BlockRule):
                 )
             )
 
-        cursor.advance_to(m2.end + 1) # after \n
+        next_pos = m2.end + 1 # after \n
 
         return RuleResult(
             status=FlowControl.OPEN,
             events=events,
             container=container,
             finished_line=True,
+            next_pos=next_pos,
         )
 
     def on_continue(
@@ -167,12 +169,16 @@ class FencedDivRule(BlockRule):
         # However, in original djot.js implementation, it always delegate
         # to the close method for cleanup.
         if len(colons) >= container.data.colons:
-            container.data.span = Range(
-                start=m.start,
-                end=m.start + len(colons) - 1
+            container.update_closing_boundary(
+                m.start,
+                m.start + len(colons) - 1
             )
-            ctx.cursor.advance_to(m.end) # \n
-            return RuleResult.fail() # TODO: change to FlowControl.CLOSE?
+            
+            next_pos = m.end # \n
+            return RuleResult(
+                status=FlowControl.STOP,
+                next_pos=next_pos,
+            )
 
         return RuleResult.continue_ok()
 
@@ -183,10 +189,10 @@ class FencedDivRule(BlockRule):
     ) -> RuleResult:
         sp = ctx.cursor.pos
         ep = ctx.cursor.pos
-        if isinstance(container.data, FencedDivData):
-            if container.data.span:
-                sp = container.data.span.start
-                ep = container.data.span.end
+
+        if container.closing_boundary:
+            sp = container.closing_boundary.start
+            ep = container.closing_boundary.end
 
         event = Event.exit(
             kind=BlockContainer.DIV,
@@ -194,7 +200,7 @@ class FencedDivRule(BlockRule):
         )
 
         if sp == ep:
-            print('Unclosed div', ctx.cursor.pos)
+            logger.debug(f'Unclosed div at {ctx.cursor.pos}')
 
         return RuleResult(
             status=FlowControl.CLOSE,
