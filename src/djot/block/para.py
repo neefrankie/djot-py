@@ -25,7 +25,8 @@ class ParaRule(BlockRule):
     def try_open(self, cursor: InputText) -> RuleResult:
         container = Container(
             rule=self,
-            data=None,
+            start_pos=cursor.pos,
+            last_eol=cursor.eol_end,
         )
 
         pos = cursor.pos
@@ -38,6 +39,7 @@ class ParaRule(BlockRule):
                 )
             ],
             container=container,
+            next_pos=pos,
         )
 
     def on_continue(
@@ -45,7 +47,10 @@ class ParaRule(BlockRule):
         container: Container,
         ctx: ParsingContext
     ) -> RuleResult:
+        # TODO This won't handle all cases.
+        # Lazy content checking is determined in main loop, resulting to inconsistency.
         if not ctx.cursor.peek_is_whitespace():
+            container.last_eol = ctx.cursor.eol_end
             return RuleResult.continue_ok()
 
         return RuleResult.fail()
@@ -60,14 +65,13 @@ class ParaRule(BlockRule):
         # 2. pop container
         # 3. query last event's endpos
         # 4. emit exit para event.
-        ep = ctx.last_span_end + 1 if ctx.last_span_end else ctx.cursor.pos
-        logger.debug(f'Close para at {ep}. Current cursor: {ctx.cursor.pos}')
+        logger.debug(f'Close para at {container.last_eol}. Current cursor: {ctx.cursor.pos}')
         return RuleResult(
             status=FlowControl.CLOSE,
             events=[
                 Event.exit(
                     kind=BlockContainer.PARA,
-                    span=ctx.cursor.new_span(ep, ep)
+                    span=ctx.cursor.new_span(container.last_eol, container.last_eol)
                 )
             ]
         )
