@@ -102,19 +102,27 @@ class EventParser:
             logger.debug(f'--- Finished a line due to open')
             return events
 
-        logger.debug(f'--- Stage: close containers ---')
-        # handle remaining content
-        closure_events = self._handle_container_closures(
+        logger.debug(f'--- Stage: handle lazy content ---')
+        is_lazy = self._is_lazy_line(
             last_matched_idx=frame.last_matched_idx,
-            new_starts_created=frame.new_starts_created,
+            new_starts_created=frame.new_starts_created
         )
-        events.extend(closure_events)
+
+        if not is_lazy:
+            logger.debug(f'{self.state.cursor.pos}. Not lazy content. Close containers to {frame.last_matched_idx}.')
+            # Stack might change here.
+            # Therefore djot.js perform tip = self.tip() again after here.
+            events.extend(
+                self.state.close_container_to_depth(frame.last_matched_idx)
+            )
+
         self.state.update_last_event(events)
 
         logger.debug(f'--- Stage: consume rest line ---')
         # add paragraph by default if there's text
         text_events = self._consume_line_text(
             tip=self.state.top_container,
+            last_matched_idx=frame.last_matched_idx,
             new_starts_created=frame.new_starts_created
         )
         events.extend(text_events)
@@ -159,8 +167,12 @@ class EventParser:
                 cursor=self.state.cursor,
                 is_covered=is_covered,
             ))
-            logger.debug(f'{self.state.cursor.pos}. {container} continue result: {res}')
+            logger.debug(f'{container} continue result: {res}')
+            if res.next_pos is not None:
+                logger.debug(f'Cursor is moving from {self.state.cursor.pos} to {res.next_pos}')
+                self.state.cursor.advance_to(res.next_pos)
 
+            # TODO: replace this by next_pos == cursor.eol_end?
             if res.finished_line:
                 line_is_finished = True
 
@@ -236,6 +248,10 @@ class EventParser:
 
                 logger.debug(f'{self.state.cursor.pos}. 🌈 {rule.__class__.__name__} open result {open_res}')
 
+                if open_res.next_pos is not None:
+                    logger.debug(f'Cursor is moving from {self.state.cursor.pos} to {open_res.next_pos}')
+                    self.state.cursor.advance_to(open_res.next_pos)
+
                 events.extend(open_res.events)
                 last_matched_idx = len(self.state.container_stack)-1
                 parent = self.state.container_stack[last_matched_idx] # move node in tree deeper
@@ -284,8 +300,6 @@ class EventParser:
         if result.container is None:
             raise Exception('No container created after opening an element')
 
-        logger.debug(f'{self.state.cursor.pos}. ✅{rule.__class__.__name__} opened')
-
         closed_events = self.state.close_containers(last_matched_idx, result.container)
 
         result.events = closed_events + result.events
@@ -294,43 +308,102 @@ class EventParser:
             result.container,
             self.options
         )
+
+        logger.debug(f'{self.state.cursor.pos}. ✅{rule.__class__.__name__} opened')
+        if result.next_pos is not None:
+            logger.debug(f'Cursor is moving from {self.state.cursor.pos} to {result.next_pos}')
+            self.state.cursor.advance_to(result.next_pos)
+
         return result
 
-    def _handle_container_closures(
+    def _open_para(self, last_matched_idx: int):
+        logger.debug(f'{self.state.cursor.pos}. Fallback to paragraph.')
+        
+        result = self.para_rule.try_open(self.state.cursor)
+        # ParaRule could always open a new container.
+        assert result.container is not None
+
+        logger.debug(f'{self.state.cursor.pos}. ✅Para opened')
+
+        closed_events = self.state.close_containers(last_matched_idx, result.container)
+
+        events = closed_events + result.events
+        
+        result.container = self.state.push_container(
+            result.container,
+            self.options
+        )
+
+        if result.next_pos is not None:
+            logger.debug(f'Cursor is moving from {self.state.cursor.pos} to {result.next_pos}')
+            self.state.cursor.advance_to(result.next_pos)
+
+        return (result.container, events)
+
+    def _parse_inline(self, tip: Container):
+        if tip.inline_parser: # guard inline parse is set.
+            logger.debug(f'{self.state.cursor.pos}. Parse inline content to {self.state.cursor.eol_end}')
+            tip.inline_parser.feed(
+                self.state.cursor.pos,
+                self.state.cursor.eol_end
+            )
+            tip.last_eol = self.state.cursor.eol_end # TODO: a temporary solution for lazy content
+
+    def _parse_text(self, tip: Container) -> Event:
+        start_pos = self.state.get_adjusted_text_start(tip.indent)
+        logger.debug(f'{self.state.cursor.pos}. Text only.')
+        event = Event.leaf(
+            kind=InlineLeaf.STR,
+            span=self.state.cursor.new_span(start_pos, self.state.cursor.eol_start)
+        ) # gobble the whole line.
+        tip.last_eol = self.state.cursor.eol_end
+
+        return event
+
+    def _parse_blankline(self) -> Event:
+        pos = self.state.cursor.pos
+        line_end = self.state.cursor.eol_end
+        
+        return Event.leaf(
+            kind=BlockLeaf.BLANKLINE,
+            span=self.state.cursor.new_span(pos, line_end)
+        )
+        
+
+    def _is_lazy_line(
         self,
         last_matched_idx: int,
         new_starts_created: bool
-    ) -> List[Event]:
+    ) -> bool:
         """
         Check if the following content is lazy.
+        For example,
+
+        > Blockquote paragraph
+        Paragraph continnued.
         """
         self.state.skip_space()
         is_eol = self.state.cursor.is_eol
-
+        
         tip = self.state.top_container
 
-        # Lazy Paragraph Continuation
-        is_lazy = (
+        return (
             not is_eol
             and not new_starts_created
             and last_matched_idx < len(self.state.container_stack) - 1 # not last one
             and tip is not None
-            and tip.rule.accepts_inline_only()
+            and tip.rule.accepts_inline_only() # paraggraph, heading, caption
         )
-
-        if not is_lazy:
-            logger.debug(f'{self.state.cursor.pos}. Not lazy content. Close containers to {last_matched_idx}.')
-            # Stack might change here.
-            # Therefore djot.js perform tip = self.tip() again after here.
-            return self.state.close_container_to_depth(last_matched_idx)
-
-        return []
 
     def _consume_line_text(
         self,
         tip: Optional[Container],
+        last_matched_idx: int,
         new_starts_created: bool,
     ) -> List[Event]:
+        """
+        If there are still contents after exhausted continue container and open container.
+        """
         self.state.cursor.skip_space()
         events = []
         is_eol = self.state.cursor.is_eol
@@ -340,51 +413,22 @@ class EventParser:
                 if not new_starts_created:
                     logger.debug(f'{self.state.cursor.pos}. Create blankline')
                     # need to track these for tight/loose lists.
-                    # NOTE: what is considered as a blackline?
+                    # NOTE: what is considered as a blankline?
                     # An empty line, of course. Anything else?
                     # A blockquote line with '>' symbol only.
                     # The blanklin defined in markdown/djot is different
                     # from physical blankline.
-                    pos = self.state.cursor.pos
-                    line_end = self.state.cursor.eol_end
-                    events.append(
-                        Event.leaf(
-                            kind=BlockLeaf.BLANKLINE,
-                            span=self.state.cursor.new_span(pos, line_end)
-                        )
-                    )
+                    event = self._parse_blankline()
+                    events.append(event)
                 return events
             else:
-                logger.debug(f'{self.state.cursor.pos}. Fallback to paragraph.')
-                # In djot.js, open paragraph adds a new container and event.
-                open_result = self.para_rule.try_open(self.state.cursor)
-                # ParaRule could always open a new container.
-                assert open_result.container is not None
-
-                closed_events = self.state.close_siblings_of(open_result.container)
-                events.extend(closed_events)
-                
-                para_container = self.state.push_container(open_result.container, self.options)
-                events.extend(open_result.events)
-
-                tip = para_container
+                tip, opened_events = self._open_para(last_matched_idx)
+                events.extend(opened_events)
 
         if tip.rule.accepts_text_only(): # if child node is text only. Clode block.
-            start_pos = self.state.get_adjusted_text_start(tip.indent)
-            logger.debug(f'{self.state.cursor.pos}. Text only.')
-            events.append(
-                Event.leaf(
-                    kind=InlineLeaf.STR,
-                    span=self.state.cursor.new_span(start_pos, self.state.cursor.eol_start)
-                )
-            ) # gobble the whole line.
+            events.append(self._parse_text(tip)) # gobble the whole line.
         elif tip.rule.accepts_inline_only and not is_eol: # if child nodes are inline elements.
-            if tip.inline_parser: # guard inline parse is set.
-                logger.debug(f'{self.state.cursor.pos}. Parse inline content to {self.state.cursor.eol_end}')
-                tip.inline_parser.feed(
-                    self.state.cursor.pos,
-                    self.state.cursor.eol_end
-                )
+            self._parse_inline(tip)
 
         return events
 
