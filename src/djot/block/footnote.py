@@ -6,6 +6,7 @@ from ..event import (
     Event,
     InlineLeaf,
 )
+from ..common import Range
 
 from .container import (
     ContainerCap,
@@ -55,7 +56,9 @@ class FootnoteRule(BlockRule):
             data=FootnoteData(
                 label=label,
                 indent=cursor.indent,
-            )
+            ),
+            start_pos=cursor.pos,
+            closing_boundary=Range(cursor.pos, cursor.line_end)
         )
         events = [
             Event.enter( # [
@@ -73,11 +76,12 @@ class FootnoteRule(BlockRule):
                 )
             ) 
         ]
-        cursor.advance_to(end_pos) # move to first space
+        
         return RuleResult(
             status=FlowControl.OPEN,
             container=container,
             events=events,
+            next_pos=end_pos # move to first space
         )
 
     def on_continue(
@@ -88,10 +92,11 @@ class FootnoteRule(BlockRule):
         if not isinstance(container.data, FootnoteData):
             return RuleResult.fail()
 
-        if ctx.cursor.indent > container.data.indent: # line start
-            return RuleResult.continue_ok()
-
-        if ctx.cursor.pos == ctx.cursor.eol_start: # line end
+        if ctx.cursor.indent > container.data.indent or ctx.cursor.pos == ctx.cursor.line_end: # line start or line end
+            container.update_closing_boundary(
+                ctx.cursor.line_end,
+                ctx.cursor.line_end,
+            )
             return RuleResult.continue_ok()
 
         return RuleResult.fail()
@@ -101,10 +106,17 @@ class FootnoteRule(BlockRule):
         container: Container, 
         ctx: ParsingContext,
     ) -> RuleResult:
+        assert container.closing_boundary is not None
+
         return RuleResult(
             status=FlowControl.CLOSE,
-            events=[Event.exit(
-                kind=BlockContainer.FOOTNOTE,
-                span=ctx.cursor.current_span()
-            )]
+            events=[
+                Event.exit(
+                    kind=BlockContainer.FOOTNOTE,
+                    span=ctx.cursor.new_span(
+                        container.closing_boundary.start,
+                        container.closing_boundary.end,
+                    )
+                )
+            ]
         )
