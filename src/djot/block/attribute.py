@@ -27,7 +27,7 @@ class AttributeRule(BlockRule):
 
         attribute_parser = AttributeParser(cursor)
         # From { to EOL
-        res = attribute_parser.feed(cursor.pos, cursor.eol_start)
+        res = attribute_parser.feed(cursor.pos, cursor.line_end)
         if res.is_fail(): # Cursor is not moved. No need to rewind.
             return RuleResult.fail()
 
@@ -37,15 +37,17 @@ class AttributeRule(BlockRule):
 
         container = Container(
             rule=self,
-            data=None,
+            start_pos=cursor.pos
         )
         
-        cursor.advance_to_eol()
+        next_pos = cursor.line_end
         return RuleResult(
             status=FlowControl.OPEN,
             events=attribute_parser.events,
             container=container,
-        ) # TODO: Why finished_line is not turned to True here?
+            next_pos=next_pos,
+            finished_line=True,
+        )
 
     def on_continue(
         self,
