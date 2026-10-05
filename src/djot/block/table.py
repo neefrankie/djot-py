@@ -312,7 +312,9 @@ class TableRule(BlockRule):
             rule=self,
             data=TableData(
                 columns=0
-            )
+            ),
+            start_pos=cursor.pos,
+            last_eol=cursor.eol_end
         )
 
         events: List[Event] = [
@@ -347,13 +349,15 @@ class TableRule(BlockRule):
         events.extend(row_parsed)
         print(f'Row events: {len(events)}')
 
-        cursor.advance_to_eol()
+        # cursor.advance_to_eol()
+        next_pos = cursor.eol_end
         
         return RuleResult(
             status=FlowControl.OPEN,
             container=container,
             events=events,
-            finished_line=True # if we successfully parsed a row, the whole line is gobbled.
+            finished_line=True, # if we successfully parsed a row, the whole line is gobbled.
+            next_pos=next_pos
         )
 
     def on_continue(
@@ -375,7 +379,8 @@ class TableRule(BlockRule):
         if parsed_row is None:
             return RuleResult.fail()
 
-        ctx.cursor.advance_to_eol()
+        # ctx.cursor.advance_to_eol()
+        container.last_eol = ctx.cursor.eol_end
         return RuleResult(
             status=FlowControl.CONTINUE,
             events=parsed_row,
@@ -391,6 +396,6 @@ class TableRule(BlockRule):
             status=FlowControl.CLOSE,
             events=[Event.exit(
                 kind=BlockContainer.TABLE,
-                span=ctx.cursor.current_span()
+                span=ctx.cursor.new_span(container.last_eol, container.last_eol)
             )]
         )
