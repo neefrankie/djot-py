@@ -69,20 +69,23 @@ class HeadingRule(BlockRule):
         start = cursor.pos
         endchar = start + level - 1
 
-        cursor.advance(endchar + 1) # move to after ending #
+        next_pos = endchar + 1 # move to after ending #
         
         return RuleResult(
             status=FlowControl.OPEN,
             container=Container(
                 rule=self,
-                data=HeadingData(level=level)
+                data=HeadingData(level=level),
+                start_pos=cursor.pos,
+                last_eol=cursor.eol_end,
             ),
             events=[
                 Event.enter(
                     kind=BlockContainer.HEADING,
                     span=cursor.new_span(start, endchar),
                 )
-            ]
+            ],
+            next_pos=next_pos,
         )
 
     def on_continue(
@@ -107,23 +110,24 @@ class HeadingRule(BlockRule):
         if not ctx.cursor.is_whitespace(ctx.cursor.pos + level):
             return RuleResult.fail()
 
-        ctx.cursor.advance_to(ctx.cursor.pos + level) # eat the leading #s
+        container.last_eol = ctx.cursor.eol_end
+        next_pos = ctx.cursor.pos + level # eat the leading #s
 
-        return RuleResult.continue_ok()
+        return RuleResult(
+            status=FlowControl.CONTINUE,
+            next_pos=next_pos,
+        )
 
     def on_close(
         self, 
         container: Container, 
         ctx: ParsingContext,
     ) -> RuleResult:
-        # Use last event end position so that end pos points to heading end
-        # rather than next block start
-        ep = ctx.last_span_end + 1 if ctx.last_span_end else ctx.cursor.pos
         return RuleResult(
             status=FlowControl.CLOSE,
             events=[
                 Event.exit(
-                    span=ctx.cursor.new_span(ep, ep),
+                    span=ctx.cursor.new_span(container.last_eol, container.last_eol),
                     kind=BlockContainer.HEADING
                 )
             ]
