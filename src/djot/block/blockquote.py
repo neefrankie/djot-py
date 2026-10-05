@@ -5,6 +5,7 @@ from ..event import (
     BlockContainer,
     Event,
 )
+from ..common import Range
 
 from .container import (
     ContainerCap,
@@ -29,7 +30,7 @@ class BlockquoteRule(BlockRule):
         container = container=Container(
             rule=self,
             start_pos=cursor.pos,
-            last_eol=cursor.eol_end,
+            closing_boundary=Range(cursor.line_end, cursor.line_end)
         )
 
         pos = cursor.pos
@@ -53,9 +54,11 @@ class BlockquoteRule(BlockRule):
         ctx: ParsingContext
     ) -> RuleResult:
         if ctx.cursor.peek_is_blockquote_prefix():
-            container.last_eol = ctx.cursor.eol_end
+            container.update_closing_boundary(
+                ctx.cursor.line_end,
+                ctx.cursor.line_end
+            )
             next_pos = ctx.cursor.pos + 1 # Eat starting >
-            # ctx.cursor.advance() # Eat starting >
             return RuleResult(
                 status=FlowControl.CONTINUE,
                 next_pos=next_pos,
@@ -68,12 +71,16 @@ class BlockquoteRule(BlockRule):
         container: Container, 
         ctx: ParsingContext,
     ) -> RuleResult:
+        assert container.closing_boundary is not None
         return RuleResult(
             status=FlowControl.CLOSE,
             events=[
                 Event.exit(
                     kind=BlockContainer.BLOCK_QUOTE,
-                    span=ctx.cursor.new_span(container.last_eol, container.last_eol)
+                    span=ctx.cursor.new_span(
+                        container.closing_boundary.start,
+                        container.closing_boundary.end,
+                    )
                 )
             ]
         )
