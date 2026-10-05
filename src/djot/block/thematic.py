@@ -5,6 +5,7 @@ from ..event import (
     BlockLeaf,
     Event,
 )
+from ..common import Range
 
 from .container import (
     ContainerCap,
@@ -41,7 +42,8 @@ class ThematicBreakRule(BlockRule):
 
         container = Container(
             rule=self,
-            data=None
+            start_pos=m.start,
+            closing_boundary=Range(m.end, m.end)
         )
         event = Event.leaf(
             kind=BlockLeaf.THEMATIC_BREAK,
@@ -50,12 +52,14 @@ class ThematicBreakRule(BlockRule):
                 end=m.end,
             )
         )
-        cursor.advance_to(m.end)
-        # TODO: why not flag finished_line here since it of course gobbled the whole line.
+
+        next_pos = m.end
+        
         return RuleResult(
             status=FlowControl.OPEN,
             container=container,
             events=[event],
+            next_pos=next_pos,
         )
 
     def on_continue(
