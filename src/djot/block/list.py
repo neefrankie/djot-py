@@ -11,6 +11,7 @@ from ..event import (
     InlineLeaf,
 )
 from ..logger import logger
+from ..common import Range
 
 from .container import (
     ContainerCap,
@@ -136,7 +137,7 @@ class ListRule(BlockRule):
         container = Container(
             rule=self,
             start_pos=cursor.pos,
-            last_eol=cursor.eol_end,
+            closing_boundary=Range(cursor.line_end, cursor.line_end),
             data=ListData(
                 styles=styles,
                 indent=cursor.indent
@@ -171,11 +172,17 @@ class ListRule(BlockRule):
             return RuleResult.fail()
 
         if ctx.cursor.indent > container.data.indent:
-            container.last_eol = ctx.cursor.eol_end
+            container.update_closing_boundary(
+                ctx.cursor.line_end,
+                ctx.cursor.line_end,
+            )
             return RuleResult.continue_ok()
 
-        if ctx.cursor.pos == ctx.cursor.eol_start:
-            container.last_eol = ctx.cursor.eol_end
+        if ctx.cursor.is_eol_at(ctx.cursor.pos):
+            container.update_closing_boundary(
+                ctx.cursor.line_end,
+                ctx.cursor.line_end,
+            )
             return RuleResult.continue_ok()
 
         m = ctx.cursor.find_list_marker()
@@ -198,7 +205,11 @@ class ListRule(BlockRule):
             return RuleResult.fail()
 
         container.data.styles = newstyles
-        container.last_eol = ctx.cursor.eol_end
+        
+        container.update_closing_boundary(
+            ctx.cursor.line_end,
+            ctx.cursor.line_end,
+        )
         return RuleResult.continue_ok()
 
     def on_close(
@@ -206,6 +217,8 @@ class ListRule(BlockRule):
         container: Container, 
         ctx: ParsingContext,
     ) -> RuleResult:
+        assert container.closing_boundary is not None
+
         return RuleResult(
             status=FlowControl.CLOSE,
             events=[
@@ -215,7 +228,10 @@ class ListRule(BlockRule):
                     # Most of time it ends at next line start.
                     # However, at EOF, it ends at EOF.
                     # A more reasonable position should always be the end of line of last list item.
-                    span=ctx.cursor.new_span(container.last_eol+1, container.last_eol+1)
+                    span=ctx.cursor.new_span(
+                        container.closing_boundary.start,
+                        container.closing_boundary.end
+                    )
                 )
             ]
         )
@@ -258,7 +274,7 @@ class ListItemRule(BlockRule):
         container = Container(
             rule=self,
             start_pos=cursor.pos,
-            last_eol=cursor.eol_end,
+            closing_boundary=Range(cursor.line_end, cursor.line_end),
             data=ListData(
                 styles=styles,
                 indent=cursor.indent
@@ -308,12 +324,11 @@ class ListItemRule(BlockRule):
         if not isinstance(container.data, ListData):
             return RuleResult.fail()
 
-        if ctx.cursor.indent > container.data.indent:
-            container.last_eol = ctx.cursor.eol_end
-            return RuleResult.continue_ok()
-
-        if ctx.cursor.pos == ctx.cursor.eol_start:
-            container.last_eol = ctx.cursor.eol_end
+        if ctx.cursor.indent > container.data.indent or ctx.cursor.is_eol_at(ctx.cursor.pos):
+            container.update_closing_boundary(
+                ctx.cursor.line_end,
+                ctx.cursor.line_end,
+            )
             return RuleResult.continue_ok()
 
         return RuleResult.fail()
@@ -323,16 +338,16 @@ class ListItemRule(BlockRule):
         container: Container, 
         ctx: ParsingContext,
     ) -> RuleResult:
-        pos = ctx.cursor.pos
-        logger.debug(f'Close list item at {pos-1}. Current cursor: {ctx.cursor.pos}')
+        assert container.closing_boundary is not None
+
         return RuleResult(
             status=FlowControl.CLOSE,
             events=[
                 Event.exit(
                     kind=BlockContainer.LIST_ITEM,
                     span=ctx.cursor.new_span(
-                        start=container.last_eol,
-                        end=container.last_eol,
+                        start=container.closing_boundary.start,
+                        end=container.closing_boundary.end,
                     )
                 )
             ]
