@@ -24,22 +24,27 @@ class BlockquoteRule(BlockRule):
         if not cursor.peek_is_blockquote_prefix():
             return RuleResult.fail()
 
-        pos = cursor.pos
+        # Djot.js performs addContainer here.
+        # So all previous containers closed at this snapshot.
+        container = container=Container(
+            rule=self,
+            start_pos=cursor.pos,
+            last_eol=cursor.eol_end,
+        )
 
-        cursor.advance() # after >
+        pos = cursor.pos
+        next_pos = cursor.pos + 1 # after >
 
         return RuleResult(
             status=FlowControl.OPEN,
-            container=Container(
-                rule=self,
-                data=None
-            ),
+            container=container,
             events=[
                 Event.enter(
                     kind=BlockContainer.BLOCK_QUOTE,
                     span=cursor.new_span(pos, pos)
                 )
-            ]
+            ],
+            next_pos=next_pos,
         )
 
     def on_continue(
@@ -48,8 +53,13 @@ class BlockquoteRule(BlockRule):
         ctx: ParsingContext
     ) -> RuleResult:
         if ctx.cursor.peek_is_blockquote_prefix():
-            ctx.cursor.advance() # Eat starting >
-            return RuleResult.continue_ok()
+            container.last_eol = ctx.cursor.eol_end
+            next_pos = ctx.cursor.pos + 1 # Eat starting >
+            # ctx.cursor.advance() # Eat starting >
+            return RuleResult(
+                status=FlowControl.CONTINUE,
+                next_pos=next_pos,
+            )
         
         return RuleResult.fail()
 
@@ -63,7 +73,7 @@ class BlockquoteRule(BlockRule):
             events=[
                 Event.exit(
                     kind=BlockContainer.BLOCK_QUOTE,
-                    span=ctx.cursor.current_span()
+                    span=ctx.cursor.new_span(container.last_eol, container.last_eol)
                 )
             ]
         )
