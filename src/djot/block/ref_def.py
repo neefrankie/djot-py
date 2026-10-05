@@ -6,6 +6,7 @@ from ..event import (
     Event,
     InlineLeaf,
 )
+from ..common import Range
 
 from .container import (
     ContainerCap,
@@ -50,7 +51,7 @@ class ReferenceDefinitionRule(BlockRule):
                 indent=cursor.indent,
             ),
             start_pos=cursor.pos,
-            last_eol=cursor.eol_end,
+            closing_boundary=Range(cursor.pos, cursor.line_end),
         )
 
         pos = cursor.pos
@@ -69,8 +70,8 @@ class ReferenceDefinitionRule(BlockRule):
         ]
 
         if len(value) > 0:
-            val_start = cursor.eol_end - len(value)
-            val_end = cursor.eol_end - 1
+            val_start = cursor.line_end - len(value)
+            val_end = cursor.line_end - 1
             events.append(
                 Event.leaf(
                     kind=InlineLeaf.REFERENCE_VALUE,
@@ -78,8 +79,7 @@ class ReferenceDefinitionRule(BlockRule):
                 )
             )
         
-        next_pos = cursor.eol_end - 1 # move to EOL
-        # cursor.advance_to(next_pos) 
+        next_pos = cursor.line_end - 1 # move to EOL
         return RuleResult(
             status=FlowControl.OPEN,
             container=container,
@@ -107,18 +107,21 @@ class ReferenceDefinitionRule(BlockRule):
             return RuleResult.fail()
         if not nws:
             return RuleResult.fail()
-        if nws.end != ctx.cursor.eol_start - 1: # non-whitespace extends to EOL.
+        if nws.end != ctx.cursor.line_end - 1: # non-whitespace extends to EOL.
             return RuleResult.fail()
         
         event = Event.leaf(
             kind=InlineLeaf.REFERENCE_VALUE,
             span=ctx.cursor.new_span(
                 start=ctx.cursor.pos,
-                end=ctx.cursor.eol_start - 1,
+                end=ctx.cursor.line_end - 1,
             )
         )
-        container.last_eol = ctx.cursor.eol_end
-        next_pos = ctx.cursor.eol_end # \n
+
+        container.update_closing_boundary(ctx.cursor.line_end, ctx.cursor.line_end)
+
+        next_pos = ctx.cursor.line_end # \n
+        
         return RuleResult(
             status=FlowControl.CONTINUE,
             events=[event],
@@ -130,12 +133,16 @@ class ReferenceDefinitionRule(BlockRule):
         container: Container, 
         ctx: ParsingContext,
     ) -> RuleResult:
+        assert container.closing_boundary is not None
         return RuleResult(
             status=FlowControl.CLOSE,
             events=[
                 Event.exit(
                     kind=BlockContainer.REFERENCE_DEFINITION,
-                    span=ctx.cursor.new_span(container.last_eol, container.last_eol)
+                    span=ctx.cursor.new_span(
+                        container.closing_boundary.start,
+                        container.closing_boundary.end,
+                    )
                 )
             ]
         )
