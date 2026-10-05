@@ -9,6 +9,7 @@ from ..event import (
     InlineLeaf,
 )
 from ..common import Range
+from ..logger import logger
 
 from .container import (
     ContainerCap,
@@ -71,7 +72,10 @@ class CodeBlockRule(BlockRule):
             indent=cursor.indent,
             data=CodeBlockData(
                 close_pattern=close_pattern,
-            )
+            ),
+            start_pos=cursor.pos,
+            # For element with explicit closing markup,
+            # we cannot record its closing boudnary here.
         )
 
         events: List[Event] = [
@@ -108,12 +112,14 @@ class CodeBlockRule(BlockRule):
                     )
                 )
 
-        cursor.advance_to(m.end)
+        # cursor.advance_to(m.end)
+        next_pos = m.end
         return RuleResult(
             status=FlowControl.OPEN,
             events=events,
             container=container,
-            finished_line=True
+            finished_line=True,
+            next_pos=next_pos
         )
 
     def on_continue(
@@ -135,12 +141,15 @@ class CodeBlockRule(BlockRule):
             start=m.start,
             end=m.start + len(m.captures[0]) - 1
         )
+        container.update_closing_boundary(m.start, m.start + len(m.captures[0]) - 1)
 
-        ctx.cursor.advance_to(m.end) # before newline
+        # ctx.cursor.advance_to(m.end) # before newline
+        next_pos = ctx.cursor.line_end
 
         return RuleResult(
-            status=FlowControl.FAIL, # TODO: change to CLOSE
-            finished_line=True
+            status=FlowControl.STOP, # TODO: what this actually means is stopping searching in the tree chain.
+            finished_line=True,
+            next_pos=next_pos,
         )
 
     def on_close(
@@ -156,13 +165,17 @@ class CodeBlockRule(BlockRule):
                 sp = container.data.span.start
                 ep = container.data.span.end
 
+        if container.closing_boundary:
+            sp = container.closing_boundary.start
+            ep = container.closing_boundary.end
+
         event = Event.exit(
             span=ctx.cursor.new_span(sp, ep),
             kind=BlockContainer.CODE_BLOCK,
         )
 
         if sp == ep:
-            print('Unclosed code block', ctx.cursor.pos)
+            logger.warning(f'Unclosed code block at {ctx.cursor.pos}', )
 
         return RuleResult(
             status=FlowControl.CLOSE,
