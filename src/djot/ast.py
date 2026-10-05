@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum, StrEnum
-from typing import Dict, List, Protocol, Tuple, TypeGuard, TypeVar, runtime_checkable
+from typing import Dict, Generic, List, Tuple, TypeGuard, TypeVar, runtime_checkable
 
 from .common import SourceLoc
 
@@ -26,7 +26,7 @@ class HasAttributes:
 T = TypeVar("T")
 
 @runtime_checkable
-class HasChildren(Protocol[T]):
+class HasChildren(Generic[T]):
     # children: List[T] | Tuple[T, ...] # why there is a tuple?
     children: List[T]
 
