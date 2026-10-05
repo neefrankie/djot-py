@@ -6,7 +6,6 @@ from ..event import (
     Event,
     InlineLeaf,
 )
-from ..common import Range
 
 from .container import (
     ContainerCap,
@@ -49,12 +48,16 @@ class ReferenceDefinitionRule(BlockRule):
             data=RefDefData(
                 key=label,
                 indent=cursor.indent,
-            )
+            ),
+            start_pos=cursor.pos,
+            last_eol=cursor.eol_end,
         )
+
+        pos = cursor.pos
         events = [
             Event.enter( # [
                 kind=BlockContainer.REFERENCE_DEFINITION,
-                span=cursor.current_span()
+                span=cursor.new_span(pos, pos)
             ),
             Event.leaf( # [foo]
                 kind=InlineLeaf.REFERENCE_KEY,
@@ -64,22 +67,24 @@ class ReferenceDefinitionRule(BlockRule):
                 )
             )
         ]
+
         if len(value) > 0:
+            val_start = cursor.eol_end - len(value)
+            val_end = cursor.eol_end - 1
             events.append(
                 Event.leaf(
                     kind=InlineLeaf.REFERENCE_VALUE,
-                    span=cursor.new_span(
-                        start=cursor.eol_start - len(value), # start position of value
-                        end=cursor.eol_start - 1 # end position of value
-                    )
+                    span=cursor.new_span(val_start, val_end)
                 )
             )
-
-        cursor.advance_to(cursor.eol_start - 1) # move to EOL
+        
+        next_pos = cursor.eol_end - 1 # move to EOL
+        # cursor.advance_to(next_pos) 
         return RuleResult(
             status=FlowControl.OPEN,
             container=container,
             events=events,
+            next_pos=next_pos,
         )
 
     def on_continue(
@@ -112,10 +117,12 @@ class ReferenceDefinitionRule(BlockRule):
                 end=ctx.cursor.eol_start - 1,
             )
         )
-        ctx.cursor.advance_to(ctx.cursor.eol_start) # \n
+        container.last_eol = ctx.cursor.eol_end
+        next_pos = ctx.cursor.eol_end # \n
         return RuleResult(
             status=FlowControl.CONTINUE,
             events=[event],
+            next_pos=next_pos,
         )
 
     def on_close(
@@ -123,14 +130,12 @@ class ReferenceDefinitionRule(BlockRule):
         container: Container, 
         ctx: ParsingContext,
     ) -> RuleResult:
-        pos = ctx.cursor.pos
-
         return RuleResult(
             status=FlowControl.CLOSE,
             events=[
                 Event.exit(
                     kind=BlockContainer.REFERENCE_DEFINITION,
-                    span=ctx.cursor.new_span(pos, pos)
+                    span=ctx.cursor.new_span(container.last_eol, container.last_eol)
                 )
             ]
         )

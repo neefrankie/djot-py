@@ -105,6 +105,7 @@ class TestEventParser(unittest.TestCase):
             (
                 'reference defition',
                 "[foo]: bar\n baz\n",
+                #01234567890 12345
                 [
                     Event.enter(Range(0, 0), BlockContainer.REFERENCE_DEFINITION),
                     Event.ref_key(0, 4),
@@ -116,6 +117,7 @@ class TestEventParser(unittest.TestCase):
             (
                 'with url on next line',
                 "[foo]:\n bar",
+                #0123456 7890
                 [
                     Event.enter(Range(0, 0), BlockContainer.REFERENCE_DEFINITION),
                     Event.ref_key(0, 4),
@@ -126,6 +128,7 @@ class TestEventParser(unittest.TestCase):
             (
                 'without space after colon para',
                 "[foo]:bar",
+                #012345678
                 [
                     Event.enter(Range(0, 0), BlockContainer.PARA),
                     Event.str(0, 8),
