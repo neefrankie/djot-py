@@ -87,11 +87,15 @@ T = TypeVar('T')
 class Container(Generic[T]):
     rule: 'BlockRule'
     start_pos: int = 0 # snapshot of cursor position the moment this container is created.
-    last_eol: int = 0 # the position where this container could continue the last time.
+    closing_boundary: Optional[Range] = None # the position of closing token.
     indent: Optional[int] = None
+    data: Optional[T] = None
     inline_parser: Optional[InlineParser] = None
     attribute_parser: Optional[AttributeParser] = None # parse block attributes
-    data: Optional[T] = None
+
+    def update_closing_boundary(self, start: int, end: int):
+        self.closing_boundary = Range(start, end)
+    
 
     def __repr__(self) -> str:
         return f'Container<{self.rule.__class__.__name__}>'
@@ -128,9 +132,9 @@ class Container(Generic[T]):
 class FlowControl(Enum):
     OPEN = auto()
     CONTINUE = auto()
-    CLOSE = auto()
+    STOP = auto() # stop searching deeper in a node path.
+    CLOSE = auto() # a container should be closed.
     FAIL = auto()
-    FALLBACK = auto() # avoid this. djot.js has a fallback approach which breaks consistency. It's a flaw in markup design.
 
 
 @dataclass
