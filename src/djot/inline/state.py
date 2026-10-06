@@ -9,7 +9,6 @@ from ..event import (
     VerbatimKind,
     InlineLeaf,
 )
-from ..options import Options, Warning
 
 class OpenerKind(Enum):
     REFERENCE_LINK = auto()
@@ -205,9 +204,8 @@ class PendingSpan:
     close_event_idx: int # Event index for ]
 
 class InlineState:
-    def __init__(self, cursor: InputText, options: Options):
+    def __init__(self, cursor: InputText,):
         self.cursor = cursor
-        self.options = options
 
         self.events: List[Event] = []
         # map from opener type to Opener[] in reverse order
@@ -468,10 +466,7 @@ class InlineState:
         # add -verbatim if needed.
         if self.verbatim_len > 0:
             last = self.events[-1]
-            self.options.warn(Warning(
-                message='Unclosed verbatim',
-                pos=last.span.end,
-            ))
+            
             self.events.append(
                 Event.exit(
                     span=Range(

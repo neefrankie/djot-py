@@ -2,7 +2,6 @@ from typing import Dict, List, NamedTuple, Optional
 import unittest
 
 from djot.common import Range
-from djot.options import Options
 from djot.event import (
     Event,
     BlockContainer,
@@ -406,7 +405,7 @@ class TestParsingTable(unittest.TestCase):
         text = '| `|` | \\| |'
                #01234567 8901
 
-        actual = parse_data_row(InputText(text), Range(0, 11), Options())
+        actual = parse_data_row(InputText(text), Range(0, 11))
 
         expected = [
             Event.row(0, 0),

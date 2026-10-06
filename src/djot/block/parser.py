@@ -7,7 +7,6 @@ from ..event import (
     BlockLeaf,
     InlineLeaf,
 )
-from ..options import Options
 from ..logger import logger
 
 from .container import (
@@ -45,9 +44,7 @@ class LineStepFrame:
         return f'LineStepFrame(last_matched_idx={self.last_matched_idx}, finished_line={self.finished_line}, new_starts_created={self.new_starts_created}, events[{len(self.events)}])'
 
 class EventParser:
-    def __init__(self, src: str, options: Options | None = None) -> None:
-
-        self.options = options or Options()
+    def __init__(self, src: str) -> None:
 
         self.state = BlockState(InputText(src))
 
@@ -61,7 +58,7 @@ class EventParser:
             ThematicBreakRule(),
             ListRule(),
             ListItemRule(),
-            TableRule(options=self.options),
+            TableRule(),
             AttributeRule(),
             FencedDivRule(),
             CodeBlockRule()
@@ -308,7 +305,6 @@ class EventParser:
 
         result.container = self.state.push_container(
             result.container,
-            self.options
         )
 
         logger.debug(f'{self.state.cursor.pos}. ✅{rule.__class__.__name__} opened')
@@ -333,7 +329,6 @@ class EventParser:
         
         result.container = self.state.push_container(
             result.container,
-            self.options
         )
 
         if result.next_pos is not None:

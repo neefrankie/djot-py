@@ -1,7 +1,6 @@
 from .parser import EventParser
-from ..options import Options
 
 
-def parse_events(input_: str, options: Options):
-    parser = EventParser(input_, options)
+def parse_events(input_: str):
+    parser = EventParser(input_)
     yield from parser.parse()

@@ -15,7 +15,6 @@ from djot.event import (
 from djot.common import Range
 from djot.inline.state import InlineState, OpenerKind
 from djot.input import InputText
-from djot.options import Options
 from djot.inline.backslash import BackslashMatcher
 from djot.inline.backtick import BacktickMatcher
 from djot.inline.brace_left import LeftBraceMatcher
@@ -159,7 +158,6 @@ class TestInlineParser(unittest.TestCase):
 
         parser = InlineParser(
             cursor=InputText(text),
-            options=Options()
         )
 
         parser.feed(0, 6)
@@ -176,7 +174,6 @@ class TestInlineParser(unittest.TestCase):
         text = "x ``` hello ``there ``` x"
         parser = InlineParser(
             cursor=InputText(text),
-            options=Options()
         )
 
         parser.feed(0, 24)
@@ -197,7 +194,7 @@ class TestInlineParser(unittest.TestCase):
         text = '\\"\\*\\ \\a \\\n'
         parser = InlineParser(
             cursor=InputText(text),
-            options=Options()
+            
         )
         parser.feed(0, 10)
 
@@ -219,7 +216,7 @@ class TestInlineParser(unittest.TestCase):
     def test_parse_autolinks(self):
         parser = InlineParser(
             cursor=InputText('<http://example.com?foo=bar&baz=&amp;x2>'),
-            options=Options()
+            
         )
 
         parser.feed(0, 39)
@@ -235,7 +232,7 @@ class TestInlineParser(unittest.TestCase):
     def test_parse_email_autolinks(self):
             parser = InlineParser(
                 cursor=InputText('<me@example.com>'),
-                options=Options()
+                
             )
     
             parser.feed(0, 15)
@@ -251,7 +248,7 @@ class TestInlineParser(unittest.TestCase):
     def test_super_subscript(self):
         parser = InlineParser(
             cursor=InputText('H~2~O e=mc^2^ test{^two words^}'),
-            options=Options()
+            
         )
 
         parser.feed(0, 30)
@@ -279,7 +276,7 @@ class TestInlineParser(unittest.TestCase):
     def test_emphasis(self):
         parser = InlineParser(
             cursor=InputText('_hello *there*_ world'),
-            options=Options()
+            
         )
 
         parser.feed(0, 20)
@@ -299,7 +296,7 @@ class TestInlineParser(unittest.TestCase):
     def test_mark(self):
         parser = InlineParser(
             cursor=InputText('{=hello=}'),
-            options=Options()
+            
         )
         parser.feed(0, 8)
         expected = [
@@ -314,7 +311,7 @@ class TestInlineParser(unittest.TestCase):
     def test_inserted(self):
         parser = InlineParser(
             cursor=InputText('{+hello+}'),
-            options=Options()
+            
         )
         parser.feed(0, 8)
         expected = [
@@ -329,7 +326,7 @@ class TestInlineParser(unittest.TestCase):
     def test_quoted(self):
         parser = InlineParser(
             cursor=InputText('"dog\'s breakfast"'),
-            options=Options()
+            
         )
 
         parser.feed(0, 16)
@@ -347,7 +344,7 @@ class TestInlineParser(unittest.TestCase):
     def test_parse_attributes(self):
         parser = InlineParser(
             cursor=InputText('{#foo .bar baz="bim"}'),
-            options=Options()
+            
         )
 
         parser.feed(0, 20)
@@ -373,7 +370,7 @@ class TestInlineParser(unittest.TestCase):
     def test_spans(self):
         parser = InlineParser(
             cursor=InputText('[hi]{#foo .bar baz="bim"}'),
-            options=Options()
+            
         )
 
         parser.feed(0, 24)
@@ -402,7 +399,7 @@ class TestInlineParser(unittest.TestCase):
     def test_inline_links(self):
         parser = InlineParser(
             cursor=InputText('[foobar](url)'),
-            options=Options()
+            
         )
 
         parser.feed(0, 12)
@@ -421,7 +418,7 @@ class TestInlineParser(unittest.TestCase):
     def test_refrence_links(self):
         parser = InlineParser(
             cursor=InputText('[foobar][1]'),
-            options=Options()
+            
         )
 
         parser.feed(0, 10)
@@ -440,7 +437,7 @@ class TestInlineParser(unittest.TestCase):
     def test_inline_image(self):
         parser = InlineParser(
             cursor=InputText('![foobar](url)'),
-            options=Options()
+            
         )
         parser.feed(0, 13)
         expected = [
@@ -458,7 +455,7 @@ class TestInlineParser(unittest.TestCase):
     def test_symbs(self):
         parser = InlineParser(
             cursor=InputText(':+1:'),
-            options=Options()
+            
         )
 
         parser.feed(0, 3)
@@ -472,7 +469,7 @@ class TestInlineParser(unittest.TestCase):
     def test_ellipses(self):
         parser = InlineParser(
             cursor=InputText('...'),
-            options=Options()
+            
         )
 
         parser.feed(0, 2)
@@ -486,7 +483,7 @@ class TestInlineParser(unittest.TestCase):
     def test_dashes(self):
         parser = InlineParser(
             cursor=InputText('a---b--c'),
-            options=Options()
+            
         )
         parser.feed(0, 7)
 
@@ -503,7 +500,7 @@ class TestInlineParser(unittest.TestCase):
     def test_note_reference(self):
         parser = InlineParser(
             cursor=InputText('[^ref]'),
-            options=Options()
+            
         )
 
         parser.feed(0, 5)
@@ -622,7 +619,7 @@ def new_state(
     dest: bool = False,
     events: List[Event] | None = None,
 ):
-    state = InlineState(InputText(text), Options())
+    state = InlineState(InputText(text))
     state.destination = dest
 
     if events:
@@ -640,7 +637,7 @@ def new_closer_state(
     kind: OpenerKind = OpenerKind.REFERENCE_LINK,
 ):
 
-    state = InlineState(InputText(text), Options())
+    state = InlineState(InputText(text))
 
     if image_span:
         state.push_event(
@@ -724,7 +721,7 @@ class TestMatcher(unittest.TestCase):
 
         for name, args, expected, _ in cases:
             with self.subTest(name):
-                state = InlineState(InputText(args.text), Options())
+                state = InlineState(InputText(args.text))
                 matcher = BackslashMatcher()
                 actual_pos = matcher(state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
@@ -785,7 +782,7 @@ class TestMatcher(unittest.TestCase):
 
         for name, args, expected, state_args in cases:
             with self.subTest(name):
-                state = InlineState(InputText(args.text), Options())
+                state = InlineState(InputText(args.text))
                 if isinstance(state_args, VerbArgs):
                     populate_verb_state(state, state_args)
                 matcher = BacktickMatcher()
@@ -825,7 +822,7 @@ class TestMatcher(unittest.TestCase):
 
         for name, args, expected, state_args in cases:
             with self.subTest(f'{name}: {args.text}'):
-                state = InlineState(InputText(args.text), Options())
+                state = InlineState(InputText(args.text))
                 matcher = LeftBraceMatcher()
                 actual_pos = matcher(state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
@@ -865,7 +862,7 @@ class TestMatcher(unittest.TestCase):
 
         for name, args, expected, _ in cases:
             with self.subTest(f'{name}: {args.text}'):
-                state = InlineState(InputText(args.text), Options())
+                state = InlineState(InputText(args.text))
                 matcher = LeftBracketMatcher()
                 actual_pos = matcher(state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
@@ -1028,7 +1025,7 @@ class TestMatcher(unittest.TestCase):
         for name, args, expected, state_args in cases:
             with self.subTest(f'{name}: {args.text}'):
                 matcher = RightBracketMatcher()
-                state = InlineState(InputText(args.text), Options())
+                state = InlineState(InputText(args.text))
                 populate_link_state(state, state_args)
                 actual_pos = matcher(state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
@@ -1071,7 +1068,7 @@ class TestMatcher(unittest.TestCase):
         for name, args, expected in cases:
             with self.subTest(f'{name}: {args.text}'):
                 matcher = ColonMatcher()
-                state=InlineState(InputText(args.text), Options())
+                state=InlineState(InputText(args.text))
                 actual_pos = matcher(state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
                 self.assertEqual(state.events, expected.events)
@@ -1118,7 +1115,7 @@ class TestMatcher(unittest.TestCase):
         for name, args, expected in cases:
             with self.subTest(f'{name}: {args.text}'):
                 matcher = LessthanMatcher()
-                state=InlineState(InputText(args.text), Options())
+                state=InlineState(InputText(args.text))
                 actual_pos = matcher(state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
                 self.assertEqual(state.events, expected.events)
@@ -1145,7 +1142,7 @@ class TestMatcher(unittest.TestCase):
 
         for name, args, expected in cases:
             with self.subTest(f'{name}: {args.text}'):
-                state=InlineState(InputText(args.text), Options())
+                state=InlineState(InputText(args.text))
                 state.destination = True
                 matcher = LeftParenMatcher()
                 actual_pos = matcher(state, args.pos, args.endpos)
@@ -1233,7 +1230,7 @@ class TestMatcher(unittest.TestCase):
 
         for name, args, expected, state_args in cases:
             with self.subTest(f'{name}: {args.text}'):
-                state = InlineState(InputText(args.text), Options())
+                state = InlineState(InputText(args.text))
                 populate_link_state(state, state_args)
                 matcher = RightParenMatcher()
                 actual_pos = matcher(state, args.pos, args.endpos)
@@ -1264,7 +1261,7 @@ class TestMatcher(unittest.TestCase):
 
         for name, args, expected in cases:
             with self.subTest(f'{name}: {args.text}'):
-                state = InlineState(InputText(args.text), Options())
+                state = InlineState(InputText(args.text))
                 matcher = PeriodMatcher()
                 actual_pos = matcher(state, args.pos, args.endpos)
                 self.assertEqual(actual_pos, expected.pos)
@@ -1339,7 +1336,7 @@ class TestMatcher(unittest.TestCase):
 
         for name, args, expected, state_args in cases:
             with self.subTest(f'{name}: {args.text}'):
-                state = InlineState(InputText(args.text), Options())
+                state = InlineState(InputText(args.text))
                 if state_args:
                     populate_between_state(state, state_args)
                 matcher = SubscriptMatcher()
@@ -1416,7 +1413,7 @@ class TestMatcher(unittest.TestCase):
 
         for name, args, expected, state_args in cases:
             with self.subTest(f'{name}: {args.text}'):
-                state = InlineState(InputText(args.text), Options())
+                state = InlineState(InputText(args.text))
                 if isinstance(state_args, OpenerArgs):
                     populate_between_state(state, state_args)
                 matcher = SuperscriptMatcher()
@@ -1494,7 +1491,7 @@ class TestMatcher(unittest.TestCase):
 
         for name, args, expected, state_arg in cases:
             with self.subTest(f'{name}: {args.text}'):
-                state = InlineState(InputText(args.text), Options())
+                state = InlineState(InputText(args.text))
                 if isinstance(state_arg, OpenerArgs):
                     populate_between_state(state, state_arg)
                 matcher = EmphMatcher()
@@ -1572,7 +1569,7 @@ class TestMatcher(unittest.TestCase):
         for name, args, expected, state_arg in cases:
             with self.subTest(f'{name}: {args.text}'):
 
-                state = InlineState(InputText(args.text), Options())
+                state = InlineState(InputText(args.text))
                 if isinstance(state_arg, OpenerArgs):
                     populate_between_state(state, state_arg)
 
@@ -1620,7 +1617,7 @@ class TestMatcher(unittest.TestCase):
 
         for name, args, expected, state_arg in cases:
             with self.subTest(f'{name}: {args.text}'):
-                state = InlineState(InputText(args.text), Options())
+                state = InlineState(InputText(args.text))
                 if isinstance(state_arg, OpenerArgs):
                     populate_between_state(state, state_arg)
                 matcher = InsertMatcher()
@@ -1723,7 +1720,7 @@ class TestMatcher(unittest.TestCase):
 
         for name, args, expected, state_args in cases:
             with self.subTest(f'{name}: {args.text}'):
-                state = InlineState(InputText(args.text), Options())
+                state = InlineState(InputText(args.text))
                 if isinstance(state_args, OpenerArgs):
                     populate_between_state(state, state_args)
                 matcher = HyphenMatcher()
@@ -1769,7 +1766,7 @@ class TestMatcher(unittest.TestCase):
 
         for name, args, expected, state_args in cases:
             with self.subTest(f'{name}: {args.text}'):
-                state = InlineState(InputText(args.text), Options())
+                state = InlineState(InputText(args.text))
                 if isinstance(state_args, OpenerArgs):
                     populate_between_state(state, state_args)
             matcher = MarkMatcher()
@@ -1845,7 +1842,7 @@ class TestMatcher(unittest.TestCase):
 
         for name, args, expected, state_args in cases:
             with self.subTest(f'{name}: {args.text}'):
-                state = InlineState(InputText(args.text), Options())
+                state = InlineState(InputText(args.text))
                 if isinstance(state_args, OpenerArgs):
                     populate_between_state(state, state_args)
                 matcher = SingleQuoteMatcher()
@@ -1921,7 +1918,7 @@ class TestMatcher(unittest.TestCase):
 
         for name, args, expected, state_args in cases:
             with self.subTest(f'{name}: {args.text}'):
-                state = InlineState(InputText(args.text), Options())
+                state = InlineState(InputText(args.text))
                 if isinstance(state_args, OpenerArgs):
                     populate_between_state(state, state_args)
                 matcher = DoubleQuoteMatcher()
@@ -2095,7 +2092,7 @@ class TestBetweenMatcher(unittest.TestCase):
 
         for name, args, expected, state_args in cases:
             with self.subTest(f'{name}: {args.text}'):
-                state = InlineState(InputText(args.text), Options())
+                state = InlineState(InputText(args.text))
                 if isinstance(state_args, OpenerArgs):
                     populate_between_state(state, state_args)
 
@@ -2161,7 +2158,7 @@ class TestBetweenMatcher(unittest.TestCase):
         for name, args, expected, state_args in cases:
             with self.subTest(f'{name}: {args.text}'):
                 
-                state = InlineState(InputText(args.text), Options())
+                state = InlineState(InputText(args.text))
                 if state_args:
                     populate_between_state(state, state_args)
                 

@@ -1,7 +1,6 @@
 from typing import Dict, Iterator, Optional
 
 from ..input import InputText
-from ..options import Options
 from ..event import (
     Event,
     InlineLeaf,
@@ -72,9 +71,8 @@ MATCHERS: Dict[str, Matcher] = {
 }
 
 class InlineParser:
-    def __init__(self, cursor: InputText, options: Options):
-        self.options = options
-        self.state = InlineState(cursor, options)
+    def __init__(self, cursor: InputText):
+        self.state = InlineState(cursor)
 
         self.matchers = MATCHERS
 

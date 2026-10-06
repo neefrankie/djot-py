@@ -1,7 +1,6 @@
 from typing import Any, List, Optional
 
 from ..logger import logger
-from ..options import Options
 from ..input import InputText
 from ..event import (
     Event,
@@ -54,7 +53,6 @@ class BlockState:
     def push_container(
         self, 
         container: Container,
-        options: Options
     ) -> Container:
 
         if container.children_type == ContainerCap.INLINE:
@@ -63,7 +61,6 @@ class BlockState:
             # Why here?
             container.inline_parser = InlineParser(
                 cursor=self.cursor, 
-                options=options,
             )
 
         self.container_stack.append(container)

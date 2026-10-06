@@ -10,7 +10,6 @@ from ..event import (
     InlineLeaf,
 )
 from ..common import Range
-from ..options import Options
 
 from .container import (
     ContainerCap,
@@ -184,7 +183,6 @@ def parse_data_cell(inline_parser: InlineParser, pipe_start: int, limit: int) ->
 def parse_data_row(
     cursor: InputText,
     span: Range, # | fruit  | price |
-    options: Options,
 ) -> Optional[List[Event]]:
     
     events: List[Event] = [
@@ -201,7 +199,6 @@ def parse_data_row(
 
     inline_parser = InlineParser(
         cursor=cursor,
-        options=options,
     )
 
     while pipe_start < span.end:
@@ -255,7 +252,6 @@ def parse_data_row(
 def parse_row(
     cursor: InputText, 
     row_span: Range,
-    options: Options
 ) -> List[Event] | None:
     """
     Parse a piped row like:
@@ -278,7 +274,7 @@ def parse_row(
 
     # If the row is not parsed as separator, try to parse as data.
     # | fruit  | price |
-    data_events = parse_data_row(cursor, span=row_span, options=options)
+    data_events = parse_data_row(cursor, span=row_span)
     if data_events is None:
         return None
 
@@ -298,7 +294,6 @@ class TableRule(BlockRule):
     
     kind: ContainerCap = ContainerCap.BLOCK
     accepts_content: ContainerCap = ContainerCap.CELLS
-    options: Options = field(default_factory=Options)
 
     def try_open(self, cursor: InputText) -> RuleResult:
         # Try to find a row.
@@ -335,7 +330,6 @@ class TableRule(BlockRule):
                 start=m.start, # save as cursor.pos
                 end=m.start + len(raw_row) - 1 # ignore trailing whitespace.
             ),
-            options=self.options,
         )
 
         # If parse table row failed, the original implementation 
@@ -373,7 +367,6 @@ class TableRule(BlockRule):
         parsed_row = parse_row(
             cursor=ctx.cursor,
             row_span=Range(m.start, m.start+len(rawrow)-1),
-            options=self.options
         )
 
         if parsed_row is None:
