@@ -169,6 +169,10 @@ class Event:
     def is_soft_break(self) -> bool:
         return self.kind == InlineLeaf.SOFT_BREAK
 
+    @property
+    def is_blankline(self) -> bool:
+        return self.kind == BlockLeaf.BLANKLINE
+
     def adjust_end(self, to: int):
         self.span.end = to
 
