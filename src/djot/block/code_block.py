@@ -137,10 +137,6 @@ class CodeBlockRule(BlockRule):
             return RuleResult.continue_ok()
 
         # If we find ending token, it should stop at this container.
-        container.data.span = Range(
-            start=m.start,
-            end=m.start + len(m.captures[0]) - 1
-        )
         container.update_closing_boundary(m.start, m.start + len(m.captures[0]) - 1)
 
         # ctx.cursor.advance_to(m.end) # before newline
@@ -159,11 +155,6 @@ class CodeBlockRule(BlockRule):
     ) -> RuleResult:
         sp = ctx.cursor.pos
         ep = ctx.cursor.pos
-
-        if isinstance(container.data, CodeBlockData):
-            if container.data.span:
-                sp = container.data.span.start
-                ep = container.data.span.end
 
         if container.closing_boundary:
             sp = container.closing_boundary.start

@@ -64,7 +64,6 @@ class FencedDivRule(BlockRule):
             rule=self,
             data=FencedDivData(
                 colons=len(colons),
-                span=None
             ),
             start_pos=cursor.pos,
         )

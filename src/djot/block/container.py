@@ -49,12 +49,10 @@ class TableData:
 @dataclass
 class FencedDivData:
     colons: int
-    span: Optional[Range]
 
 @dataclass
 class CodeBlockData:
     close_pattern: re.Pattern
-    span: Optional[Range] = None
 
 @dataclass
 class AttributeData:
