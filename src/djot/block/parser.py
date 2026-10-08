@@ -64,6 +64,10 @@ class EventParser:
             CodeBlockRule()
         ]
 
+    @property
+    def source_text(self) -> str:
+        return self.state.cursor.src
+    
     def process_line(self) -> List[Event]:
         self.state.start_newline()
         logger.debug(f'\n▶ Start a newline: {self.state.cursor} ===')
