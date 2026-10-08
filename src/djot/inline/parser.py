@@ -3,10 +3,11 @@ from typing import Dict, Iterator, Optional
 from ..input import InputText
 from ..event import (
     Event,
-    InlineLeaf,
     BlockContainer,
-    InlineLeaf,
     VerbatimKind,
+    InlineContainer,
+    InlineLeaf,
+    InlineLeaf,
 )
 from ..common import Range
 from ..attributes import (
@@ -173,7 +174,7 @@ class InlineParser:
                 
                 self.state.push_event(
                     Event.enter( # The opening {
-                        kind=BlockContainer.ATTRIBUTES,
+                        kind=InlineContainer.ATTR,
                         span=Range(sp, sp)
                     )
                 )
@@ -182,7 +183,7 @@ class InlineParser:
                 self.state.extend_events(attribute_parser.events)
                 self.state.push_event(
                     Event.exit(
-                        kind=BlockContainer.ATTRIBUTES,
+                        kind=InlineContainer.ATTR,
                         span=Range(result.position, result.position)
                     )
                 )
