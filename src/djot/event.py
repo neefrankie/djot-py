@@ -2,29 +2,29 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import List, Optional, Union
 
-from .common import Range
+from .common import Range, Alignment
 
 class Action(Enum):
     ENTER = auto()
     EXIT = auto()
 
 class BlockContainer(Enum):
-    ATTRIBUTES = auto() # +/-
+    ATTRIBUTES = auto() # {}
     ANNOTATION = auto() # +/-
-    BLOCK_QUOTE = auto() # +/-
-    CAPTION = auto() # +/-
-    CODE_BLOCK = auto() # +/-
-    DIV = auto() # +/-
-    FENCED_DIV = auto() # +/-
-    FOOTNOTE = auto() # +/-
-    HEADING = auto() # +/-
-    LIST = auto() # +/-
-    LIST_ITEM = auto() # +/-
-    REFERENCE_DEFINITION = auto() # +/-
-    PARA = auto() # +/-
-    TABLE = auto() # +/-
-    TABLE_ROW = auto() # +/-
-    TABLE_CELL = auto() # +/-
+    BLOCK_QUOTE = auto() # >
+    CAPTION = auto() # ^
+    CODE_BLOCK = auto() # ``` or ~~~
+    DIV = auto() # :::
+    FOOTNOTE = auto() # [^foo]
+    HEADING = auto()
+    LIST = auto()
+    LIST_ITEM = auto()
+    REFERENCE_DEFINITION = auto()
+    PARA = auto()
+    TABLE = auto()
+    TABLE_ROW = auto()
+    TABLE_CELL = auto()
+    DOC = auto() # Placeholder for the root node
 
 class BlockLeaf(Enum):
     BLANKLINE = auto()
@@ -32,11 +32,13 @@ class BlockLeaf(Enum):
     TABLE_SEPARATOR = auto() # :---:
 
 class VerbatimKind(Enum):
+    """Inline verbatim variants"""
     DISPLAY_MATH = auto() # $$`...`
     INLINE_MATH = auto() # $`...`
     VERBATIM = auto() # `...`
 
 class InlineContainer(Enum):
+    ATTR = auto()
     DELETE = auto() # {- -}
     DESTINATION = auto() # ( )
     DOUBLE_QUOTED = auto() # "  "
@@ -96,13 +98,7 @@ class AttrKind(Enum):
 
     def __str__(self) -> str:
         return self.name
-    
 
-class Alignment(Enum):
-    DEFAULT = auto()
-    LEFT = auto()
-    CENTER = auto()
-    RIGHT = auto()
 
 EventKind = Union[
     BlockContainer,
@@ -140,6 +136,9 @@ class Event:
 
     def __repr__(self) -> str:
         return f'Event(span=({self.span.start},{self.span.end}), kind={self.kind.name}, action={self.action.name if self.action else None}, payload={self.payload})'
+
+    def __len__(self):
+        return self.span.end - self.span.start + 1
 
     @property
     def startpos(self) -> int:
