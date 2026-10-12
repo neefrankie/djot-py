@@ -3,7 +3,6 @@ from typing import Dict, Iterator, Optional
 from ..input import InputText
 from ..event import (
     Event,
-    BlockContainer,
     VerbatimKind,
     InlineContainer,
     InlineLeaf,
@@ -281,6 +280,7 @@ class InlineParser:
 
         # Check for raw attribute
         m2 = self.state.cursor.find_raw_attribute(endchar+1, endpos)
+        # `<sometag>foos</sometag>`{=html}
         if m2 and self.state.verbatim_type == VerbatimKind.VERBATIM: # raw
             self.state.events.append(
                 Event.exit(
@@ -288,6 +288,7 @@ class InlineParser:
                     span=Range(pos, endchar) # the backtick
                 )
             )
+            # An extra event for `=FORMAT`
             self.state.events.append(
                 Event.leaf(
                     span=Range(m2.start, m2.end),
@@ -295,7 +296,7 @@ class InlineParser:
                 )
             )
             pos = m2.end + 1
-        else: # math
+        else:
             self.state.events.append(
                 Event.exit(
                     kind=self.state.verbatim_type,
