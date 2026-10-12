@@ -1,15 +1,16 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List, NamedTuple, Optional
 
-from ..input import InputText, MatchedRange
-from ..inline import InlineParser
-from ..event import (
+from djot.input import InputText, MatchedRange
+from djot.inline import InlineParser
+from djot.event import (
     BlockContainer,
     Alignment,
     Event,
     InlineLeaf,
+    InlineContainer,
 )
-from ..common import Range
+from djot.common import Range
 
 from .container import (
     ContainerCap,
@@ -62,7 +63,13 @@ def parse_separator_row(
     cursor: InputText,
     span: Range, # | :---:  | :---: |
 ) -> Optional[List[Event]]:
-    
+    """
+    TABLE_ROW
+    TABLE_SEPARATOR
+    ...
+    TABLE_SEPARATOR
+    TABLE_ROW
+    """
     events: List[Event] = [
         Event.enter(
             kind=BlockContainer.TABLE_ROW,
@@ -184,6 +191,13 @@ def parse_data_row(
     cursor: InputText,
     span: Range, # | fruit  | price |
 ) -> Optional[List[Event]]:
+    """
+    TABLE_ROW
+    TABLE_CELL
+    ...
+    TABLE_CELL
+    TABLE_ROW
+    """
     
     events: List[Event] = [
         Event.enter(
@@ -205,7 +219,7 @@ def parse_data_row(
         # Parse a single cell
         inline_parser.state.push_event(
             Event.enter(
-                kind=BlockContainer.TABLE_CELL,
+                kind=InlineContainer.TABLE_CELL,
                 span=cursor.new_span(
                     start=pipe_start, # the start pipe of a cell
                     end=pipe_start,
@@ -222,7 +236,7 @@ def parse_data_row(
 
         inline_parser.state.push_event(
             Event.exit(
-                kind=BlockContainer.TABLE_CELL,
+                kind=InlineContainer.TABLE_CELL,
                 span=cursor.new_span(
                     start=nextbar, # The end pipe of a cell.
                     end=nextbar
