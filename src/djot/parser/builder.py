@@ -49,7 +49,7 @@ from .handle_link import (
 )
 from .handle_list import (
     ListHandler,
-    ListeItemHandler,
+    ListItemHandler,
     CheckboxHandler,
     BlanklineHandler,
 )
@@ -102,7 +102,7 @@ class ASTBuidler:
             BlockContainer.PARA:        ParaHandler(),
             BlockContainer.HEADING:     HeadingHandler(),
             BlockContainer.LIST:        ListHandler(),
-            BlockContainer.LIST_ITEM:   ListeItemHandler(),
+            BlockContainer.LIST_ITEM:   ListItemHandler(),
             InlineLeaf.CHECKBOX:        CheckboxHandler(),
             BlockContainer.BLOCK_QUOTE: BlockquoteHandler(),
             BlockContainer.TABLE:       TableHandler(),

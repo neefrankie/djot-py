@@ -115,7 +115,7 @@ def is_definition(styles: List[str]) -> bool:
 
 
 # BlockContainer.LIST_ITEM
-class ListeItemHandler(Handler):
+class ListItemHandler(Handler):
     """
     (iv) four
      
