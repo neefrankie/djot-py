@@ -167,7 +167,7 @@ class InputText:
 
     def _calculate_eol(self):
         i = self.pos
-        while not self.src[i] != '\n':
+        while self.src[i] != '\n':
             i += 1
 
         self.line_end = i
