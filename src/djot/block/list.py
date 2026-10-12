@@ -1,17 +1,19 @@
-import re
 from typing import List
 from dataclasses import dataclass
-import re
 from typing import List
 
-from ..input import InputText
-from ..event import (
+from djot.input import InputText
+from djot.event import (
     BlockContainer,
     Event,
     InlineLeaf,
 )
-from ..logger import logger
-from ..common import Range
+from djot.logger import logger
+from djot.common import Range
+from djot.list_style import (
+    parse_list_styles,
+    intersect_list_styles
+)
 
 from .container import (
     ContainerCap,
@@ -22,80 +24,6 @@ from .container import (
     RuleResult,
     ParsingContext,
 )
-
-
-_re_task_list_item = re.compile(r'^[+*-] \[[Xx ]\]')
-# 1. ordered, decimal-enumerated, followed by period
-# 1) ordered, decimal-enumerated, followed by parenthesis
-# (1) ordered, decimal-enumerated, enclosed in parentheses
-_re_decimal_item = re.compile(r'^[(]?[0-9]+[).]')
-_re_decimal_multiple = re.compile(r'[0-9]+')
-# a. ordered, lower-alpha-enumerated, followed by period
-# a) ordered, lower-alpha-enumerated, followed by parenthesis
-# (a) ordered, lower-alpha-enumerated, enclosed in parentheses
-# i. 
-# i)
-# (i)
-_re_lower_roman_alpha_item = re.compile(r'^[(]?[ivxlcdm][).]')
-_re_lower_alpha_multiple = re.compile(r'[a-z]+')
-
-# A. ordered, upper-alpha-enumerated, followed by period
-# A) ordered, upper-alpha-enumerated, followed by parenthesis
-# (A) ordered, upper-alpha-enumerated, enclosed in parentheses
-# I. ordered, upper-roman-enumerated, followed by period
-# I) ordered, upper-roman-enumerated, followed by parenthesis
-# (I) ordered, upper-roman-enumerated, enclosed in parentheses
-_re_upper_roman_alpha_item = re.compile(r'^[(]?[IVXLCDM][).]')
-_re_upper_alpha = re.compile(r'[A-Z]+')
-
-_re_lower_roman_item = re.compile(r'^[(]?[ivxlcdm]+[).]')
-_re_upper_roman_item = re.compile(r'^[(]?[IVXLCDM]+[).]')
-
-# a. 
-# a) 
-# (a) 
-_re_lower_alpha_item = re.compile(r'^[(]?[a-z][).]')
-_re_lower_alpha_single = re.compile(r'[a-z]')
-
-# A. ordered, upper-alpha-enumerated, followed by period
-# A) ordered, upper-alpha-enumerated, followed by parenthesis
-# (A) ordered, upper-alpha-enumerated, enclosed in parentheses
-_re_upper_alpha_item = re.compile(r'^[(]?[A-Z][).]')
-_re_upper_alpha_single = re.compile(r'[A-Z]')
-
-def get_list_styles(marker: str) -> List[str]:
-    if marker in {'+', '-', '*', ':'}:
-        return [marker]
-    elif _re_task_list_item.search(marker):
-        return [marker[0] + "X"] # task list - include marker for consistency
-    elif _re_decimal_item.search(marker):
-        return [_re_decimal_multiple.sub('1', marker)]
-    elif _re_lower_roman_alpha_item.search(marker):
-        # a., a), (a)
-        # i., i), (i)
-        return [
-            _re_lower_alpha_multiple.sub('i', marker),
-            _re_lower_alpha_multiple.sub('a', marker)
-        ]
-    elif _re_upper_roman_alpha_item.search(marker):
-        return [
-            _re_upper_alpha.sub('I', marker),
-            _re_upper_alpha.sub('A', marker)
-        ]
-    elif _re_lower_roman_item.search(marker):
-        return [_re_lower_alpha_multiple.sub('i', marker)]
-    elif _re_upper_roman_item.search(marker):
-        return [_re_upper_alpha.sub('I', marker)]
-    elif _re_lower_alpha_item.search(marker):
-        return [_re_lower_alpha_single.sub('a', marker)]
-    elif _re_upper_alpha_item.search(marker):
-        return [_re_upper_alpha_single.sub('A', marker)]
-    else:
-        return []
-
-
-
-
 
 @dataclass
 class ListRule(BlockRule):
@@ -123,18 +51,10 @@ class ListRule(BlockRule):
         if mtask is not None:
             marker = cursor.src[mtask.start:mtask.start + 5] # '- [ ]'
 
-        # ['+'], ['-'], ['*'], [':']
-        # ['-X']
-        # ['(1)'], ['1.'], ['1)']
-        # ['(i)', '(a)'], ['i.', 'a.'], ['i)', 'a)']
-        # ['(I)', '(A)'], ['I.', 'A.'], ['I)', 'A)']
-        # ['(i)'], ['i.'], ['i)']
-        # ['(I)'], ['I.'], ['I)']
-        # ['(a)'], ['a.'], ['a)']
-        # ['(A)'], ['A.'], ['A)']
-        styles = get_list_styles(marker)
+
+        styles = parse_list_styles(marker)
         logger.debug(f'⏺ styles: {styles}')
-        if len(styles) == 0:
+        if styles is None:
             return RuleResult.fail()
         
         container = Container(
@@ -197,12 +117,15 @@ class ListRule(BlockRule):
         if mtask is not None:
             marker = ctx.cursor.src[mtask.start:mtask.start + 5]
 
-        styles = get_list_styles(marker)
-        
-        newstyles: List[str] = []
-        for prev_style in container.data.styles:
-            if prev_style in styles:
-                newstyles.append(prev_style)
+        # If new styles does not include previous style, drop it.
+        # This plays two roles:
+        # 1. narrow down styles based on later items
+        # 2. stop a list if styles changed.
+        incoming_styles = parse_list_styles(marker)
+        newstyles = intersect_list_styles(
+            container.data.styles,
+            incoming_styles
+        )
 
         if not newstyles:
             return RuleResult.fail()
@@ -270,7 +193,7 @@ class ListItemRule(BlockRule):
             marker = cursor.src[mtask.start:mtask.end+5] # - [X]
             checkbox = cursor.src[mtask.start+3] # ' ', 'x', 'X'
 
-        styles = get_list_styles(marker)
+        styles = parse_list_styles(marker)
         if len(styles) == 0:
             return RuleResult.fail()
 
