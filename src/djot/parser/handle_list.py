@@ -21,7 +21,7 @@ from djot.event import (
     ListPayload,
     CheckboxPayload,
 )
-from djot.list_style import ListStyle
+from djot.common.list_style import ListStyle
 
 from .roman import get_list_start
 from .state import (

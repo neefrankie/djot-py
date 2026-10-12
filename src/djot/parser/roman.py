@@ -1,4 +1,4 @@
-from djot.list_style import OrderedStyle, OrdinalStyle
+from djot.common.list_style import OrderedStyle, OrdinalStyle
 
 roman_digits = {
     'i': 1,

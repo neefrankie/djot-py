@@ -23,7 +23,7 @@ from djot.ast import (
     Cell,
 )
 from djot.logger import logger
-from djot.list_style import ListStyle
+from djot.common.list_style import ListStyle
 
 from .attr import AttrBuilder
 
