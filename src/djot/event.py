@@ -1,8 +1,9 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum, auto
 from typing import List, Optional, Union
 
 from .common import Range, Alignment
+from .list_style import ListStyle
 
 class Action(Enum):
     ENTER = auto()
@@ -110,7 +111,7 @@ EventKind = Union[
 
 @dataclass(slots=True)
 class ListPayload:
-    styles: List[str]
+    styles: List[ListStyle]
     
 
 @dataclass(slots=True)
@@ -175,12 +176,12 @@ class Event:
     def adjust_end(self, to: int):
         self.span.end = to
 
-    def with_list_styles(self, styles: List[str]):
+    def with_list_styles(self, styles: List[ListStyle]):
         if self.kind != BlockContainer.LIST and self.kind != BlockContainer.LIST_ITEM:
             return self
         
         self.payload = ListPayload(
-            styles=styles
+            styles=styles,
         )
         return self
 
@@ -347,10 +348,3 @@ class Event:
             kind=kind,
             action=None
         )
-
-
-@dataclass(slots=True)
-class ListEvent(Event):
-    styles: List[str] = field(default_factory=list)
-
-
