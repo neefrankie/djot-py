@@ -244,14 +244,6 @@ class Event:
         )
 
     @classmethod
-    def row(cls, startpos: int, endpos: int, open: bool = True) -> 'Event':
-        return cls(
-            span=Range(startpos, endpos),
-            kind=BlockContainer.TABLE_ROW,
-            action=Action.ENTER if open else Action.EXIT,
-        )
-
-    @classmethod
     def leaf(cls, span: Range, kind: BlockLeaf | InlineLeaf) -> 'Event':
         return cls(
             span=span,
@@ -264,22 +256,6 @@ class Event:
         return cls(
             span=Range(startpos, endpos),
             kind=InlineLeaf.STR,
-            action=None
-        )
-
-    @classmethod
-    def ref_key(cls, startpos: int, endpos: int) -> 'Event':
-        return cls(
-            span=Range(startpos, endpos),
-            kind=InlineLeaf.REFERENCE_KEY,
-            action=None
-        )
-
-    @classmethod
-    def ref_value(cls, startpos: int, endpos: int) -> 'Event':
-        return cls(
-            span=Range(startpos, endpos),
-            kind=InlineLeaf.REFERENCE_VALUE,
             action=None
         )
 
