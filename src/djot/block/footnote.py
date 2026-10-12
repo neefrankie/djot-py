@@ -47,7 +47,7 @@ class FootnoteRule(BlockRule):
         if m is None:
             return RuleResult.fail()
 
-        # [^foo]:SPACE
+        # '[^foo]: '
         start_pos = m.start # [
         end_pos = m.end # space aftr :
         label = m.captures[0] # foo
