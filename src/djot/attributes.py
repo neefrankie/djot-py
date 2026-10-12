@@ -27,10 +27,9 @@ quotedval <- '"' ([^"] | '\"') '"'
 NOTE: this is the original js doc. My impelementation does not support newline and comment in attributes.
 """
 
-import string
 from dataclasses import dataclass
 from enum import Enum
-from typing import Final, List
+from typing import List
 
 from .event import Event, AttrKind
 from .input import InputText
