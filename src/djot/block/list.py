@@ -295,6 +295,10 @@ class ListItemRule(BlockRule):
         # cursor.advance_to(ep)
         next_pos = ep
 
+        # - [X]
+        # LISTE_ITEM
+        # CHECKBOX
+        # LIST_ITEM
         if checkbox is not None:
             # For checkbox, its range only includes [X]
             events.append(
