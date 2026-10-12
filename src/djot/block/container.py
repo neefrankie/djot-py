@@ -4,13 +4,15 @@ from enum import Enum, auto
 import re
 from typing import Any, Generic, List, Optional, TypeVar
 
-from ..input import InputText
-from ..inline import InlineParser
-from ..attributes import AttributeParser, AttrFlowControl
-from ..event import (
+from djot.input import InputText
+from djot.inline import InlineParser
+from djot.attributes import AttributeParser, AttrFlowControl
+from djot.event import (
     Event,
 )
-from ..common import Range
+from djot.common import Range
+
+from djot.list_style import ListStyle
 
 
 # In djot.js, this is called ContentType.
@@ -39,7 +41,7 @@ class RefDefData:
 
 @dataclass
 class ListData:
-    styles: List[str]
+    styles: List[ListStyle]
     indent: int
 
 @dataclass
