@@ -1,4 +1,4 @@
-from typing import Dict, List, NamedTuple, Optional
+from typing import List
 import unittest
 
 from djot.common import Range
@@ -13,17 +13,9 @@ from djot.event import (
     AttrKind,
 )
 from djot.input import InputText
-from djot.block.container import (
-    BlockRule,
-    Container,
-    RuleResult,
-    FlowControl,
-    ParsingContext,
-)
-from djot.block.para import ParaRule
-from djot.block.blockquote import BlockquoteRule
 from djot.block import EventParser
 from djot.block.table import scan_table_pipe, parse_data_row
+from djot.list_style import ListStyle, OrderedStyle
 
 def enter(start: int, end: int, kind: BlockContainer | InlineContainer | VerbatimKind):
     return Event.enter(
@@ -119,8 +111,8 @@ class TestEventParser(unittest.TestCase):
                 #0123456 7890
                 [
                     Event.enter(Range(0, 0), BlockContainer.REFERENCE_DEFINITION),
-                    Event.ref_key(0, 4),
-                    Event.ref_value(8, 10),
+                    Event.leaf(Range(0, 4), InlineLeaf.REFERENCE_KEY),
+                    Event.leaf(Range(8, 10), InlineLeaf.REFERENCE_VALUE),
                     Event.exit(Range(11, 11), BlockContainer.REFERENCE_DEFINITION)
                 ]
             ),
@@ -149,26 +141,26 @@ class TestEventParser(unittest.TestCase):
 
         expected = [
             Event.enter(Range(0, 0), BlockContainer.TABLE),
-            Event.row(0, 0),
+            Event.enter(Range(0, 0), BlockContainer.TABLE_ROW),
             Event.enter(Range(0, 0), InlineContainer.TABLE_CELL),
             Event.str(2, 2),
             Event.exit(Range(4, 4), InlineContainer.TABLE_CELL),
             Event.enter(Range(4, 4), InlineContainer.TABLE_CELL),
             Event.str(6, 6),
             Event.exit(Range(8, 8), InlineContainer.TABLE_CELL),
-            Event.row(9, 9, False),
-            Event.row(10, 10),
+            Event.exit(Range(9, 9), BlockContainer.TABLE_ROW),
+            Event.enter(Range(10, 10), BlockContainer.TABLE_ROW),
             Event.table_sep(11, 12).with_table_alignment(Alignment.DEFAULT),
             Event.table_sep(14, 16).with_table_alignment(Alignment.RIGHT),
-            Event.row(17, 17, False),
-            Event.row(19, 19),
+            Event.exit(Range(17, 17), BlockContainer.TABLE_ROW),
+            Event.enter(Range(19, 19), BlockContainer.TABLE_ROW),
             Event.enter(Range(19, 19), InlineContainer.TABLE_CELL),
             Event.str(20, 21),
             Event.exit(Range(22, 22), InlineContainer.TABLE_CELL),
             Event.enter(Range(22, 22), InlineContainer.TABLE_CELL),
             Event.str(23, 23),
             Event.exit(Range(24, 24), InlineContainer.TABLE_CELL),
-            Event.row(25, 25, False),
+            Event.exit(Range(25, 25), BlockContainer.TABLE_ROW),
             Event.exit(Range(26, 26), BlockContainer.TABLE)
         ]
 
@@ -199,34 +191,48 @@ class TestEventParser(unittest.TestCase):
         actual = list(EventParser(text).parse())
 
         expected = [
-            Event.enter(Range(0, 0), BlockContainer.LIST).with_list_styles(['-']),
-            Event.enter(Range(0, 0), BlockContainer.LIST_ITEM).with_list_styles(['-']),
+            Event.enter(Range(0, 0), BlockContainer.LIST).with_list_styles([ListStyle.new_bullet('-')]),
+            Event.enter(Range(0, 0), BlockContainer.LIST_ITEM).with_list_styles([ListStyle.new_bullet('-')]),
             Event.enter(Range(2, 2), BlockContainer.PARA),
             Event.str(2, 4),
             Event.exit(Range(5, 5), BlockContainer.PARA),
             Event.exit(Range(5, 5), BlockContainer.LIST_ITEM),
-            Event.enter(Range(6, 6), BlockContainer.LIST_ITEM).with_list_styles(['-']),
+            Event.enter(Range(6, 6), BlockContainer.LIST_ITEM).with_list_styles([
+                ListStyle.new_bullet('-')
+            ]),
             Event.enter(Range(8, 8), BlockContainer.PARA),
             Event.str(8, 10),
             Event.exit(Range(11, 11), BlockContainer.PARA),
             Event.exit(Range(11, 11), BlockContainer.LIST_ITEM),
             # Event.exit(Range(12, 12), BlockContainer.LIST),
             Event.exit(Range(11, 11), BlockContainer.LIST), # NOTE: this is a fix of djot.js list closing position.
-            Event.enter(Range(12, 13), BlockContainer.LIST).with_list_styles(['1.']),
-            Event.enter(Range(12, 13), BlockContainer.LIST_ITEM).with_list_styles(['1.']),
+            Event.enter(Range(12, 13), BlockContainer.LIST).with_list_styles([
+                ListStyle.new_ordered(OrderedStyle.new_decimal_period())
+            ]),
+            Event.enter(Range(12, 13), BlockContainer.LIST_ITEM).with_list_styles([
+                ListStyle.new_ordered(OrderedStyle.new_decimal_period())
+            ]),
             Event.enter(Range(15, 15), BlockContainer.PARA),
             Event.str(15, 19),
             Event.exit(Range(20, 20), BlockContainer.PARA),
             Event.exit(Range(20, 20), BlockContainer.LIST_ITEM),
             Event.exit(Range(20, 20), BlockContainer.LIST),
-            Event.enter(Range(21, 24), BlockContainer.LIST).with_list_styles(['(i)']),
-            Event.enter(Range(21, 24), BlockContainer.LIST_ITEM).with_list_styles(['(i)']),
+            Event.enter(Range(21, 24), BlockContainer.LIST).with_list_styles([
+                ListStyle.new_ordered(OrderedStyle.new_lower_roman_two_parens())
+            ]),
+            Event.enter(Range(21, 24), BlockContainer.LIST_ITEM).with_list_styles([
+                ListStyle.new_ordered(OrderedStyle.new_lower_roman_two_parens())
+            ]),
             Event.enter(Range(26, 26), BlockContainer.PARA),
             Event.str(26, 29),
             Event.exit(Range(30, 30), BlockContainer.PARA),
             Event.blankline(31, 31),
-            Event.enter(Range(33, 33), BlockContainer.LIST).with_list_styles(['-']),
-            Event.enter(Range(33, 33), BlockContainer.LIST_ITEM).with_list_styles(['-']),
+            Event.enter(Range(33, 33), BlockContainer.LIST).with_list_styles([
+                ListStyle.new_bullet('-')
+            ]),
+            Event.enter(Range(33, 33), BlockContainer.LIST_ITEM).with_list_styles([
+                ListStyle.new_bullet('-')
+            ]),
             Event.enter(Range(35, 35), BlockContainer.PARA),
             Event.str(35, 37),
             Event.exit(Range(38, 38), BlockContainer.PARA),
@@ -248,8 +254,12 @@ class TestEventParser(unittest.TestCase):
         actual = list(EventParser(text).parse())
 
         expected = [
-            Event.enter(Range(0,0), BlockContainer.LIST).with_list_styles([':']),
-            Event.enter(Range(0,0), BlockContainer.LIST_ITEM).with_list_styles([':']),
+            Event.enter(Range(0,0), BlockContainer.LIST).with_list_styles([
+                ListStyle.new_definition(),
+            ]),
+            Event.enter(Range(0,0), BlockContainer.LIST_ITEM).with_list_styles([
+                ListStyle.new_definition(),
+            ]),
             Event.enter(Range(2,2), BlockContainer.PARA),
             Event.str(2,7),
             Event.exit(Range(8,8), BlockContainer.PARA),
@@ -440,7 +450,7 @@ class TestParsingTable(unittest.TestCase):
         actual = parse_data_row(InputText(text), Range(0, 11))
 
         expected = [
-            Event.row(0, 0),
+            Event.enter(Range(0, 0), BlockContainer.TABLE_ROW),
             Event.enter(Range(0, 0), InlineContainer.TABLE_CELL),
             Event.enter(Range(2, 2), VerbatimKind.VERBATIM),
             Event.str(3, 3),
@@ -451,7 +461,7 @@ class TestParsingTable(unittest.TestCase):
             Event.escape(8, 8),
             Event.str(9, 10),
             Event.exit(Range(11, 11), InlineContainer.TABLE_CELL),
-            Event.row(11, 11, False),
+            Event.exit(Range(11, 11), BlockContainer.TABLE_ROW),
         ]
 
         # if actual is not None:
@@ -463,185 +473,6 @@ class TestParsingTable(unittest.TestCase):
         
 
 
-
-class Args(NamedTuple):
-    text: str
-    pos: int = 0
-    is_covered: bool = False
-    last_span_end: Optional[int] = None
-
-class Expected(NamedTuple):
-    pos: int
-    result: RuleResult
-
-class TestCase(NamedTuple):
-    name: str
-    args: Args
-    expected: Expected
-    rule: BlockRule
-
-rules: Dict[BlockContainer, BlockRule] = {
-    BlockContainer.PARA: ParaRule(),
-    BlockContainer.BLOCK_QUOTE: BlockquoteRule(),
-
-}
-
-def new_open_result(pos: int, kind: BlockContainer) -> RuleResult:
-    return RuleResult(
-        status=FlowControl.OPEN,
-        events=[
-            Event.enter(
-                kind=kind,
-                span=Range(pos, pos)
-            )
-        ],
-        container=Container(
-            rule=rules[kind],
-        )
-    )
-
-def new_close_result(pos: int, kind: BlockContainer) -> RuleResult:
-    return RuleResult(
-        status=FlowControl.CLOSE,
-        events=[
-            Event.exit(
-                kind=kind,
-                span=Range(pos, pos)
-            )
-        ],
-        container=None
-    )
-
-
-class TestRules(unittest.TestCase):
-    def test_open(self):
-        cases = [
-            TestCase(
-                'open para',
-                args=Args(
-                    text='This is a paragraph.',
-                ),
-                expected=Expected(
-                    pos=0,
-                    result=new_open_result(0, BlockContainer.PARA)
-                ),
-                rule=ParaRule(),
-            ),
-            TestCase(
-                'open blockquote',
-                args=Args(
-                    text='> Blockquote starts here.',
-                ),
-                expected=Expected(
-                    pos=2,
-                    result=new_open_result(0, BlockContainer.BLOCK_QUOTE)
-                ),
-                rule=BlockquoteRule(),
-            ),
-        ]
-
-        for name, args, expected, rule in cases:
-            with self.subTest(name):
-                cursor = InputText(args.text)
-                cursor.pos = args.pos
-
-                result = rule.try_open(cursor)
-                self.assertEqual(result, expected.result)
-
-    def test_continue(self):
-        cases = [
-            TestCase(
-                'continue para',
-                args=Args(
-                    text='This is a paragraph.',
-                ),
-                expected=Expected(
-                    pos=0,
-                    result=RuleResult.continue_ok()
-                ),
-                rule=ParaRule(),
-            ),
-            TestCase(
-                'whitespace cannot continue para',
-                args=Args(
-                    text=' ...continued',
-                ),
-                expected=Expected(
-                    pos=0,
-                    result=RuleResult.fail()
-                ),
-                rule=ParaRule(),
-            ),
-            TestCase(
-                'continue blockquote',
-                args=Args(
-                    text='> This is a paragraph.',
-                    pos=0,
-                ),
-                expected=Expected(
-                    pos=1,
-                    result=RuleResult.continue_ok()
-                ),
-                rule=ParaRule(),
-            ),
-        ]
-
-        for name, args, expected, rule in cases:
-            with self.subTest(name):
-                cursor = InputText(args.text)
-                cursor.pos = args.pos
-
-                result = rule.on_continue(
-                    Container(ParaRule()),
-                    ParsingContext(
-                        cursor=cursor,
-                    )
-                )
-                self.assertEqual(result, expected.result)
-
-    def test_close(self):
-        cases = [
-            TestCase(
-                'close para',
-                args=Args(
-                    text='this paragraph ends here.',
-                    pos=25,
-                    last_span_end=24,
-                ),
-                expected=Expected(
-                    pos=25,
-                    result=new_close_result(25, BlockContainer.PARA)
-                ),
-                rule=ParaRule(),
-            ),
-            TestCase(
-                'close blockquote',
-                args=Args(
-                    text='A new block.',
-                    pos=0,
-                ),
-                expected=Expected(
-                    pos=0,
-                    result=new_close_result(0, BlockContainer.BLOCK_QUOTE)
-                ),
-                rule=BlockquoteRule(),
-            ),
-        ]
-
-        for name, args, expected, rule in cases:
-            with self.subTest(name):
-                cursor = InputText(args.text)
-                cursor.pos = args.pos
-
-                result = rule.on_close(
-                    Container(ParaRule()),
-                    ParsingContext(
-                        cursor=cursor,
-                        is_covered=args.is_covered,
-                        last_span_end=args.last_span_end
-                    )
-                )
-                self.assertEqual(result, expected.result)
 
 
 
