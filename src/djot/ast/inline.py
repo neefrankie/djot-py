@@ -152,7 +152,7 @@ class FootnoteReference(HasText, InlineNode):
     def tag(self) -> str:
         return 'footnote_reference'
 
-class SmartPunctuationType(Enum):
+class SmartPunctType(Enum):
     LEFT_SINGLE_QUOTE = 0
     RIGHT_SINGLE_QUOTE = 1
     LEFT_DOUBLE_QUOTE = 2
@@ -163,7 +163,7 @@ class SmartPunctuationType(Enum):
 
 @dataclass(kw_only=True)
 class SmartPunctuation(HasText, InlineNode):
-    type: SmartPunctuationType
+    type: SmartPunctType
 
     @property
     def tag(self) -> str:
