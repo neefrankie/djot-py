@@ -8,7 +8,6 @@ from djot.ast import (
     BulletListStyle,
     OrderedList,
     OrderedListStyle,
-    CheckboxStatus,
     Para,
     Term,
     Definition,
@@ -21,8 +20,8 @@ from djot.event import (
     Event,
     ListPayload,
     CheckboxPayload,
-    BlockLeaf,
 )
+from djot.list_style import ListStyle
 
 from .roman import get_list_start
 from .state import (
@@ -35,7 +34,7 @@ from .frame import Frame, ListData, ListItemData
 # BlockContainer.LIST
 class ListHandler(Handler):
     def on_enter(self, state: BuildingState, ctx: DocumentContext, event: Event) -> Frame | None:
-        styles: List[str] = []
+        styles: List[ListStyle] = []
         if isinstance(event.payload, ListPayload):
             styles = event.payload.styles.copy()
 
@@ -63,18 +62,15 @@ class ListHandler(Handler):
 
     def _create_list_node(self, frame: Frame, pos: Pos, list_data: ListData) -> AstNode:
 
-        list_style = list_data.styles[0]
-        if not list_style:
+        first_style = list_data.styles[0]
+        if not first_style:
             raise Exception('No style defined for list')
 
         # In djot.js, it called a function `tightenContainerEnd(node);`.
         # The author might be trying to fix indeterministic cursor problem
         # generated during the event parsing pahse.
-        list_start = get_list_start(
-            list_data.first_marker,
-            list_style,
-        )
-        if list_style == ':':
+        
+        if first_style.is_definition:
             return DefinitionList(
                 attributes=frame.attributes.build(),
                 pos=pos,
@@ -83,7 +79,7 @@ class ListHandler(Handler):
 
         is_loose = frame.is_loose_list()
 
-        if list_style.endswith('X'):
+        if first_style.is_task:
             return TaskList(
                 attributes=frame.attributes.build(),
                 pos=pos,
@@ -91,27 +87,33 @@ class ListHandler(Handler):
                 loose=is_loose,
             )
 
-        if list_style in ('+', '*', '-'):
+        if first_style.is_bullet:
             return BulletList(
                 attributes=frame.attributes.build(),
                 pos=pos,
                 children=frame.pop_list_item(),
                 loose=is_loose,
-                style=BulletListStyle(list_style)
+                style=BulletListStyle(first_style)
             )
 
+        assert first_style.ordered is not None
+
+        list_start = get_list_start(
+            list_data.first_marker,
+            first_style.ordered,
+        )
         return OrderedList(
             attributes=frame.attributes.build(),
             pos=pos,
             children=frame.pop_list_item(),
             loose=is_loose,
-            style=OrderedListStyle(list_style),
+            style=OrderedListStyle(str(first_style.ordered)),
             start=list_start
         )
 
 
-def is_definition(styles: List[str]) -> bool:
-    return len(styles)==1 and styles[0] == ':'
+def is_definition(styles: List[ListStyle]) -> bool:
+    return len(styles)==1 and styles[0].is_definition
 
 
 # BlockContainer.LIST_ITEM
