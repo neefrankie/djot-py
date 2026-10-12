@@ -53,7 +53,7 @@ class InputText:
     _PATT_REFERENCE_DEFINITION = re.compile(r'\[([^\]\r\n]*)\]:([ \t]+[^ \t\r\n]*|)[\r\n]')
     _PATT_THEMATIC_BREAK = re.compile(r'[-*][ \t]*[-*][ \t]*[-*][-* \t]*\r?\n')
     _PATT_LIST_MARKER = re.compile(
-        r'(:?[-*+:]' # - or * or + or :
+        r'(:?[-*+:]' # - or * or + or :, this group includes possible task list.
         r'|\([0-9]+\)' # (1)
         r'|[0-9]+[.)]' #  1. or 1)
         r'|[ivxlcdmIVXLCDM]+[.)]' # i. or i)
