@@ -23,6 +23,7 @@ from .container import (
     ParsingContext,
 )
 
+
 _re_task_list_item = re.compile(r'^[+*-] \[[Xx ]\]')
 # 1. ordered, decimal-enumerated, followed by period
 # 1) ordered, decimal-enumerated, followed by parenthesis
@@ -63,13 +64,15 @@ _re_upper_alpha_item = re.compile(r'^[(]?[A-Z][).]')
 _re_upper_alpha_single = re.compile(r'[A-Z]')
 
 def get_list_styles(marker: str) -> List[str]:
-    if marker == '+' or marker == '-' or marker == '*' or marker == ':':
+    if marker in {'+', '-', '*', ':'}:
         return [marker]
     elif _re_task_list_item.search(marker):
         return [marker[0] + "X"] # task list - include marker for consistency
     elif _re_decimal_item.search(marker):
         return [_re_decimal_multiple.sub('1', marker)]
     elif _re_lower_roman_alpha_item.search(marker):
+        # a., a), (a)
+        # i., i), (i)
         return [
             _re_lower_alpha_multiple.sub('i', marker),
             _re_lower_alpha_multiple.sub('a', marker)
@@ -265,7 +268,7 @@ class ListItemRule(BlockRule):
         mtask = cursor.find_task_list_marker() 
         if mtask is not None:
             marker = cursor.src[mtask.start:mtask.end+5] # - [X]
-            checkbox = cursor.src[mtask.start+3:mtask.start+4] # X
+            checkbox = cursor.src[mtask.start+3] # ' ', 'x', 'X'
 
         styles = get_list_styles(marker)
         if len(styles) == 0:
