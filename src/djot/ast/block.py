@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 
 from .base import (
-    AstNode,
     HasText,
     HasChildren,
     InlineNode,
