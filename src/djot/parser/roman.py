@@ -1,3 +1,5 @@
+from djot.list_style import OrderedStyle, OrdinalStyle
+
 roman_digits = {
     'i': 1,
     'v': 5,
@@ -34,21 +36,18 @@ def roman_to_number(s: str) -> int:
     return total
 
 
-def get_list_start(marker: str, style: str) -> int | None:
+def get_list_start(marker: str, style: OrderedStyle) -> int | None:
 
-    numtype = style.replace('(', '').replace(')', '').replace('.', '')
     s = marker.replace('(', '').replace(')', '').replace('.', '')
 
-    match numtype:
-        case '1':
+    match style.ordinal:
+        case OrdinalStyle.DECIMAL:
             return int(s)
-        case 'A':
+        case OrdinalStyle.UPPER_ALPHA:
             return ord(s[0]) - 65 + 1 # 65 = 'A'
-        case 'a':
+        case OrdinalStyle.LOWER_ALPHA:
             return ord(s[0]) - 97 + 1
-        case 'I':
-            return roman_to_number(s)
-        case 'i':
+        case OrdinalStyle.UPPER_ROMAN | OrdinalStyle.LOWER_ROMAN:
             return roman_to_number(s)
         case _:
             return None
