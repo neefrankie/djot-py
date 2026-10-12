@@ -107,9 +107,9 @@ class TestEventParser(unittest.TestCase):
                 #01234567890 12345
                 [
                     Event.enter(Range(0, 0), BlockContainer.REFERENCE_DEFINITION),
-                    Event.ref_key(0, 4),
-                    Event.ref_value(7, 9),
-                    Event.ref_value(12, 14),
+                    Event.leaf(Range(0, 4), InlineLeaf.REFERENCE_KEY),
+                    Event.leaf(Range(7, 9), InlineLeaf.REFERENCE_VALUE),
+                    Event.leaf(Range(12, 14), InlineLeaf.REFERENCE_VALUE),
                     Event.exit(Range(15, 15), BlockContainer.REFERENCE_DEFINITION)
                 ]
             ),
@@ -150,24 +150,24 @@ class TestEventParser(unittest.TestCase):
         expected = [
             Event.enter(Range(0, 0), BlockContainer.TABLE),
             Event.row(0, 0),
-            Event.cell(0, 0),
+            Event.enter(Range(0, 0), InlineContainer.TABLE_CELL),
             Event.str(2, 2),
-            Event.cell(4, 4, False),
-            Event.cell(4, 4),
+            Event.exit(Range(4, 4), InlineContainer.TABLE_CELL),
+            Event.enter(Range(4, 4), InlineContainer.TABLE_CELL),
             Event.str(6, 6),
-            Event.cell(8, 8, False),
+            Event.exit(Range(8, 8), InlineContainer.TABLE_CELL),
             Event.row(9, 9, False),
             Event.row(10, 10),
             Event.table_sep(11, 12).with_table_alignment(Alignment.DEFAULT),
             Event.table_sep(14, 16).with_table_alignment(Alignment.RIGHT),
             Event.row(17, 17, False),
             Event.row(19, 19),
-            Event.cell(19, 19),
+            Event.enter(Range(19, 19), InlineContainer.TABLE_CELL),
             Event.str(20, 21),
-            Event.cell(22, 22, False),
-            Event.cell(22, 22),
+            Event.exit(Range(22, 22), InlineContainer.TABLE_CELL),
+            Event.enter(Range(22, 22), InlineContainer.TABLE_CELL),
             Event.str(23, 23),
-            Event.cell(24, 24, False),
+            Event.exit(Range(24, 24), InlineContainer.TABLE_CELL),
             Event.row(25, 25, False),
             Event.exit(Range(26, 26), BlockContainer.TABLE)
         ]
@@ -218,7 +218,6 @@ class TestEventParser(unittest.TestCase):
             Event.str(15, 19),
             Event.exit(Range(20, 20), BlockContainer.PARA),
             Event.exit(Range(20, 20), BlockContainer.LIST_ITEM),
-            # Event.exit(Range(21, 21), BlockContainer.LIST),
             Event.exit(Range(20, 20), BlockContainer.LIST),
             Event.enter(Range(21, 24), BlockContainer.LIST).with_list_styles(['(i)']),
             Event.enter(Range(21, 24), BlockContainer.LIST_ITEM).with_list_styles(['(i)']),
@@ -242,6 +241,39 @@ class TestEventParser(unittest.TestCase):
         ]
 
         self.assertEqual(actual, expected)
+
+    def test_definition_list(self):
+        text = ": orange\n\n  A citrus fruit.\n"
+        #       012345678 9 012345678901234567
+        actual = list(EventParser(text).parse())
+
+        expected = [
+            Event.enter(Range(0,0), BlockContainer.LIST).with_list_styles([':']),
+            Event.enter(Range(0,0), BlockContainer.LIST_ITEM).with_list_styles([':']),
+            Event.enter(Range(2,2), BlockContainer.PARA),
+            Event.str(2,7),
+            Event.exit(Range(8,8), BlockContainer.PARA),
+            Event.blankline(9,9),
+            Event.enter(Range(12,12), BlockContainer.PARA),
+            Event.str(12,26),
+            Event.exit(Range(27,27), BlockContainer.PARA),
+            Event.exit(Range(27,27), BlockContainer.LIST_ITEM),
+            Event.exit(Range(27,27), BlockContainer.LIST)
+
+        ]
+
+        self.assertEqual(actual, expected)
+
+    def test_loose_list(self):
+        # text = "- one\n\n- two\n"
+        #       012345 6 789012
+
+        text = "- one\n\n  - two\n\n  - three\n"
+        #       012345  678901234 5 67890123456
+        actual = list(EventParser(text).parse())
+
+        for e in actual:
+            print(e)
 
     def test_captions(self):
         text = " ^ This is a\n*capt*\n\n"
@@ -409,17 +441,16 @@ class TestParsingTable(unittest.TestCase):
 
         expected = [
             Event.row(0, 0),
-            Event.cell(0, 0),
+            Event.enter(Range(0, 0), InlineContainer.TABLE_CELL),
             Event.enter(Range(2, 2), VerbatimKind.VERBATIM),
             Event.str(3, 3),
             Event.exit(Range(4, 4), VerbatimKind.VERBATIM),
             Event.str(5, 5),
-            Event.cell(6, 6, False),
-            Event.cell(6, 6),
+            Event.exit(Range(6, 6), InlineContainer.TABLE_CELL),
+            Event.enter(Range(6, 6), InlineContainer.TABLE_CELL),
             Event.escape(8, 8),
             Event.str(9, 10),
-            # Event.str(10, 10),
-            Event.cell(11, 11, False),
+            Event.exit(Range(11, 11), InlineContainer.TABLE_CELL),
             Event.row(11, 11, False),
         ]
 

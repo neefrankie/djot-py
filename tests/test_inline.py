@@ -418,18 +418,18 @@ class TestInlineParser(unittest.TestCase):
     def test_refrence_links(self):
         parser = InlineParser(
             cursor=InputText('[foobar][1]'),
-            
+            #                 01234567890
         )
 
         parser.feed(0, 10)
 
         expected = [
-            event_link_text(0, 0),
+            Event.enter(Range(0, 0), InlineContainer.LINK_TEXT),
             Event.str(1, 6),
-            event_link_text(7, 7, False),
-            event_reference(8, 8),
+            Event.exit(Range(7, 7), InlineContainer.LINK_TEXT),
+            Event.enter(Range(8, 8), InlineContainer.REFERENCE),
             Event.str(9, 9),
-            event_reference(10, 10, False),
+            Event.exit(Range(10, 10), InlineContainer.REFERENCE)
         ]
 
         self.assertEqual(parser.state.get_matches(), expected)
@@ -437,17 +437,17 @@ class TestInlineParser(unittest.TestCase):
     def test_inline_image(self):
         parser = InlineParser(
             cursor=InputText('![foobar](url)'),
-            
+            #                 01234567890123
         )
         parser.feed(0, 13)
         expected = [
-            event_image_marker(0, 0),
-            event_image_text(1, 1),
+            Event.leaf(Range(0, 0), InlineLeaf.IMAGE_MARKER),
+            Event.enter(Range(1, 1), InlineContainer.IMAGE_TEXT),
             Event.str(2, 7),
-            event_image_text(8, 8, False),
-            event_dest(9, 9),
+            Event.exit(Range(8, 8), InlineContainer.IMAGE_TEXT),
+            Event.enter(Range(9, 9), InlineContainer.DESTINATION),
             Event.str(10, 12),
-            event_dest(13, 13, False)
+            Event.exit(Range(13, 13), InlineContainer.DESTINATION),
         ]
 
         self.assertEqual(parser.state.get_matches(), expected)
