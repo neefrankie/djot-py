@@ -23,7 +23,6 @@ class BlockContainer(Enum):
     PARA = auto()
     TABLE = auto()
     TABLE_ROW = auto()
-    TABLE_CELL = auto()
     DOC = auto() # Placeholder for the root node
 
 class BlockLeaf(Enum):
@@ -54,6 +53,7 @@ class InlineContainer(Enum):
     SUBSCRIPT = auto() # +/-
     SUPERSCRIPT = auto() # +/-
     STRONG = auto() # * *
+    TABLE_CELL = auto() # | |
     URL = auto() # < >
     
 
@@ -85,7 +85,6 @@ class InlineLeaf(Enum):
 
 # Atributes are all leaves.
 class AttrKind(Enum):
-    COMMENT = auto()
     CLASS = auto()
     CLASS_MARKER = auto()
     EQUAL_MARKER = auto()
@@ -112,6 +111,7 @@ EventKind = Union[
 @dataclass(slots=True)
 class ListPayload:
     styles: List[str]
+    
 
 @dataclass(slots=True)
 class TablePayload:
@@ -247,14 +247,6 @@ class Event:
         return cls(
             span=Range(startpos, endpos),
             kind=BlockContainer.TABLE_ROW,
-            action=Action.ENTER if open else Action.EXIT,
-        )
-
-    @classmethod
-    def cell(cls, startpos: int, endpos: int, open: bool = True) -> 'Event':
-        return cls(
-            span=Range(startpos, endpos),
-            kind=BlockContainer.TABLE_CELL,
             action=Action.ENTER if open else Action.EXIT,
         )
 
