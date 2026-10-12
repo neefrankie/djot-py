@@ -1,21 +1,20 @@
 from typing import List
 import unittest
 
-from djot.common import Range
+from djot.common import Range, Alignment
 from djot.event import (
     Event,
     BlockContainer,
     InlineContainer,
     VerbatimKind,
     InlineLeaf,
-    Alignment,
     BlockLeaf,
     AttrKind,
 )
 from djot.input import InputText
 from djot.block import EventParser
 from djot.block.table import scan_table_pipe, parse_data_row
-from djot.list_style import ListStyle, OrderedStyle
+from djot.common.list_style import ListStyle, OrderedStyle
 
 def enter(start: int, end: int, kind: BlockContainer | InlineContainer | VerbatimKind):
     return Event.enter(
