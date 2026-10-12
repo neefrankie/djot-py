@@ -10,7 +10,7 @@ from djot.event import (
 )
 from djot.logger import logger
 from djot.common import Range
-from djot.list_style import (
+from djot.common.list_style import (
     parse_list_styles,
     intersect_list_styles
 )

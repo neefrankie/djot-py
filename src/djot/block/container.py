@@ -12,7 +12,7 @@ from djot.event import (
 )
 from djot.common import Range
 
-from djot.list_style import ListStyle
+from djot.common.list_style import ListStyle
 
 
 # In djot.js, this is called ContentType.
