@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from enum import Enum, StrEnum
-from typing import NamedTuple
 
 from .base import (
     AstNode,
@@ -15,21 +14,27 @@ class BulletListStyle(StrEnum):
     DASH = '-'
     STAR = '*'
 
+
+@dataclass(kw_only=True)
 class ListItem(HasChildren[BlockNode], AstNode):
 
     @property
     def tag(self) -> str:
         return 'list_item'
 
-@dataclass
+@dataclass(kw_only=True)
 class BulletList(HasChildren[ListItem], BlockNode):
-    tight: bool
     style: BulletListStyle
+    loose: bool
 
     @property
     def tag(self) -> str:
         return 'bullet_list'
 
+# TODO: it could be classified into:
+# - Alpha/Number/Roman
+# - Dot/Paren/TwoParen
+# - UpperCase/LowerCase for Alpha/Roman
 class OrderedListStyle(StrEnum):
     NUMBER = '1.'
     NUM_RPAREN = '1)'
@@ -47,11 +52,11 @@ class OrderedListStyle(StrEnum):
     UPPER_ROMAN_RPAREN = 'I)'
     UPPER_ROMAN_PAREN = '(I)'
 
-@dataclass
+@dataclass(kw_only=True)
 class OrderedList(HasChildren[ListItem], BlockNode):
     style: OrderedListStyle
-    tight: bool
     start: int | None
+    loose: bool
     
     @property
     def tag(self) -> str:
@@ -61,17 +66,17 @@ class CheckboxStatus(Enum):
     CHECKED = 0
     UNCHECKED = 1
 
-@dataclass
+@dataclass(kw_only=True)
 class TaskListItem(HasChildren[BlockNode], AstNode):
-    status: CheckboxStatus
+    checkbox: CheckboxStatus
 
     @property
     def tag(self) -> str:
         return 'task_list_item'
 
-@dataclass
+@dataclass(kw_only=True)
 class TaskList(HasChildren[TaskListItem], BlockNode):
-    tight: bool
+    loose: bool
 
     @property
     def tag(self) -> str:
@@ -95,8 +100,6 @@ class Term(HasChildren[InlineNode], AstNode):
     @property
     def tag(self) -> str:
         return 'term'
-
-
 @dataclass(kw_only=True)
 class Definition(HasChildren[InlineNode], AstNode):
 
@@ -104,20 +107,14 @@ class Definition(HasChildren[InlineNode], AstNode):
     def tag(self) -> str:
         return 'definition'
 
-
-class TermDefined(NamedTuple):
+@dataclass(kw_only=True)
+class DefinitionListItem(AstNode):
     term: Term
     definition: Definition
-
-
-@dataclass(kw_only=True)
-class DefinitionListItem(HasChildren[TermDefined], AstNode):
 
     @property
     def tag(self) -> str:
         return 'definition_list_item'
-
-
 @dataclass(kw_only=True)
 class DefinitionList(HasChildren[DefinitionListItem], BlockNode):
 
