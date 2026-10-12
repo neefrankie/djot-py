@@ -23,6 +23,7 @@ from djot.ast import (
     Cell,
 )
 from djot.logger import logger
+from djot.list_style import ListStyle
 
 from .attr import AttrBuilder
 
@@ -42,7 +43,7 @@ def _iter_string_content(node: AstNode) -> Iterator[str]:
 
 @dataclass(slots=True)
 class ListData:
-    styles: List[str]
+    styles: List[ListStyle]
     first_marker: str = ''
     has_internal_blank_line: bool = False
     item_has_blankline: bool = False
@@ -162,7 +163,7 @@ class Frame:
         self.children[idx] = child
         
 
-    def merge_list_item_styles(self, styles: List[str], marker: str):
+    def merge_list_item_styles(self, styles: List[ListStyle], marker: str):
         # Current frame is LIST
         if self.list_data is None:
             self.list_data = ListData(
@@ -172,6 +173,11 @@ class Frame:
             return
         
         # narrow styles
+        # Update list styles with latest list item style
+        # If a later item has fewer styles, use it.
+        # For example, if a list item starts with 'i.', it might be
+        # roman numeral or alpha letter.
+        # However, if later items starts with 'j.', we know its alpha.
         if styles and len(styles) < len(self.list_data.styles):
             self.list_data.styles = styles
 
