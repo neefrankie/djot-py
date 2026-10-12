@@ -21,6 +21,20 @@ class OrderedStyle(NamedTuple):
     ordinal: OrdinalStyle
     delimiter: DelimiterStyle
 
+    @classmethod
+    def new_decimal_period(cls):
+        return OrderedStyle(
+            ordinal=OrdinalStyle.DECIMAL,
+            delimiter=DelimiterStyle.PERIOD,
+        )
+
+    @classmethod
+    def new_lower_roman_two_parens(cls):
+        return OrderedStyle(
+            ordinal=OrdinalStyle.LOWER_ROMAN,
+            delimiter=DelimiterStyle.TWO_PARENS,
+        )
+
     def __str__(self) -> str:
         ordinal = self.ordinal.value
         match self.delimiter:
@@ -62,6 +76,26 @@ class ListStyle:
     bullet: BulletStyle | None = None
     task: TaskStyle | None = None
     ordered: OrderedStyle | None = None
+
+    @classmethod
+    def new_bullet(cls, marker: str) -> 'ListStyle':
+        return cls(
+            list_type=ListType.BULLET,
+            bullet=BulletStyle(marker),
+        )
+
+    @classmethod
+    def new_ordered(cls, ordered_style: OrderedStyle) -> 'ListStyle':
+        return cls(
+            list_type=ListType.ORDERED,
+            ordered=ordered_style,
+        )
+
+    @classmethod
+    def new_definition(cls) -> 'ListStyle':
+        return cls(
+            list_type=ListType.DEFINITION,
+        )
 
     @property
     def is_task(self) -> bool:
