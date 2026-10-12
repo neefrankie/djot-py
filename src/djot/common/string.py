@@ -1,34 +1,3 @@
-from dataclasses import dataclass
-from enum import StrEnum
-import string
-from typing import Final
-
-
-@dataclass(slots=True)
-class Range:
-    start: int
-    end: int
-
-    def __str__(self) -> str:
-        return f'{self.start}:{self.end}'
-
-@dataclass(slots=True)
-class SourceLoc:
-    line: int
-    col: int
-    offset: int
-
-@dataclass
-class Pos:
-    start: SourceLoc
-    end: SourceLoc
-
-class Alignment(StrEnum):
-    DEFAULT = 'default'
-    LEFT = 'left'
-    RIGHT = 'right'
-    CENTER = 'center'
-
 # In Python, str.isalnum() includes isalpha(), isdecimal(), isdigit().
 # They are not exactly identifical to regex defined in djot.js:
 # r'[a-zA-Z0-9_:-]'
@@ -37,6 +6,10 @@ class Alignment(StrEnum):
 # This actually equals string.ascii_letters + string.digits + '_:-'
 # Here's a strict version of ASCII char set permitted in key, bare value, id/class value.
 # Corresponds to regex r'[a-zA-Z0-9_:-]'
+import string
+from typing import Final
+
+
 _ASCII_NAME_CHARS: Final = frozenset(string.ascii_letters + string.digits + "_:-")
 
 _ASCII_WHITESPACE = set(' \t\n\r\x0c')
@@ -65,16 +38,6 @@ def is_ascii_whitespace(c: str) -> bool:
     Matches: space, tab, linefeed, carriage return and formfeed.
     """
     return c in _ASCII_WHITESPACE
-
-def find_last_whitespace(s: str):
-    last_space_idx = -1
-
-    for i in range(len(s)-1, -1, -1):
-        if s[i].isspace():
-            last_space_idx = i
-            break
-
-    return last_space_idx
 
 
 def unescape_djot(s: str) -> str:
