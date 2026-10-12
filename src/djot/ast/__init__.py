@@ -3,6 +3,8 @@ from typing import TypeGuard, TypeVar
 
 from .base import (
     AstNode,
+    Attributes,
+    merge_attributes,
     BlockNode,
     InlineNode,
     HasChildren,
@@ -21,7 +23,7 @@ from .block import (
     RawBlock,
     BlockQuote,
     Footnote,
-    Reference
+    Reference,
 )
 from .list import (
     OrderedList,
@@ -33,6 +35,9 @@ from .list import (
     DefinitionListItem,
     Term,
     Definition,
+    BulletListStyle,
+    OrderedListStyle,
+    CheckboxStatus,
 )
 from .table import (
     Table,
@@ -54,6 +59,7 @@ from .inline import (
     Email,
     FootnoteReference,
     SmartPunctuation,
+    SmartPunctType,
     Emph,
     Strong,
     Link,
