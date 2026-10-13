@@ -72,7 +72,7 @@ from .handle_verb import (
 )
 
 
-class ASTBuidler:
+class ASTBuilder:
     def __init__(self, src: str, events: Iterator[Event]):
         self.events = events
 
