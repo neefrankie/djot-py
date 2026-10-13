@@ -55,7 +55,7 @@ class FootnoteRefHandler(Handler):
     """
     [^ref]
     """
-    def on_leaf(self, state: BuildingState, text: str, pos: Pos) -> AstNode | None:
+    def on_leaf(self, state: BuildingState, text: str, pos: Pos | None) -> AstNode | None:
         fn_ref = text[2:-1]
         return FootnoteReference(
             pos=pos,
