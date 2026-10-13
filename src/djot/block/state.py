@@ -33,12 +33,6 @@ class BlockState:
         """Get the innermost node in current active AST path"""
         return self.container_stack[-1] if self.container_stack else None
 
-    def start_newline(self):
-        self.cursor.start_newline()
-
-    def skip_space(self):
-        self.cursor.skip_space()
-
     def get_adjusted_text_start(self, indent: int | None):
         return self.cursor.get_adjusted_text_start(indent)
 
