@@ -5,12 +5,14 @@ from djot.input import InputText, MatchedRange
 from djot.inline import InlineParser
 from djot.event import (
     BlockContainer,
-    Alignment,
     Event,
     InlineLeaf,
     InlineContainer,
 )
-from djot.common import Range
+from djot.common import (
+    Alignment,
+    Range
+)
 
 from .container import (
     ContainerCap,
