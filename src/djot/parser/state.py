@@ -26,6 +26,7 @@ class Mode(Enum):
 class DocumentContext:
     src: str
     line_starts: list[int] = field(default_factory=list)
+    source_location: bool = False
 
     def get_leaf_text(self, event: Event) -> str:
         return self.src[event.startpos:event.endpos+1]
@@ -36,7 +37,10 @@ class DocumentContext:
     def calc_loc(self, pos: int) -> SourceLoc:
         return get_source_loc(self.line_starts, pos)
 
-    def calc_pos(self, start: int, end: int) -> Pos:
+    def calc_pos(self, start: int, end: int) -> Pos | None:
+        if not self.source_location:
+            return None
+        
         start_loc = get_source_loc(self.line_starts, start)
         end_loc = get_source_loc(self.line_starts, end)
         return Pos(
@@ -44,10 +48,14 @@ class DocumentContext:
             end=end_loc,
         )
 
-    def calc_leaf_pos(self, event: Event) -> Pos:
+    def calc_leaf_pos(self, event: Event) -> Pos | None:
+        if not self.source_location:
+            return None
         return self.calc_pos(event.startpos, event.endpos)
 
-    def calc_container_pos(self, frame: Frame, event: Event) -> Pos:
+    def calc_container_pos(self, frame: Frame, event: Event) -> Pos | None:
+        if not self.source_location:
+            return None
         return self.calc_pos(frame.start_pos, event.endpos)
 
 @dataclass(slots=True)
