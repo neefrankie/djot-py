@@ -73,10 +73,13 @@ from .handle_verb import (
 
 
 class ASTBuilder:
-    def __init__(self, src: str, events: Iterator[Event]):
+    def __init__(self, src: str, events: Iterator[Event], source_location: bool = False):
         self.events = events
 
-        self.ctx = DocumentContext(src)
+        self.ctx = DocumentContext(
+            src,
+            source_location=source_location
+        )
         self.state = BuildingState()
 
         self.handle_default = DefaultHandler()
