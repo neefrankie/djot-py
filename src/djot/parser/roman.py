@@ -1,4 +1,4 @@
-from djot.common.list_style import OrderedStyle, OrdinalStyle
+from djot.common.list_style import OrderedStyle, OrdinalKind
 
 roman_digits = {
     'i': 1,
@@ -41,13 +41,13 @@ def get_list_start(marker: str, style: OrderedStyle) -> int | None:
     s = marker.replace('(', '').replace(')', '').replace('.', '')
 
     match style.ordinal:
-        case OrdinalStyle.DECIMAL:
+        case OrdinalKind.DECIMAL:
             return int(s)
-        case OrdinalStyle.UPPER_ALPHA:
+        case OrdinalKind.UPPER_ALPHA:
             return ord(s[0]) - 65 + 1 # 65 = 'A'
-        case OrdinalStyle.LOWER_ALPHA:
+        case OrdinalKind.LOWER_ALPHA:
             return ord(s[0]) - 97 + 1
-        case OrdinalStyle.UPPER_ROMAN | OrdinalStyle.LOWER_ROMAN:
+        case OrdinalKind.UPPER_ROMAN | OrdinalKind.LOWER_ROMAN:
             return roman_to_number(s)
         case _:
             return None
