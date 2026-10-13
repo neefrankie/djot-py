@@ -83,10 +83,11 @@ def render_ast(doc: Doc) -> str:
 
     return ''.join(buff)
 
-def parse(input_: str) -> Doc:
+def parse(input_: str, source_positions: bool = False) -> Doc:
     parser = EventParser(input_)
     builder = ASTBuilder(
         parser.source_text,
-        parser.parse()
+        parser.parse(),
+        source_positions,
     )
     return builder.build()
