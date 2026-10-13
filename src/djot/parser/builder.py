@@ -110,7 +110,7 @@ class ASTBuilder:
             BlockContainer.BLOCK_QUOTE: BlockquoteHandler(),
             BlockContainer.TABLE:       TableHandler(),
             BlockContainer.TABLE_ROW:   TableRowHandler(),
-            InlineLeaf.SOFT_BREAK:      TableSeparatorHandler(),
+            InlineLeaf.TABLE_SEPARATOR: TableSeparatorHandler(),
             InlineContainer.TABLE_CELL: TableCellHandler(),
             BlockContainer.CAPTION:     CaptionHandler(),
             BlockContainer.FOOTNOTE:    FootnoteHandler(),
@@ -136,7 +136,7 @@ class ASTBuilder:
             self._dispatch_event(event)
             last_pos = event.endpos
 
-        last_loc = self.ctx.calc_loc(last_pos)
+        # last_loc = self.ctx.calc_loc(last_pos)
 
         doc = Doc(
             children=root_frame.pop_block_children(),
