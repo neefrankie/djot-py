@@ -5,50 +5,68 @@ from typing import List, NamedTuple
 
 # --- 1. Enumerations ---
 
-class OrdinalStyle(StrEnum):
+class OrdinalKind(StrEnum):
     DECIMAL = '1'    # 1, 2, 3
     LOWER_ROMAN = 'i'  # i, ii, iii
     UPPER_ROMAN = 'I'  # I, II, III
     LOWER_ALPHA = 'a'  # a, b, c
     UPPER_ALPHA = 'A'  # A, B, C
 
-class DelimiterStyle(StrEnum):
+    def __str__(self) -> str:
+            return self.value
+    
+    def __repr__(self) -> str:
+        return f'OrdinalKind({self.name})'
+
+class DelimiterKind(StrEnum):
     PERIOD = '.'     # '1.'
     PAREN = ')'      # '1)'
     TWO_PARENS = '()' # '(1)'
 
+    def __str__(self) -> str:
+                return self.value
+        
+    def __repr__(self) -> str:
+        return f'DelimiterKind({self.name})'
+
 class OrderedStyle(NamedTuple):
-    ordinal: OrdinalStyle
-    delimiter: DelimiterStyle
+    ordinal: OrdinalKind
+    delimiter: DelimiterKind
 
     def __str__(self) -> str:
         ordinal = self.ordinal.value
         match self.delimiter:
-            case DelimiterStyle.PERIOD:
+            case DelimiterKind.PERIOD:
                 return f'{ordinal}.'
-            case DelimiterStyle.PAREN:
+            case DelimiterKind.PAREN:
                 return f'{ordinal})'
-            case DelimiterStyle.TWO_PARENS:
+            case DelimiterKind.TWO_PARENS:
                 return f'({ordinal})'
 
-class BulletStyle(StrEnum):
+class BulletKind(StrEnum):
     PLUS = '+'
     DASH = '-'
     STAR = '*'
 
-class CheckboxStyle(StrEnum):
+    def __str__(self) -> str:
+        return self.value
+
+    def __repr__(self) -> str:
+        return f'BulletKind({self.name})'
+
+class CheckboxKind(StrEnum):
     EMPTY = ' '
     LOWER_X = 'x'
     UPPER_X = 'X'
 
 class TaskStyle(NamedTuple):
-    bullet: BulletStyle
-    checkbox: CheckboxStyle
+    bullet: BulletKind
+    checkbox: CheckboxKind
 
     def __str__(self) -> str:
         return f'{self.bullet.value} [{self.checkbox.value}]'
 
-class ListType(Enum):
+class ListKind(Enum):
     BULLET = auto()
     TASK = auto()
     DEFINITION = auto()
@@ -58,34 +76,37 @@ class ListType(Enum):
 
 @dataclass(frozen=True, slots=True)
 class ListStyle:
-    list_type: ListType
-    bullet: BulletStyle | None = None
+    list_type: ListKind
+    bullet: BulletKind | None = None
     task: TaskStyle | None = None
     ordered: OrderedStyle | None = None
 
     @property
     def is_task(self) -> bool:
-        return self.list_type == ListType.TASK
+        return self.list_type == ListKind.TASK
 
     @property
     def is_definition(self) -> bool:
-        return self.list_type == ListType.DEFINITION
+        return self.list_type == ListKind.DEFINITION
 
     @property
     def is_bullet(self) -> bool:
-        return self.list_type == ListType.BULLET
+        return self.list_type == ListKind.BULLET
+
+    def __repr__(self) -> str:
+        return f'ListStyle(list_type={self.list_type!r}, bullet={self.bullet!r}, task={self.task!r}, ordered={self.ordered!r})'
 
     def __str__(self) -> str:
         match self.list_type:
-            case ListType.BULLET:
+            case ListKind.BULLET:
                 assert self.bullet is not None
                 return self.bullet.value
-            case ListType.TASK:
+            case ListKind.TASK:
                 assert self.task is not None
                 return str(self.task)
-            case ListType.DEFINITION:
+            case ListKind.DEFINITION:
                 return ':'
-            case ListType.ORDERED:
+            case ListKind.ORDERED:
                 assert self.ordered is not None
                 return str(self.ordered)
 
@@ -95,7 +116,7 @@ class ParsedMarker(NamedTuple):
     """
     Tuple of decomposed marker.
     """
-    delimiter: DelimiterStyle # ., ), or ()
+    delimiter: DelimiterKind # ., ), or ()
     ordinal: str # after stripping '.', ')' or '()'
 
 # --- 4. Parser Implementation ---
@@ -125,13 +146,13 @@ def parse_task_marker(marker: str) -> TaskStyle | None:
     """
     if len(marker) == 5 and marker[0] in _BULLET_MARKER and marker[1:] in _TASK_CHECKER:
         return TaskStyle(
-            bullet=BulletStyle(marker[0]),
-            checkbox=CheckboxStyle(marker[3]),
+            bullet=BulletKind(marker[0]),
+            checkbox=CheckboxKind(marker[3]),
         )
     return None
 
 
-def parse_ordinal_style(ordinal: str) -> List[OrdinalStyle]:
+def parse_ordinal_style(ordinal: str) -> List[OrdinalKind]:
     """
     Args:
         ordinal: the string after stripping all delimiters.
@@ -144,7 +165,7 @@ def parse_ordinal_style(ordinal: str) -> List[OrdinalStyle]:
     """
     # 1., 1), (1)
     if _PATT_DECIMAL.fullmatch(ordinal):
-        return [OrdinalStyle.DECIMAL]
+        return [OrdinalKind.DECIMAL]
 
     length = len(ordinal)
     if length == 0:
@@ -155,33 +176,33 @@ def parse_ordinal_style(ordinal: str) -> List[OrdinalStyle]:
         if ch in _LOWER_ROMAN_SINGLE:
             # i, v, x... could be either roman numeral or alpha
             return [
-                OrdinalStyle.UPPER_ROMAN,
-                OrdinalStyle.UPPER_ALPHA
+                OrdinalKind.UPPER_ROMAN,
+                OrdinalKind.UPPER_ALPHA
             ]
 
         if ch in _UPPER_ROMAN_SINGLE:
             # I, V, X... could be either roman numeral or alpha
             return [
-                OrdinalStyle.UPPER_ROMAN,
-                OrdinalStyle.UPPER_ALPHA
+                OrdinalKind.UPPER_ROMAN,
+                OrdinalKind.UPPER_ALPHA
             ]
         if 'a' <= ch <= 'z':
-            return [OrdinalStyle.LOWER_ALPHA]
+            return [OrdinalKind.LOWER_ALPHA]
         if 'A' <= ch <= 'Z':
-            return [OrdinalStyle.UPPER_ALPHA]
+            return [OrdinalKind.UPPER_ALPHA]
         return []
 
     # 3. Mutiple characters like ii, ix, xiv or AA, BC)
     # Roman numeral takes precedence over alpha
     if all('a' <= c <= 'z' for c in ordinal):
         if _PATT_MULTI_LOWER_ROMAN.fullmatch(ordinal):
-            return [OrdinalStyle.LOWER_ROMAN]
+            return [OrdinalKind.LOWER_ROMAN]
         # Multiple English characters are usually not allowed to be used in lists.
         return []
 
     if all('A' <= c <= 'Z' for c in ordinal):
         if _PATT_MULTI_UPPER_ROMAN.fullmatch(ordinal):
-            return [OrdinalStyle.UPPER_ROMAN]
+            return [OrdinalKind.UPPER_ROMAN]
         return []
 
     return []
@@ -190,19 +211,19 @@ def parse_ordinal_style(ordinal: str) -> List[OrdinalStyle]:
 def parse_ordered_delimiter(marker: str) -> ParsedMarker | None:
     if marker[0] == '(' and marker[-1] == ')':
         return ParsedMarker(
-            delimiter=DelimiterStyle.TWO_PARENS,
+            delimiter=DelimiterKind.TWO_PARENS,
             ordinal=marker[1:-1]
         )
     
     if marker[-1] == ')':
         return ParsedMarker(
-            delimiter=DelimiterStyle.PAREN,
+            delimiter=DelimiterKind.PAREN,
             ordinal=marker[:-1]
         )
 
     if marker[-1] == '.':
         return ParsedMarker(
-            delimiter=DelimiterStyle.PERIOD,
+            delimiter=DelimiterKind.PERIOD,
             ordinal=marker[:-1]
         )
 
@@ -233,14 +254,14 @@ def parse_list_styles(marker: str) -> List[ListStyle]:
     if marker in _BULLET_MARKER:
         return [
             ListStyle(
-                list_type=ListType.BULLET,
-                bullet=BulletStyle(marker)
+                list_type=ListKind.BULLET,
+                bullet=BulletKind(marker)
             )
         ]
     if marker == ':':
         return [
             ListStyle(
-                list_type=ListType.DEFINITION,
+                list_type=ListKind.DEFINITION,
             )
         ]
 
@@ -248,7 +269,7 @@ def parse_list_styles(marker: str) -> List[ListStyle]:
     if task_style:
         return [
             ListStyle(
-                list_type=ListType.TASK,
+                list_type=ListKind.TASK,
                 task=task_style
             )
         ]
@@ -258,7 +279,7 @@ def parse_list_styles(marker: str) -> List[ListStyle]:
     if ordered_styles is not None:
         return [
             ListStyle(
-                list_type=ListType.ORDERED,
+                list_type=ListKind.ORDERED,
                 ordered=s,
             )
             for s in ordered_styles
