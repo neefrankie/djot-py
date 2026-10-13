@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
-from ..common import find_last_whitespace, SourceLoc, Pos
 
 from .base import (
     HasText,
@@ -17,39 +15,6 @@ class Str(HasText, InlineNode):
     @property
     def tag(self) -> str:
         return 'str'
-
-    def split_at_last_space(self) -> Optional['Str']:
-        # hello world
-        #      ^
-        last_space_idx = find_last_whitespace(self.text)
-        if last_space_idx < 0:
-            return
-
-        left_text = self.text[:last_space_idx+1]
-        word_text = self.text[last_space_idx+1:]
-
-        self.text = left_text
-        word_pos: Optional[Pos] = None
-        if self.pos:
-            original_end = self.pos.end
-            self.pos.end = SourceLoc(
-                line=original_end.line,
-                col=self.pos.start.col + last_space_idx,
-                offset=self.pos.start.offset + last_space_idx,
-            )
-            word_pos = Pos(
-                start=SourceLoc(
-                    line=original_end.line,
-                    col=original_end.col - last_space_idx + 1,
-                    offset=original_end.offset - last_space_idx + 1,
-                ),
-                end=original_end,
-            )
-
-        return Str(
-            text=word_text,
-            pos=word_pos
-        )
 
 
 @dataclass(kw_only=True)
