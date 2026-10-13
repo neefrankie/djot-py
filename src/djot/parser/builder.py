@@ -13,6 +13,7 @@ from djot.event import (
 from djot.ast import (
     Doc,
 )
+from djot.logger import logger
 
 from .frame import (
     Frame,
@@ -131,10 +132,12 @@ class ASTBuilder:
         )
         self.state.push_frame(root_frame)
 
-        last_pos = 0
+        # last_pos = 0
         for event in self.events:
+            logger.debug(f"🚗 Dispatch event: {event}")
             self._dispatch_event(event)
-            last_pos = event.endpos
+            logger.debug(f"🍐 Frame stack: {len(self.state.stack)}, nodes: {len(self.state.stack[0].children)}")
+            # last_pos = event.endpos
 
         # last_loc = self.ctx.calc_loc(last_pos)
 
@@ -157,7 +160,9 @@ class ASTBuilder:
         
         if event.kind in self.handlers:
             handler = self.handlers[event.kind]
+            logger.debug(f"🔧 Dispatch handler: {handler.__class__.__name__}")
             handler(self.state, self.ctx, event)
         else:
+            logger.debug(f"🌥️ Dispatch handler: default")
             self.handle_default(self.state, self.ctx, event)
 
