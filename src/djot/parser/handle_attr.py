@@ -4,9 +4,56 @@ from djot.ast import (
 )
 from djot.event import Event, AttrKind
 from djot.logger import logger
+from djot.common import (
+    Pos,
+    SourceLoc,
+)
 
 from .state import BuildingState, DocumentContext
 from .handler import Handler
+
+def find_last_whitespace(s: str):
+    last_space_idx = -1
+
+    for i in range(len(s)-1, -1, -1):
+        if s[i].isspace():
+            last_space_idx = i
+            break
+
+    return last_space_idx
+
+def split_at_last_space(self) -> Str | None:
+    # hello world
+    #      ^
+    last_space_idx = find_last_whitespace(self.text)
+    if last_space_idx < 0:
+        return
+
+    left_text = self.text[:last_space_idx+1]
+    word_text = self.text[last_space_idx+1:]
+
+    self.text = left_text
+    word_pos: Pos | None = None
+    if self.pos:
+        original_end = self.pos.end
+        self.pos.end = SourceLoc(
+            line=original_end.line,
+            col=self.pos.start.col + last_space_idx,
+            offset=self.pos.start.offset + last_space_idx,
+        )
+        word_pos = Pos(
+            start=SourceLoc(
+                line=original_end.line,
+                col=original_end.col - last_space_idx + 1,
+                offset=original_end.offset - last_space_idx + 1,
+            ),
+            end=original_end,
+        )
+
+    return Str(
+        text=word_text,
+        pos=word_pos
+    )
 
 # InlineContainer.ATTR
 class InlineAttrHandler(Handler):
@@ -36,7 +83,7 @@ class InlineAttrHandler(Handler):
             logger.warning(f'Ignoring unattached attribute: {pos.start}')
             return None
 
-        new_node = last_node.split_at_last_space()
+        new_node = split_at_last_space(last_node)
         if not new_node:
             frame.attributes.transfer_to(last_node.attributes)
             return None
