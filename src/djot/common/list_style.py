@@ -128,8 +128,8 @@ _LOWER_ROMAN_SINGLE = {'i', 'v', 'x', 'l', 'c', 'd', 'm'}
 _UPPER_ROMAN_SINGLE = {'I', 'V', 'X', 'L', 'C', 'D', 'M'}
 
 # Verify the validity of roman numerals with two or more characters
-_PATT_MULTI_LOWER_ROMAN = re.compile(r'^(?:iv|xl|cd|i{2,3}|v?i{0,3}|x{1,3}|l?x{0,3}|c{1,3}|d?c{0,3}|m{1,3})$')
-_PATT_MULTI_UPPER_ROMAN = re.compile(r'^(?:IV|XL|CD|I{2,3}|V?I{0,3}|X{1,3}|L?X{0,3}|C{1,3}|D?C{0,3}|M{1,3})$')
+_PATT_MULTI_LOWER_ROMAN = re.compile(r'[ivxlcdm]+')
+_PATT_MULTI_UPPER_ROMAN = re.compile(r'[IVXLCDM]+')
 
 def parse_task_marker(marker: str) -> TaskStyle | None:
     """
@@ -176,8 +176,8 @@ def parse_ordinal_style(ordinal: str) -> List[OrdinalKind]:
         if ch in _LOWER_ROMAN_SINGLE:
             # i, v, x... could be either roman numeral or alpha
             return [
-                OrdinalKind.UPPER_ROMAN,
-                OrdinalKind.UPPER_ALPHA
+                OrdinalKind.LOWER_ROMAN,
+                OrdinalKind.LOWER_ALPHA
             ]
 
         if ch in _UPPER_ROMAN_SINGLE:
