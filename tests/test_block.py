@@ -17,44 +17,44 @@ from djot.block.table import scan_table_pipe, parse_data_row
 from djot.common import (
     ListStyle,
     OrderedStyle,
-    ListType,
-    BulletStyle,
-    OrdinalStyle,
-    DelimiterStyle,
+    ListKind,
+    BulletKind,
+    OrdinalKind,
+    DelimiterKind,
 )
 
 def bullet_style(marker: str) -> ListStyle:
     return ListStyle(
-        list_type=ListType.BULLET,
-        bullet=BulletStyle(marker),
+        list_type=ListKind.BULLET,
+        bullet=BulletKind(marker),
     )
 
 def ordered_style(ordered_style: OrderedStyle) -> ListStyle:
     return ListStyle(
-        list_type=ListType.ORDERED,
+        list_type=ListKind.ORDERED,
         ordered=ordered_style,
     )
 
 def definition_style() -> ListStyle:
     return ListStyle(
-        list_type=ListType.DEFINITION,
+        list_type=ListKind.DEFINITION,
     )
 
 def ordered_decimal_period():
     return ListStyle(
-        list_type=ListType.ORDERED,
+        list_type=ListKind.ORDERED,
         ordered=OrderedStyle(
-            ordinal=OrdinalStyle.DECIMAL,
-            delimiter=DelimiterStyle.PERIOD,
+            ordinal=OrdinalKind.DECIMAL,
+            delimiter=DelimiterKind.PERIOD,
         ),
     )
 
 def ordered_lower_roman_two_parens():
     return ListStyle(
-        list_type=ListType.ORDERED,
+        list_type=ListKind.ORDERED,
         ordered=OrderedStyle(
-            ordinal=OrdinalStyle.LOWER_ROMAN,
-            delimiter=DelimiterStyle.TWO_PARENS,
+            ordinal=OrdinalKind.LOWER_ROMAN,
+            delimiter=DelimiterKind.TWO_PARENS,
         )
     )
 
@@ -304,15 +304,71 @@ class TestEventParser(unittest.TestCase):
         self.assertEqual(actual, expected)
 
     def test_loose_list(self):
-        # text = "- one\n\n- two\n"
-        #       012345 6 789012
+        cases = [
+            (
+                "- one\n\n  - two\n\n  - three\n",
+                #012345 6 78901234 5 6789012345
+                [
+                    Event.enter(Range(0, 0), BlockContainer.LIST).with_list_styles([
+                        bullet_style('-')
+                    ]),
+                    Event.enter(Range(0, 0), BlockContainer.LIST_ITEM).with_list_styles([
+                        bullet_style('-')
+                    ]),
+                    Event.enter(Range(2, 2), kind=BlockContainer.PARA),
+                    Event.str(2,4),
+                    Event.exit(Range(5, 5), kind=BlockContainer.PARA),
+                    Event.blankline(6,6),
+                    Event.enter(Range(9, 9), kind=BlockContainer.LIST).with_list_styles([
+                        bullet_style('-')
+                    ]),
+                    Event.enter(Range(9, 9), kind=BlockContainer.LIST_ITEM).with_list_styles([
+                        bullet_style('-')
+                    ]),
+                    Event.enter(Range(11, 11), kind=BlockContainer.PARA),
+                    Event.str(11, 13),
+                    Event.exit(Range(14, 14), kind=BlockContainer.PARA),
+                    Event.blankline(15, 15),
+                    Event.exit(Range(15,15), kind=BlockContainer.LIST_ITEM),
+                    Event.enter(Range(18, 18), kind=BlockContainer.LIST_ITEM).with_list_styles([
+                        bullet_style('-')
+                    ]),
+                    Event.enter(Range(20, 20), kind=BlockContainer.PARA),
+                    Event.str(20, 24),
+                    Event.exit(Range(25, 25), kind=BlockContainer.PARA),
+                    Event.exit(Range(25,25), kind=BlockContainer.LIST_ITEM),
+                    Event.exit(Range(25,25), kind=BlockContainer.LIST),
+                    Event.exit(Range(25,25), kind=BlockContainer.LIST_ITEM),
+                    Event.exit(Range(25,25), kind=BlockContainer.LIST)
+                ],
+            ),
+            (
+                "- one\n  - two\n",
+                #012345 67890123
+                [
+                    Event.enter(Range(0, 0), BlockContainer.LIST).with_list_styles([
+                        bullet_style('-')
+                    ]),
+                    Event.enter(Range(0, 0), BlockContainer.LIST_ITEM).with_list_styles([
+                        bullet_style('-')
+                    ]),
+                    Event.enter(Range(2,2), kind=BlockContainer.PARA),
+                    Event.str(2,4),
+                    Event.softbreak(5,5),
+                    Event.str(8,12),
+                    Event.exit(Range(13,13), kind=BlockContainer.PARA),
+                    Event.exit(Range(13,13), kind=BlockContainer.LIST_ITEM),
+                    Event.exit(Range(13,13), kind=BlockContainer.LIST),
+                ],
+            )
+        ]
 
-        text = "- one\n\n  - two\n\n  - three\n"
-        #       012345  678901234 5 67890123456
-        actual = list(EventParser(text).parse())
-
-        for e in actual:
-            print(e)
+        for text, expected in cases:
+            with self.subTest(text):
+                print('\n')
+                actual = list(EventParser(text).parse())
+                for e in actual:
+                    print(e)
 
     def test_captions(self):
         text = " ^ This is a\n*capt*\n\n"
@@ -498,12 +554,6 @@ class TestParsingTable(unittest.TestCase):
         #         print(e)
 
         self.assertEqual(actual, expected)
-
-        
-
-
-
-
 
 if __name__ == '__main__':
     unittest.main()
