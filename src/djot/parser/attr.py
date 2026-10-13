@@ -97,5 +97,7 @@ class AttrBuilder:
     def is_empty(self) -> bool:
         return not bool(self._data)
 
-    def build(self) -> Dict[str, str]:
+    def build(self) -> Dict[str, str] | None:
+        if not self._data:
+            return None
         return dict(self.items())
