@@ -69,8 +69,8 @@ class EventParser:
         return self.state.cursor.src
     
     def process_line(self) -> List[Event]:
-        self.state.start_newline()
-        logger.debug(f'\n▶ Start a newline: {self.state.cursor} ===')
+        self.state.cursor.start_newline()
+        logger.debug(f'▶ Start a newline: {self.state.cursor} ===')
         events: List[Event] = []
 
         logger.debug(f'--- Stage: check continuation ---')
@@ -147,7 +147,7 @@ class EventParser:
         djot.js makes implicit assumption that any continue method will
         either move the cursor to EOL, or does not move it any all.
         """
-        logger.debug(f'{self.state.cursor.pos}. Check continuation stack {len(self.state.container_stack)}')
+        logger.debug(f'{self.state.cursor.pos}. Start checking continuation stack {len(self.state.container_stack)}')
 
         last_matched_idx = -1
         line_is_finished = False
@@ -159,7 +159,7 @@ class EventParser:
         for idx, container in enumerate(self.state.container_stack):
             
             # 1. Prepare cursor for rule
-            self.state.skip_space()
+            self.state.cursor.skip_space()
 
             # 2. If current container contains a raw text block,
             # flag it as is_covered, indicating that you are shadowed
@@ -170,7 +170,7 @@ class EventParser:
                 cursor=self.state.cursor,
                 is_covered=is_covered,
             ))
-            logger.debug(f'{container} continue result: {res}')
+            logger.debug(f'{self.state.cursor.pos}. {container} continue result: {res}')
             if res.next_pos is not None:
                 logger.debug(f'Cursor is moving from {self.state.cursor.pos} to {res.next_pos}')
                 self.state.cursor.advance_to(res.next_pos)
@@ -200,7 +200,7 @@ class EventParser:
 
     def _try_open_new_cotainer(self, last_matched_idx: int) -> LineStepFrame:
         logger.debug(f'{self.state.cursor.pos} --- Try open new containers')
-        self.state.skip_space()
+        self.state.cursor.skip_space()
 
         # In djot.js, it uses let isBlank = (self.pos === self.starteol);
         # However, the logic here is not actually ask if the line is blank.
@@ -251,10 +251,6 @@ class EventParser:
 
                 logger.debug(f'{self.state.cursor.pos}. 🌈 {rule.__class__.__name__} open result {open_res}')
 
-                if open_res.next_pos is not None:
-                    logger.debug(f'Cursor is moving from {self.state.cursor.pos} to {open_res.next_pos}')
-                    self.state.cursor.advance_to(open_res.next_pos)
-
                 events.extend(open_res.events)
                 last_matched_idx = len(self.state.container_stack)-1
                 parent = self.state.container_stack[last_matched_idx] # move node in tree deeper
@@ -270,7 +266,7 @@ class EventParser:
                         events=events,
                     )
 
-                self.state.skip_space()
+                self.state.cursor.skip_space()
 
                 new_starts_created = True
 
@@ -394,7 +390,7 @@ class EventParser:
         > Blockquote paragraph
         Paragraph continnued.
         """
-        self.state.skip_space()
+        self.state.cursor.skip_space()
         is_eol = self.state.cursor.is_eol
         
         tip = self.state.top_container
