@@ -106,6 +106,7 @@ class TestEventParser(unittest.TestCase):
 
     def test_heading(self):
         parser = EventParser("## hello\n## there\nlazy\n")
+        #                     012345678 901234567 89012
         actual = list(parser.parse())
 
         expected = [
