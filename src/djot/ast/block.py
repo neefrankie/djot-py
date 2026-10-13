@@ -17,9 +17,6 @@ class Para(HasChildren[InlineNode], ContentBlock):
     def tag(self) -> str:
         return 'para'
 
-    def __repr__(self) -> str:
-        return f'Para(children={len(self.children)})'
-
 @dataclass
 class Heading(HasChildren[InlineNode], ContentBlock):
     level: int

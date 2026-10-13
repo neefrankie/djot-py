@@ -12,6 +12,3 @@ class Doc(AstNode, HasChildren[BlockNode]):
     @property
     def tag(self) -> str:
         return 'doc'
-
-    def __repr__(self) -> str:
-        return f'Doc(children={len(self.children)}, references={len(self.references)}, footnotes={len(self.footnotes)})'
