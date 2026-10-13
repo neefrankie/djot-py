@@ -1,16 +1,14 @@
 from dataclasses import fields, is_dataclass
 from typing import List, Set
 
-from ..block import parse_events
-
-
-from ..ast.base import (
+from djot.ast import (
     HasChildren,
     AstNode,
+    Doc
 )
-from ..ast.doc import Doc
-from ..block import EventParser
-from .builder import ASTBuidler
+from djot.block import EventParser
+
+from .builder import ASTBuilder
 
 OMIT_FIELDS: Set[str] = {
     'children',
@@ -86,10 +84,9 @@ def render_ast(doc: Doc) -> str:
     return ''.join(buff)
 
 def parse(input_: str) -> Doc:
-    parser = parse_events(input_)
     parser = EventParser(input_)
-    builder = ASTBuidler(
+    builder = ASTBuilder(
         parser.source_text,
-        list(parser.parse())
+        parser.parse()
     )
     return builder.build()
