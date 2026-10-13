@@ -56,7 +56,7 @@ class Handler(ABC):
 
         state.add_child_to_tip(node)
 
-    def on_leaf(self, state: BuildingState, text: str, pos: Pos) -> Optional[AstNode]:
+    def on_leaf(self, state: BuildingState, text: str, pos: Pos | None) -> Optional[AstNode]:
         return None
 
 
