@@ -60,7 +60,7 @@ class ListHandler(Handler):
         state.list_depth -= 1
         return node
 
-    def _create_list_node(self, frame: Frame, pos: Pos, list_data: ListData) -> AstNode:
+    def _create_list_node(self, frame: Frame, pos: Pos | None, list_data: ListData) -> AstNode:
 
         first_style = list_data.styles[0]
         if not first_style:
@@ -189,7 +189,7 @@ class ListItemHandler(Handler):
             children=item_frame.pop_block_children(),
         )
 
-    def _create_definition_item(self, frame: Frame, pos: Pos) -> DefinitionListItem:
+    def _create_definition_item(self, frame: Frame, pos: Pos | None) -> DefinitionListItem:
         """
         : orange
 

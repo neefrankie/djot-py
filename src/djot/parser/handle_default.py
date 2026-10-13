@@ -49,7 +49,7 @@ class DefaultHandler(Handler):
 
         state.add_child_to_tip(node)
 
-def create_container_node(frame: Frame, pos: Pos) -> AstNode:
+def create_container_node(frame: Frame, pos: Pos | None) -> AstNode:
     match frame.kind:
         case InlineContainer.EMPH:
             return Emph(

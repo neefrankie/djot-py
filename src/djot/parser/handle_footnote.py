@@ -43,7 +43,7 @@ class FootnoteHandler(Handler):
             )
             state.add_footnote(fn)
         else:
-            logger.warning(f'Ignoring footnote without a label. {pos.end}')
+            logger.warning(f'Ignoring footnote without a label. {pos}')
 
 # InlineLeaf.NOTE_LABEL
 class NoteLabelHandler(Handler):

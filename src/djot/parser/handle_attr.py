@@ -22,24 +22,24 @@ def find_last_whitespace(s: str):
 
     return last_space_idx
 
-def split_at_last_space(self) -> Str | None:
+def split_at_last_space(node: Str) -> Str | None:
     # hello world
     #      ^
-    last_space_idx = find_last_whitespace(self.text)
+    last_space_idx = find_last_whitespace(node.text)
     if last_space_idx < 0:
         return
 
-    left_text = self.text[:last_space_idx+1]
-    word_text = self.text[last_space_idx+1:]
+    left_text = node.text[:last_space_idx+1]
+    word_text = node.text[last_space_idx+1:]
 
-    self.text = left_text
+    node.text = left_text
     word_pos: Pos | None = None
-    if self.pos:
-        original_end = self.pos.end
-        self.pos.end = SourceLoc(
+    if node.pos:
+        original_end = node.pos.end
+        node.pos.end = SourceLoc(
             line=original_end.line,
-            col=self.pos.start.col + last_space_idx,
-            offset=self.pos.start.offset + last_space_idx,
+            col=node.pos.start.col + last_space_idx,
+            offset=node.pos.start.offset + last_space_idx,
         )
         word_pos = Pos(
             start=SourceLoc(
@@ -80,7 +80,7 @@ class InlineAttrHandler(Handler):
             return None
 
         if not last_node.text or last_node.text[-1].isspace():
-            logger.warning(f'Ignoring unattached attribute: {pos.start}')
+            logger.warning(f'Ignoring unattached attribute: {pos}')
             return None
 
         new_node = split_at_last_space(last_node)
