@@ -14,18 +14,48 @@ from djot.event import (
 from djot.input import InputText
 from djot.block import EventParser
 from djot.block.table import scan_table_pipe, parse_data_row
-from djot.common.list_style import ListStyle, OrderedStyle
+from djot.common import (
+    ListStyle,
+    OrderedStyle,
+    ListType,
+    BulletStyle,
+    OrdinalStyle,
+    DelimiterStyle,
+)
 
-def enter(start: int, end: int, kind: BlockContainer | InlineContainer | VerbatimKind):
-    return Event.enter(
-        Range(start, end),
-        kind,
+def bullet_style(marker: str) -> ListStyle:
+    return ListStyle(
+        list_type=ListType.BULLET,
+        bullet=BulletStyle(marker),
     )
 
-def exit(start: int, end: int, kind: BlockContainer | InlineContainer | VerbatimKind):
-    return Event.exit(
-        Range(start, end),
-        kind,
+def ordered_style(ordered_style: OrderedStyle) -> ListStyle:
+    return ListStyle(
+        list_type=ListType.ORDERED,
+        ordered=ordered_style,
+    )
+
+def definition_style() -> ListStyle:
+    return ListStyle(
+        list_type=ListType.DEFINITION,
+    )
+
+def ordered_decimal_period():
+    return ListStyle(
+        list_type=ListType.ORDERED,
+        ordered=OrderedStyle(
+            ordinal=OrdinalStyle.DECIMAL,
+            delimiter=DelimiterStyle.PERIOD,
+        ),
+    )
+
+def ordered_lower_roman_two_parens():
+    return ListStyle(
+        list_type=ListType.ORDERED,
+        ordered=OrderedStyle(
+            ordinal=OrdinalStyle.LOWER_ROMAN,
+            delimiter=DelimiterStyle.TWO_PARENS,
+        )
     )
 
 class TestEventParser(unittest.TestCase):
@@ -190,14 +220,14 @@ class TestEventParser(unittest.TestCase):
         actual = list(EventParser(text).parse())
 
         expected = [
-            Event.enter(Range(0, 0), BlockContainer.LIST).with_list_styles([ListStyle.new_bullet('-')]),
-            Event.enter(Range(0, 0), BlockContainer.LIST_ITEM).with_list_styles([ListStyle.new_bullet('-')]),
+            Event.enter(Range(0, 0), BlockContainer.LIST).with_list_styles([bullet_style('-')]),
+            Event.enter(Range(0, 0), BlockContainer.LIST_ITEM).with_list_styles([bullet_style('-')]),
             Event.enter(Range(2, 2), BlockContainer.PARA),
             Event.str(2, 4),
             Event.exit(Range(5, 5), BlockContainer.PARA),
             Event.exit(Range(5, 5), BlockContainer.LIST_ITEM),
             Event.enter(Range(6, 6), BlockContainer.LIST_ITEM).with_list_styles([
-                ListStyle.new_bullet('-')
+                bullet_style('-')
             ]),
             Event.enter(Range(8, 8), BlockContainer.PARA),
             Event.str(8, 10),
@@ -206,10 +236,10 @@ class TestEventParser(unittest.TestCase):
             # Event.exit(Range(12, 12), BlockContainer.LIST),
             Event.exit(Range(11, 11), BlockContainer.LIST), # NOTE: this is a fix of djot.js list closing position.
             Event.enter(Range(12, 13), BlockContainer.LIST).with_list_styles([
-                ListStyle.new_ordered(OrderedStyle.new_decimal_period())
+                ordered_decimal_period()
             ]),
             Event.enter(Range(12, 13), BlockContainer.LIST_ITEM).with_list_styles([
-                ListStyle.new_ordered(OrderedStyle.new_decimal_period())
+                ordered_decimal_period()
             ]),
             Event.enter(Range(15, 15), BlockContainer.PARA),
             Event.str(15, 19),
@@ -217,20 +247,20 @@ class TestEventParser(unittest.TestCase):
             Event.exit(Range(20, 20), BlockContainer.LIST_ITEM),
             Event.exit(Range(20, 20), BlockContainer.LIST),
             Event.enter(Range(21, 24), BlockContainer.LIST).with_list_styles([
-                ListStyle.new_ordered(OrderedStyle.new_lower_roman_two_parens())
+                ordered_lower_roman_two_parens()
             ]),
             Event.enter(Range(21, 24), BlockContainer.LIST_ITEM).with_list_styles([
-                ListStyle.new_ordered(OrderedStyle.new_lower_roman_two_parens())
+                ordered_lower_roman_two_parens()
             ]),
             Event.enter(Range(26, 26), BlockContainer.PARA),
             Event.str(26, 29),
             Event.exit(Range(30, 30), BlockContainer.PARA),
             Event.blankline(31, 31),
             Event.enter(Range(33, 33), BlockContainer.LIST).with_list_styles([
-                ListStyle.new_bullet('-')
+                bullet_style('-')
             ]),
             Event.enter(Range(33, 33), BlockContainer.LIST_ITEM).with_list_styles([
-                ListStyle.new_bullet('-')
+                bullet_style('-')
             ]),
             Event.enter(Range(35, 35), BlockContainer.PARA),
             Event.str(35, 37),
@@ -254,10 +284,10 @@ class TestEventParser(unittest.TestCase):
 
         expected = [
             Event.enter(Range(0,0), BlockContainer.LIST).with_list_styles([
-                ListStyle.new_definition(),
+                definition_style(),
             ]),
             Event.enter(Range(0,0), BlockContainer.LIST_ITEM).with_list_styles([
-                ListStyle.new_definition(),
+                definition_style(),
             ]),
             Event.enter(Range(2,2), BlockContainer.PARA),
             Event.str(2,7),
