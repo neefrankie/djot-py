@@ -166,9 +166,11 @@ class InputText:
         return self.src[i] == '\n'
 
     def _calculate_eol(self):
-        i = self.pos
-        while self.src[i] != '\n':
-            i += 1
+        i = self.src.find('\n', self.pos)
+        if i == -1:
+            self.line_end = self.length - 1
+        else:
+            self.line_end = i
 
         self.line_end = i
 
