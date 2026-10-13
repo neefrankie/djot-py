@@ -53,7 +53,7 @@ class ListRule(BlockRule):
 
 
         styles = parse_list_styles(marker)
-        logger.debug(f'⏺ styles: {styles}')
+        logger.debug(f'⏺ styles: {styles!r}')
         if styles is None:
             return RuleResult.fail()
         
@@ -94,7 +94,12 @@ class ListRule(BlockRule):
         if not isinstance(container.data, ListData):
             return RuleResult.fail()
 
+        # As long as next line is indented more than previous line,
+        # keep the container.
+        # - one
+        #   two
         if ctx.cursor.indent > container.data.indent:
+            logger.debug(f'{ctx.cursor.pos}. ListRule.on_continue due to indentation: current indent: {ctx.cursor.indent}, previous indent: {container.data.indent}')
             container.update_closing_boundary(
                 ctx.cursor.line_end,
                 ctx.cursor.line_end,
@@ -102,6 +107,7 @@ class ListRule(BlockRule):
             return RuleResult.continue_ok()
 
         if ctx.cursor.is_eol_at(ctx.cursor.pos):
+            logger.debug(f'{ctx.cursor.pos}. ListRule.on_continue due to blankline')
             container.update_closing_boundary(
                 ctx.cursor.line_end,
                 ctx.cursor.line_end,
@@ -254,7 +260,11 @@ class ListItemRule(BlockRule):
         if not isinstance(container.data, ListData):
             return RuleResult.fail()
 
+        # A line indented should be taken as a continuation of previous list item.
+        # - one
+        #   - dash is plain text.
         if ctx.cursor.indent > container.data.indent or ctx.cursor.is_eol_at(ctx.cursor.pos):
+            logger.debug(f"{ctx.cursor.pos}. ListItem.on_continue due to indent or blankline")
             container.update_closing_boundary(
                 ctx.cursor.line_end,
                 ctx.cursor.line_end,
