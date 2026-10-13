@@ -6,13 +6,13 @@ from .string import (
     unescape_djot,
 )
 from .list_style import (
-    OrdinalStyle,
-    DelimiterStyle,
+    OrdinalKind,
+    DelimiterKind,
     OrderedStyle,
-    BulletStyle,
-    CheckboxStyle,
+    BulletKind,
+    CheckboxKind,
     TaskStyle,
-    ListType,
+    ListKind,
     ListStyle,
     parse_list_styles,
     intersect_list_styles,
