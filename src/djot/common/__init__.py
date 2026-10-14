@@ -1,5 +1,9 @@
 from .range import Range
-from .pos import Pos, SourceLoc
+from .pos import (
+    Pos,
+    SourceLoc,
+    SourceMap,
+)
 from .align import Alignment
 from .string import (
     is_name_char,
