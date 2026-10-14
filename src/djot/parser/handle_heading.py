@@ -17,7 +17,7 @@ class HeadingHandler(Handler):
         )
 
     def on_exit(self, state: BuildingState, ctx: DocumentContext, event: Event) -> AstNode | None:
-        frame = state.current_frame
+        frame = state.pop_frame()
         pos = ctx.calc_container_pos(frame, event)
         return Heading(
             attributes=frame.attributes.build(),
