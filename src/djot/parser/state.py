@@ -7,7 +7,10 @@ from djot.ast import (
     Reference,
     Footnote,
 )
-from djot.common import Pos, SourceLoc
+from djot.common import (
+    Pos,
+    SourceMap,
+)
 from djot.event import (
     Event,
     BlockContainer,
@@ -15,18 +18,17 @@ from djot.event import (
 
 from .frame import Frame
 from .attr import AttrBuilder
-from .location import get_source_loc
 
 class Mode(Enum):
     NORMAL = 0
     VERBATIM = 1
     LITERAL = 2
     
-@dataclass(slots=True)
 class DocumentContext:
-    src: str
-    line_starts: list[int] = field(default_factory=list)
-    source_location: bool = False
+
+    def __ini__(self, src: str, source_location: bool = False):
+        self.src: str
+        self.source_map: SourceMap | None = SourceMap(src) if source_location else None
 
     def get_leaf_text(self, event: Event) -> str:
         return self.src[event.startpos:event.endpos+1]
@@ -34,29 +36,21 @@ class DocumentContext:
     def get_text(self, start: int, end: int) -> str:
         return self.src[start:end]
 
-    def calc_loc(self, pos: int) -> SourceLoc:
-        return get_source_loc(self.line_starts, pos)
-
     def calc_pos(self, start: int, end: int) -> Pos | None:
-        if not self.source_location:
+        if not self.source_map:
             return None
         
-        start_loc = get_source_loc(self.line_starts, start)
-        end_loc = get_source_loc(self.line_starts, end)
-        return Pos(
-            start=start_loc,
-            end=end_loc,
-        )
+        return self.source_map.calc_pos(start, end)
 
     def calc_leaf_pos(self, event: Event) -> Pos | None:
-        if not self.source_location:
+        if not self.source_map:
             return None
-        return self.calc_pos(event.startpos, event.endpos)
+        return self.source_map.calc_pos(event.startpos, event.endpos)
 
     def calc_container_pos(self, frame: Frame, event: Event) -> Pos | None:
-        if not self.source_location:
+        if not self.source_map:
             return None
-        return self.calc_pos(frame.start_pos, event.endpos)
+        return self.source_map.calc_pos(frame.start_pos, event.endpos)
 
 @dataclass(slots=True)
 class BuildingState:
