@@ -10,7 +10,7 @@ class SourceLoc:
     offset: int # 0-based
 
     def __str__(self) -> str:
-        return f'{self.line}:{self.col}:{self.offset}'
+        return f'line={self.line}, col={self.col}, offset={self.offset}'
 
 @dataclass
 class Pos:
@@ -18,7 +18,7 @@ class Pos:
     end: SourceLoc
 
     def __str__(self) -> str:
-        return f'{self.start} - {self.end}'
+        return f'start({self.start}), end({self.end})'
 
 def get_line_starts(text: str) -> List[int]:
     """Find all newline position in a string.
@@ -46,20 +46,69 @@ def get_line_starts(text: str) -> List[int]:
     return starts
 
 class SourceMap:
+    """
+    SourceMap is used to calculate source code position in a human readable axis approach.
+
+    Mathmatical deduction to determine line and column position.
+
+    We use the following text as an example:
+
+    ```
+    # testing\n\n> testing _testing_\n
+    0123456789 0 12345678901234567890
+    ```
+
+    Write in in human readable format:
+
+    ```
+    # testing
+
+    > testing _testing_
+    ```
+
+    It will generate a list of newline start `line_starts`: `[-1, 9, 10, 30]`.
+    The indices of this list are line numbers. The first element `-1` plays a special role
+    to ensure `line` and `col` start from 1.
+    
+    What is the line of the first newline at position 9?
+    It shuld be line 1 according to human habits.
+    A character at `p` of line 1 should satisfy `-1 < p <= 9`.
+    So does the second line `9 < p <=10`,
+    and the third line `10 < p <= 30`.
+
+    The condition could be expressed as:
+
+    - Of all the newline positions less than p, find the last one. P is one the next line. Or
+    - Of all the newline positions greater than p, find the first one. P is one the previous line.
+
+    In Python standard library, there is `bisect.bisect_left` and `bisect.bisect_right`.
+    Which one fits the requirements?
+
+    bisect.bisect_left:
+    The returned insertion point ip partitions the array a into two slices such that all(elem < x for elem in a[lo : ip]) is true for the left slice and all(elem >= x for elem in a[ip : hi]) is true for the right slice.
+    """
     def __init__(self, text: str):
         # linestarts saves the position of all newlines, 
         # with -1 indicating the fist line's starting poiint
-        self.line_starts: list[int] = get_line_starts(text)
+        self.line_starts: List[int] = get_line_starts(text)
 
     def get_source_loc(self, pos: int) -> SourceLoc:
-        # bisect_right find the first newline position that is greater than pos.
-        # Subtract 1 to get the the last index of the newline position
-        # aht is less or equal to pos
-        line_idx = bisect.bisect_right(self.line_starts, pos) - 1
-        
-        line = line_idx + 1
-        col = pos - self.line_starts[line_idx]
-        return SourceLoc(line=line, col=col, offset=pos)
+        """
+        bisect_left find the position i where all items before i
+        are less than pos and all items from i are greater or equal to pos.
+        This i is exactly the target line.
+        """
+        line_idx = bisect.bisect_left(self.line_starts, pos)
+
+        # Pos should always be in the range [0, len(text)),
+        # so bisect_left should never return a value before index 1
+        # or after the last index.
+        if line_idx == 0 or line_idx == len(self.line_starts):
+            raise Exception(f'Source map invalid position: {pos}')
+
+        previous_line_start = self.line_starts[line_idx-1]
+        col = pos - previous_line_start
+        return SourceLoc(line=line_idx, col=col, offset=pos)
 
     def calc_pos(self, start: int, end: int):
         start_loc = self.get_source_loc(start)
