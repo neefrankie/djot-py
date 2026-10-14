@@ -26,8 +26,8 @@ class Mode(Enum):
     
 class DocumentContext:
 
-    def __ini__(self, src: str, source_location: bool = False):
-        self.src: str
+    def __init__(self, src: str, source_location: bool = False):
+        self.src = src
         self.source_map: SourceMap | None = SourceMap(src) if source_location else None
 
     def get_leaf_text(self, event: Event) -> str:
