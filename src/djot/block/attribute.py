@@ -1,7 +1,12 @@
 from dataclasses import dataclass
 
-from ..input import InputText
-from ..attributes import AttributeParser
+from djot.input import InputText
+from djot.attributes import AttributeParser
+from djot.event import (
+    Event,
+    BlockContainer,
+)
+from djot.common import Range
 
 from .container import (
     ContainerCap,
@@ -21,7 +26,7 @@ class AttributeRule(BlockRule):
     kind: ContainerCap = ContainerCap.BLOCK
     accepts_content: ContainerCap = ContainerCap.ATTRIBUTES
 
-    def try_open(self, cursor: InputText) -> RuleResult:        
+    def try_open(self, cursor: InputText) -> RuleResult:      
         if not cursor.peek_char_is('{'):
             return RuleResult.fail()
 
@@ -39,11 +44,31 @@ class AttributeRule(BlockRule):
             rule=self,
             start_pos=cursor.pos
         )
+
+        pos = cursor.pos
+        events = [
+            Event.enter(cursor.new_span(pos, pos), BlockContainer.ATTRIBUTES)
+        ]
+
+        events.extend(attribute_parser.events)
+
+        events.append(
+            Event.exit(
+                kind=BlockContainer.ATTRIBUTES,
+                # NOTE: djot.js implementation incorrectly sets the
+                # block attributes to next block starting point.
+                # It should be the end brace based on human intuition and symmetry.
+                span=cursor.new_span(
+                    start=res.position,
+                    end=res.position
+                )
+            )
+        )
         
         next_pos = cursor.line_end
         return RuleResult(
             status=FlowControl.OPEN,
-            events=attribute_parser.events,
+            events=events,
             container=container,
             next_pos=next_pos,
             finished_line=True,
