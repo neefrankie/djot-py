@@ -100,6 +100,7 @@ class Term(HasChildren[InlineNode], AstNode):
     @property
     def tag(self) -> str:
         return 'term'
+
 @dataclass(kw_only=True)
 class Definition(HasChildren[BlockNode], AstNode):
 
