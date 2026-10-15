@@ -4,4 +4,5 @@ from .builder import (
 
 from .parse import (
     parse,
+    render_ast,
 )
