@@ -1,4 +1,3 @@
-from typing import List, NamedTuple
 import unittest
 
 from djot.event import (
@@ -7,114 +6,12 @@ from djot.event import (
     VerbatimKind,
     InlineContainer,
     AttrKind,
-    BlockContainer,
-    VerbatimKind,
-    BlockContainer,
-    Action
+    VerbatimKind
 )
 from djot.common import Range
-from djot.inline.state import InlineState, OpenerKind
 from djot.input import InputText
-from djot.inline.backslash import BackslashMatcher
-from djot.inline.backtick import BacktickMatcher
-from djot.inline.brace_left import LeftBraceMatcher
-from djot.inline.bracket_left import LeftBracketMatcher
-from djot.inline.bracket_right import RightBracketMatcher
-from djot.inline.colon import ColonMatcher
-from djot.inline.lessthan import LessthanMatcher
-from djot.inline.paren_left import LeftParenMatcher
-from djot.inline.paren_right import RightParenMatcher
-from djot.inline.period import PeriodMatcher
-from djot.inline.between import (
-    MatchContext,
-    DelimiterCap,
-    MarkerStyle,
-    determine_bare_context,
-    determine_brace_context,
-    SubscriptMatcher,
-    SuperscriptMatcher,
-    EmphMatcher,
-    StrongMatcher,
-    InsertMatcher,
-    MarkMatcher,
-    SingleQuoteMatcher,
-    DoubleQuoteMatcher,
-)
-from djot.inline.hyphen import HyphenMatcher
 from djot.inline.parser import InlineParser
 
-def event_opener_marker(startpos: int, endpos: int) -> Event:
-    return Event.leaf(
-        Range(startpos, endpos),
-        InlineLeaf.OPEN_MARKER
-    )
-
-
-
-
-def attr_class(startpos: int, endpos: int) -> Event:
-    return Event.attr(
-        Range(startpos, endpos),
-        AttrKind.CLASS
-    )
-
-def attr_key(startpos: int, endpos: int) -> Event:
-    return Event.attr(
-        Range(startpos, endpos),
-        AttrKind.KEY
-    )
-
-def attr_equal_marker(startpos: int, endpos: int) -> Event:
-    return Event.attr(
-        Range(startpos, endpos),
-        AttrKind.EQUAL_MARKER
-    )
-
-def attr_quote_marker(startpos: int, endpos: int) -> Event:
-    return Event.attr(
-        Range(startpos, endpos),
-        AttrKind.QUOTE_MARKER
-    )
-
-def attr_value(startpos: int, endpos: int) -> Event:
-    return Event.attr(
-        Range(startpos, endpos),
-        AttrKind.VALUE
-    )
-
-def event_link_text(startpos: int, endpos: int, open: bool = True) -> Event:
-    return Event(
-        span=Range(startpos, endpos),
-        kind=InlineContainer.LINK_TEXT,
-        action=Action.ENTER if open else Action.EXIT,
-    )
-
-def event_dest(startpos: int, endpos: int, open: bool = True) -> Event:
-    return Event(
-        span=Range(startpos, endpos),
-        kind=InlineContainer.DESTINATION,
-        action=Action.ENTER if open else Action.EXIT,
-    )
-
-def event_reference(starpos: int, endpos: int, open: bool = True) -> Event:
-    return Event(
-        span=Range(starpos, endpos),
-        kind=InlineContainer.REFERENCE,
-        action=Action.ENTER if open else Action.EXIT,
-    )
-
-def event_image_marker(startpos: int, endpos: int) -> Event:
-    return Event.leaf(
-        span=Range(startpos, endpos),
-        kind=InlineLeaf.IMAGE_MARKER,
-    )
-
-def event_image_text(startpos: int, endpos: int, open: bool = True) -> Event:
-    return Event(
-        span=Range(startpos, endpos),
-        kind=InlineContainer.IMAGE_TEXT,
-        action=Action.ENTER if open else Action.EXIT,
-    )
 
 class TestInlineParser(unittest.TestCase):
 
@@ -267,7 +164,10 @@ class TestInlineParser(unittest.TestCase):
         )
         parser.feed(0, 8)
         expected = [
-            event_opener_marker(0, 0),
+            Event.leaf(
+                Range(0, 0),
+                InlineLeaf.OPEN_MARKER
+            ),
             Event.enter(Range(0, 1), InlineContainer.MARK),
             Event.str(2, 6),
             Event.exit(Range(7, 8), InlineContainer.MARK)
@@ -282,7 +182,10 @@ class TestInlineParser(unittest.TestCase):
         )
         parser.feed(0, 8)
         expected = [
-            event_opener_marker(0, 0),
+            Event.leaf(
+                Range(0, 0),
+                InlineLeaf.OPEN_MARKER
+            ),
             Event.enter(Range(0, 1), InlineContainer.INSERT),
             Event.str(2, 6),
             Event.exit(Range(7, 8), InlineContainer.INSERT)
@@ -390,12 +293,24 @@ class TestInlineParser(unittest.TestCase):
         parser.feed(0, 12)
 
         expected = [
-            event_link_text(0, 0),
+            Event.enter(
+                span=Range(0, 0),
+                kind=InlineContainer.LINK_TEXT,
+            ),
             Event.str(1, 6),
-            event_link_text(7, 7, False),
-            event_dest(8, 8),
+            Event.exit(
+                span=Range(7, 7),
+                kind=InlineContainer.LINK_TEXT,
+            ),
+            Event.enter(
+                span=Range(8, 8),
+                kind=InlineContainer.DESTINATION,
+            ),
             Event.str(9, 11),
-            event_dest(12, 12, False)
+            Event.exit(
+                span=Range(12, 12),
+                kind=InlineContainer.DESTINATION,
+            ),
         ]
 
         self.assertEqual(parser.state.get_matches(), expected)
