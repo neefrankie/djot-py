@@ -531,7 +531,7 @@ class TestParsingTable(unittest.TestCase):
 
     def test_parse_data_row(self):
         text = '| `|` | \\| |'
-               #01234567 8901
+               #012345678 901
 
         actual = parse_data_row(InputText(text), Range(0, 11))
 
@@ -541,13 +541,12 @@ class TestParsingTable(unittest.TestCase):
             Event.enter(Range(2, 2), VerbatimKind.VERBATIM),
             Event.str(3, 3),
             Event.exit(Range(4, 4), VerbatimKind.VERBATIM),
-            Event.str(5, 5),
             Event.exit(Range(6, 6), InlineContainer.TABLE_CELL),
             Event.enter(Range(6, 6), InlineContainer.TABLE_CELL),
             Event.escape(8, 8),
-            Event.str(9, 10),
+            Event.str(9, 9),
             Event.exit(Range(11, 11), InlineContainer.TABLE_CELL),
-            Event.exit(Range(11, 11), BlockContainer.TABLE_ROW),
+            Event.exit(Range(12, 12), BlockContainer.TABLE_ROW),
         ]
 
         # if actual is not None:
