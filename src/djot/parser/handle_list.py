@@ -22,6 +22,7 @@ from djot.event import (
     CheckboxPayload,
 )
 from djot.common.list_style import ListStyle
+from djot.logger import logger
 
 from .roman import get_list_start
 from .state import (
@@ -93,7 +94,7 @@ class ListHandler(Handler):
                 pos=pos,
                 children=frame.pop_list_item(),
                 loose=is_loose,
-                style=BulletListStyle(first_style)
+                style=BulletListStyle(str(first_style.bullet))
             )
 
         assert first_style.ordered is not None
@@ -146,6 +147,8 @@ class ListItemHandler(Handler):
     -LIST
     """
     def on_enter(self, state: BuildingState, ctx: DocumentContext, event: Event) -> Frame | None:
+        logger.debug(f'🍄 ListItemHandler.on_enter: {event}')
+
         list_frame = state.current_frame # parent list
         styles = []
         if isinstance(event.payload, ListPayload):
@@ -164,6 +167,7 @@ class ListItemHandler(Handler):
 
     def on_exit(self, state: BuildingState, ctx: DocumentContext, event: Event) -> AstNode | None:
         item_frame = state.pop_frame()
+        logger.debug(f'🍄 ListItemHandler.on_exit: {item_frame}')
         pos = ctx.calc_container_pos(item_frame, event)
 
         # Defintion list does not have tight/loose state.
@@ -197,10 +201,10 @@ class ListItemHandler(Handler):
 
         +LIST
             +LIST_ITEM
-                +PARA
+                +PARA (ignored)
                     STR: 'orange'
                 -PARA
-                BLANKLINE
+                BLANKLINE (ignored)
                 +PARA
                     STR: 'A citrus fruit.'
                 -PARA
@@ -218,7 +222,7 @@ class ListItemHandler(Handler):
                 children=frame.children[0].children
             )
             definition = Definition(
-                children=frame.pop_inline_children()[1:]
+                children=frame.pop_block_children(1)
             )
             return DefinitionListItem(
                 attributes=frame.attributes.build(),
@@ -227,12 +231,13 @@ class ListItemHandler(Handler):
                 definition=definition
             )
 
+        # There is not term.
         term = Term(
             children=[]
         )
 
         definition = Definition(
-            children=frame.pop_inline_children(),
+            children=frame.pop_block_children(),
         )
 
         return DefinitionListItem(
