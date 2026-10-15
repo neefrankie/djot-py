@@ -176,12 +176,11 @@ class InputText:
 
     def start_newline(self):
         """
-        初始化当前行的行首上下文（Reset Line Context）
-        在处理每一行前，清空上一行的临时状态，并确立当前行的物理边界。
+        Reset Line Context
         """
-        self.indent = 0 # 重置当前行的缩进计数（用于计算空格/Tab）
-        self.line_start = self.pos # 标记当前行的起始字符绝对位置（Cursor Offset）
-        self._calculate_eol() # 预先扫描并定位当前行的行尾（\n 或 \r\n）位置
+        self.indent = 0
+        self.line_start = self.pos
+        self._calculate_eol()
 
     def is_rest_of_line_blank(self, start: int) -> bool:
         while start < self.length:
