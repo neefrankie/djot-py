@@ -157,10 +157,12 @@ class Link(HasChildren[InlineNode], InlineNode):
 
     [My link text][]
     [My link text]: /url
+
+    children: linke text nodes
     """
     
-    destination: str | None
-    reference: str | None
+    destination: str | None # url
+    reference: str | None # reference label
 
     @property
     def tag(self) -> str:
