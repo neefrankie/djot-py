@@ -54,6 +54,7 @@ from djot.common import (
 )
 from djot.parser import (
     parse,
+    render_ast,
 )
 
 def iter_node(node: AstNode):
@@ -1129,6 +1130,27 @@ class TestParser(unittest.TestCase):
         )
 
         self.assertEqual(ast, expected)
+
+    def test_render_pretty(self):
+        ast = parse("hi there\nfriend\n\nnew para\n", source_positions=True)
+        #            012345678 9012345 6 789012345
+
+        actual = render_ast(ast)
+
+        print(actual)
+
+        expected = """doc
+  para (1:1:0-2:7:15)
+    str (1:1:0-1:8:7) text="hi there"
+    soft_break (1:9:8-1:9:8)
+    str (2:1:9-2:6:14) text="friend"
+  para (4:1:17-4:9:25)
+    str (4:1:17-4:8:24) text="new para"
+"""
+
+        self.assertEqual(actual, expected)
+
+
 
     
 if __name__ == '__main__':
