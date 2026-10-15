@@ -422,7 +422,7 @@ class InlineState:
 
         self.pending_span = None
 
-    def trim_last_space(self, pop_empty: bool = True):
+    def trim_trailing_space(self, pop_empty: bool = True):
         if not self.events:
             return
         
@@ -442,27 +442,17 @@ class InlineState:
         else:
             last_event.adjust_end(ep)
 
-    def get_matches(self) -> List[Event]:
-        """Get parsed events.
-        
-        Remove trailing softbreak and any spaces.
-
-        If verbatim is not closed, it will be closed.
-        """
+    def trim_softbreak(self):
         if not self.events:
-            return []
-
+            return
+        
         # remove trailing softbreak and any spaces
         if self.events[-1].is_soft_break:
             self.events.pop() # removed last one
-            if not self.events:
-                return []
 
-            self.trim_last_space()
+            self.trim_trailing_space()
 
-        if not self.events:
-            return []
-
+    def close_verbatim(self):
         # add -verbatim if needed.
         if self.verbatim_len > 0:
             last = self.events[-1]
@@ -476,5 +466,20 @@ class InlineState:
                     kind=self.verbatim_type,
                 )
             )
+
+    def get_matches(self) -> List[Event]:
+        """Get parsed events.
+        
+        Remove trailing softbreak and any spaces.
+
+        If verbatim is not closed, it will be closed.
+        """
+        self.trim_softbreak()
+
+        if not self.events:
+            return []
+
+        
+        self.close_verbatim()
 
         return self.events
