@@ -91,7 +91,7 @@ class AttrBuilder:
                 else:
                     target[k] = v
 
-        self._data.clear()
+        self.reset()
 
     @property
     def is_empty(self) -> bool:
