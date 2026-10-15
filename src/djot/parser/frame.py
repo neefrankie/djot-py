@@ -193,6 +193,11 @@ class Frame:
             logger.warning(f'List frame does not set list_data yet.')
 
     def set_listitem_blankline(self):
+        """When a blankline is seen inside list item"""
+        if self.list_item_data:
+            self.list_item_data.has_blank_line = True
+            return
+        
         self.list_item_data = ListItemData(
             has_blank_line=True
         )
@@ -253,6 +258,7 @@ class Frame:
         # data rows before separator rows.
         # | cell | cell |
         # | ---- | ---- |
+        # Rows before a separator is row is regarded as head.
         last_child.head = True
 
         n = len(aligns)
@@ -292,16 +298,16 @@ class Frame:
             # TODO: warn?
             return
 
-        self.ref_def_data.value = val
+        self.ref_def_data.value += val
       
 
     def pop_inline_children(self) -> List[InlineNode]:
         """专门提取 Inline 节点，逻辑上断言或过滤"""
         return cast(List[InlineNode], self.children)
 
-    def pop_block_children(self) -> List[BlockNode]:
+    def pop_block_children(self, start: int | None = None, stop: int | None = None) -> List[BlockNode]:
         """专门提取 Block 节点"""
-        return cast(List[BlockNode], self.children)
+        return cast(List[BlockNode], self.children[slice(start, stop)])
 
     def pop_def_list_items(self) -> List[DefinitionListItem]:
         return cast(List[DefinitionListItem], self.children)
