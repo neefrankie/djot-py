@@ -1137,8 +1137,6 @@ class TestParser(unittest.TestCase):
 
         actual = render_ast(ast)
 
-        print(actual)
-
         expected = """doc
   para (1:1:0-2:7:15)
     str (1:1:0-1:8:7) text="hi there"
