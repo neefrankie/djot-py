@@ -28,6 +28,24 @@ from djot.ast import (
     ThematicBreak,
     Div,
     Footnote,
+    Verbatim,
+    NonBreakingSpace,
+    HardBreak,
+    Url,
+    Email,
+    Subscript,
+    Superscript,
+    Strong,
+    Mark,
+    Insert,
+    DoubleQuoted,
+    SmartPunctuation,
+    SmartPunctType,
+    Span,
+    Link,
+    Image,
+    Symb,
+    FootnoteReference,
 )
 from djot.common import (
     Pos,
@@ -46,8 +64,6 @@ def iter_node(node: AstNode):
     elif isinstance(node, DefinitionListItem):
         yield from iter_node(node.term)
         yield from iter_node(node.definition)
-
-
 
 
 class TestParser(unittest.TestCase):
@@ -567,6 +583,391 @@ class TestParser(unittest.TestCase):
             children=[],
         )
 
+    def test_verbatim(self):
+        ast = parse("x ``` hello ``there ``` x")
+
+        expected = Doc(
+            references={},
+            footnotes={},
+            children=[
+                Para(
+                    children=[
+                        Str(text='x '),
+                        Verbatim(
+                            text=' hello ``there '
+                        ),
+                        Str(text=' x')
+                    ]
+                ),
+            ]
+        )
+
+        self.assertEqual(ast, expected)
+
+    def test_escaped(self):
+        ast = parse('\\"\\*\\ \\a \\\n')
+        #             01 23 45 678 90
+        expected = Doc(
+            references={},
+            footnotes={},
+            children=[
+                Para(
+                    children=[
+                        Str(text='"'),
+                        Str(text='*'),
+                        NonBreakingSpace(),
+                        Str(text='\\a'),
+                        HardBreak(),
+                    ]
+                )
+            ]
+        )
+
+        self.assertEqual(ast, expected)
+
+    def test_autolink(self):
+        ast = parse('<http://example.com?foo=bar&baz=&amp;x2>')
+
+        expected = Doc(
+            references={},
+            footnotes={},
+            children=[
+                Para(
+                    children=[
+                        Url(
+                            text='http://example.com?foo=bar&baz=&amp;x2'
+                        )
+                    ]
+                )
+            ]
+        )
+
+        self.assertEqual(ast, expected)
+
+    def test_auto_email(self):
+        ast = parse('<me@example.com>')
+
+        expected = Doc(
+            references={},
+            footnotes={},
+            children=[
+                Para(
+                    children=[
+                        Email(
+                            text='me@example.com'
+                        )
+                    ]
+                )
+            ]
+        )
+
+        self.assertEqual(ast, expected)
+
+    def test_super_sub(self):
+        ast = parse('H~2~O e=mc^2^')
+
+        expected = Doc(
+            references={},
+            footnotes={},
+            children=[
+                Para(
+                    children=[
+                        Str(text='H'),
+                        Subscript(
+                            children=[
+                                Str(text='2')
+                            ]
+                        ),
+                        Str(text='O e=mc'),
+                        Superscript(
+                            children=[
+                                Str(text='2')
+                            ]
+                        )
+                    ]
+                )
+            ]
+        )
+
+        self.assertEqual(ast, expected)
+
+        # for node in iter_node(ast):
+        #     print(node)
+
+    def test_emphasis(self):
+        ast = parse('_hello *there*_ world')
+        expected = Doc(
+            references={},
+            footnotes={},
+            children=[
+                Para(
+                    children=[
+                        Emph(
+                            children=[
+                                Str(text='hello '),
+                                Strong(
+                                    children=[
+                                        Str(text='there')
+                                    ]
+                                ),
+                            ]
+                        ),
+                        Str(text=' world')
+                    ]
+                )
+            ]
+        )
+
+        self.assertEqual(ast, expected)
+
+    def test_mark(self):
+        ast = parse('{=hello=}')
+
+        expected = Doc(
+            references={},
+            footnotes={},
+            children=[
+                Para(
+                    children=[
+                        Mark(
+                            children=[
+                                Str(text='hello')
+                            ]
+                        )
+                    ]
+                )
+            ]
+        )
+
+        self.assertEqual(ast, expected)
+
+    def test_insert(self):
+        ast = parse('{+hello+}')
+
+        expected = Doc(
+            references={},
+            footnotes={},
+            children=[
+                Para(
+                    children=[
+                        Insert(
+                            children=[
+                                Str(text='hello')
+                            ]
+                        )
+                    ]
+                )
+            ]
+        )
+
+        self.assertEqual(ast, expected)
+
+    def test_quoted(self):
+        ast = parse('"dog\'s breakfast"')
+
+        expected = Doc(
+            references={},
+            footnotes={},
+            children=[
+                Para(
+                    children=[
+                        DoubleQuoted(
+                            children=[
+                                Str(text='dog'),
+                                SmartPunctuation(
+                                    text="'",
+                                    type=SmartPunctType.RIGHT_SINGLE_QUOTE,
+                                ),
+                                Str(text='s breakfast')
+                            ]
+                        )
+                    ]
+                )
+            ]
+        )
+
+        self.assertEqual(ast, expected)
+
+    def test_span(self):
+        ast = parse('[hi]{#foo .bar baz="bim"}')
+
+        expected = Doc(
+            references={},
+            footnotes={},
+            children=[
+                Para(
+                    children=[
+                        Span(
+                            attributes={
+                                'id': 'foo',
+                                'class': 'bar',
+                                'baz': 'bim'
+                            },
+                            children=[
+                                Str(text='hi')
+                            ]
+                        )
+                    ]
+                )
+            ]
+        )
+
+        self.assertEqual(ast, expected)
+
+    def test_inline_links(self):
+        ast = parse('[foobar](url)')
+
+        expected = Doc(
+            references={},
+            footnotes={},
+            children=[
+                Para(
+                    children=[
+                        Link(
+                            children=[
+                                Str(text='foobar')
+                            ],
+                            destination='url',
+                            reference=None
+                        )
+                    ]
+                )
+            ]
+        )
+
+        self.assertEqual(ast, expected)
+
+    def test_reference_links(self):
+        ast = parse('[foobar][1]')
+        
+        expected = Doc(
+            references={},
+            footnotes={},
+            children=[
+                Para(
+                    children=[
+                        Link(
+                            children=[
+                                Str(text='foobar')
+                            ],
+                            destination=None,
+                            reference='1'
+                        )
+                    ]
+                )
+            ]
+        )
+
+        self.assertEqual(ast, expected)
+        for node in iter_node(ast):
+            print(node)
+
+    def test_inline_image(self):
+        ast = parse('![foobar](url)')
+        
+        expected = Doc(
+            references={},
+            footnotes={},
+            children=[
+                Para(
+                    children=[
+                        Image(
+                            children=[
+                                Str(text='foobar')
+                            ],
+                            destination='url',
+                            reference=None,
+                        )
+                    ]
+                )
+            ]
+        )
+
+        self.assertEqual(ast, expected)
+
+    def test_symb(self):
+        ast = parse(':+1:')
+        expected = Doc(
+            references={},
+            footnotes={},
+            children=[
+                Para(
+                    children=[
+                        Symb(
+                            alias='+1'
+                        )
+                    ]
+                )
+            ]
+        )
+
+        self.assertEqual(ast, expected)
+
+    def test_ellipse(self):
+        ast = parse('...')
+        expected = Doc(
+            references={},
+            footnotes={},
+            children=[
+                Para(
+                    children=[
+                        SmartPunctuation(
+                            text='...',
+                            type=SmartPunctType.ELLIPSES
+                        )
+                    ]
+                )
+            ]
+        )
+
+        self.assertEqual(ast, expected)
+
+    def test_dash(self):
+        ast = parse('a---b--c')
+        expected = Doc(
+            references={},
+            footnotes={},
+            children=[
+                Para(
+                    children=[
+                        Str(text='a'),
+                        SmartPunctuation(
+                            text='---',
+                            type=SmartPunctType.EM_DASH
+                        ),
+                        Str(text='b'),
+                        SmartPunctuation(
+                            text='--',
+                            type=SmartPunctType.EN_DASH
+                        ),
+                        Str(text='c'),
+                    ]
+                )
+            ]
+        )
+
+        self.assertEqual(ast, expected)
+
+    def test_note_reference(self):
+        ast = parse('[^ref]')
+
+        expected = Doc(
+            references={},
+            footnotes={},
+            children=[
+                Para(
+                    children=[
+                        FootnoteReference(
+                            text='ref'
+                        )
+                    ]
+                )
+            ]
+        )
+
+        self.assertEqual(ast, expected)
+
+
     def test_block_attributes(self):
         ast = parse("{.foo}\n{#bar .baz}\nHello")
         #            0123456 789012345678 90123
@@ -588,6 +989,9 @@ class TestParser(unittest.TestCase):
         )
 
         self.assertEqual(ast, expected)
+
+    
+
     
     def test_source_position(self):
         """
