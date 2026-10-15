@@ -196,7 +196,7 @@ class TestInlineParser(unittest.TestCase):
     def test_quoted(self):
         parser = InlineParser(
             cursor=InputText('"dog\'s breakfast"'),
-            
+            #                 0123 4567890123456
         )
 
         parser.feed(0, 16)
@@ -204,7 +204,7 @@ class TestInlineParser(unittest.TestCase):
         expected = [
             Event.enter(Range(0, 0), InlineContainer.DOUBLE_QUOTED),
             Event.str(1, 3),
-            Event.right_single_quote(4, 4),
+            Event.leaf(Range(4, 4), InlineLeaf.RIGHT_SINGLE_QUOTE),
             Event.str(5, 15),
             Event.exit(Range(16, 16), InlineContainer.DOUBLE_QUOTED),
         ]
