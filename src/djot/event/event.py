@@ -234,3 +234,11 @@ class Event:
             kind=kind,
             action=None
         )
+
+    @classmethod
+    def space(cls, start: int, end: int) -> 'Event':
+        return cls(
+            span=Range(start, end),
+            kind=AttrKind.SPACE,
+            action=None
+        )
