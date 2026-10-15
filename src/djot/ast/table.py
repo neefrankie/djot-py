@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import TypeGuard
 
 from ..common import Alignment
 
@@ -22,7 +21,7 @@ class Cell(HasChildren[InlineNode], AstNode):
 
 @dataclass(kw_only=True)
 class Row(HasChildren[Cell], AstNode):
-    head: bool
+    head: bool # true before a separator line.
 
     @property
     def tag(self) -> str:
