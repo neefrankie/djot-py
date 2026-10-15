@@ -101,7 +101,7 @@ class Term(HasChildren[InlineNode], AstNode):
     def tag(self) -> str:
         return 'term'
 @dataclass(kw_only=True)
-class Definition(HasChildren[InlineNode], AstNode):
+class Definition(HasChildren[BlockNode], AstNode):
 
     @property
     def tag(self) -> str:
@@ -115,6 +115,7 @@ class DefinitionListItem(AstNode):
     @property
     def tag(self) -> str:
         return 'definition_list_item'
+
 @dataclass(kw_only=True)
 class DefinitionList(HasChildren[DefinitionListItem], BlockNode):
 
