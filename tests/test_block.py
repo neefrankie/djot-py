@@ -475,8 +475,7 @@ class TestEventParser(unittest.TestCase):
             Event.exit(Range(25, 25), BlockContainer.PARA)
         ]
 
-        # self.assertEqual(actual, expected)
-        # This test cannot pass as it is not supported.
+        self.assertEqual(actual, expected)
 
     def test_block_attr_as_para(self):
         text = "{.foo\nbar *baz*\n\n"
