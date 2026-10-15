@@ -129,13 +129,6 @@ class Event:
 
         return False
 
-    @classmethod
-    def new(cls, start: int, end: int, kind: EventKind, action: Optional[Action] = None) -> 'Event':
-        return cls(
-            span=Range(start=start, end=end),
-            kind=kind,
-            action=action,
-        )
 
     @classmethod
     def enter(cls, span: Range, kind: BlockContainer | VerbatimKind | InlineContainer) -> 'Event':
@@ -216,16 +209,6 @@ class Event:
             kind=BlockLeaf.BLANKLINE,
             action=None
         )
-
-    @classmethod
-    def right_single_quote(cls, startpos: int, endpos: int) -> 'Event':
-        return cls(
-            span=Range(startpos, endpos),
-            kind=InlineLeaf.RIGHT_SINGLE_QUOTE,
-            action=None
-        )
-
-
 
     @classmethod
     def attr(cls, span: Range, kind: AttrKind) -> 'Event':
