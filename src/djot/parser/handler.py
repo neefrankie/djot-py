@@ -9,6 +9,7 @@ from djot.ast import (
     AstNode,
 )
 from djot.common import Pos
+from djot.logger import logger
 
 from .state import DocumentContext, BuildingState
 from .frame import Frame
@@ -27,7 +28,8 @@ class Handler(ABC):
                 return
 
             if not state.block_attributes.is_empty:
-                # Block atttributes should be transfered immediatel upon seeing a block followed.
+                logger.debug(f'🚌 Transfering block attributes to {frame.kind}')
+                # Block atttributes should be transfered to the block followed.
                 state.block_attributes.transfer_to(frame.attributes)
 
             state.push_frame(frame)
