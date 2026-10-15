@@ -105,8 +105,10 @@ class BlockAttrHandler(Handler):
         frame = state.pop_frame()
 
         if frame.attributes.is_empty:
+            logger.debug(f'🚌 Cannot transfer attributes to global state: empty')
             return None
 
+        logger.debug(f'🚌 Transfering attributes to global state')
         frame.attributes.transfer_to(state.block_attributes)
 
         return None
