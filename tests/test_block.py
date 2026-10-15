@@ -366,10 +366,8 @@ class TestEventParser(unittest.TestCase):
 
         for text, expected in cases:
             with self.subTest(text):
-                print('\n')
                 actual = list(EventParser(text).parse())
-                for e in actual:
-                    print(e)
+                self.assertEqual(actual, expected)
 
     def test_captions(self):
         text = " ^ This is a\n*capt*\n\n"

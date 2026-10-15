@@ -692,9 +692,6 @@ class TestParser(unittest.TestCase):
 
         self.assertEqual(ast, expected)
 
-        # for node in iter_node(ast):
-        #     print(node)
-
     def test_emphasis(self):
         ast = parse('_hello *there*_ world')
         expected = Doc(
@@ -860,8 +857,6 @@ class TestParser(unittest.TestCase):
         )
 
         self.assertEqual(ast, expected)
-        for node in iter_node(ast):
-            print(node)
 
     def test_inline_image(self):
         ast = parse('![foobar](url)')
