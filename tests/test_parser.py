@@ -586,11 +586,8 @@ class TestParser(unittest.TestCase):
                 )
             ]
         )
-        print(ast)
 
-        print(expected)
-
-        # self.assertEqual(ast, expected)
+        self.assertEqual(ast, expected)
     
     def test_source_position(self):
         """
