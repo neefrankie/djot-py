@@ -454,8 +454,8 @@ class TestEventParser(unittest.TestCase):
         self.assertEqual(actual, expected)
 
     def test_block_attributes(self):
-        text = "{.foo}\n{#bar\n .baz}\nHello"
-        #       0123456 789012 3456789 01234
+        text = "{.foo}\n{#bar .baz}\nHello"
+        #       0123456 789012345678 90123
         parser = EventParser(text)
         actual = list(parser.parse())
 
@@ -463,16 +463,17 @@ class TestEventParser(unittest.TestCase):
             Event.enter(Range(0, 0), BlockContainer.ATTRIBUTES),
             Event.attr(Range(1, 1), AttrKind.CLASS_MARKER),
             Event.attr(Range(2, 4), AttrKind.CLASS),
-            Event.exit(Range(7, 7), BlockContainer.ATTRIBUTES),
+            Event.exit(Range(5, 5), BlockContainer.ATTRIBUTES),
             Event.enter(Range(7, 7), BlockContainer.ATTRIBUTES),
             Event.attr(Range(8, 8), AttrKind.ID_MARKER),
             Event.attr(Range(9, 11), AttrKind.ID),
-            Event.attr(Range(14, 14), AttrKind.CLASS_MARKER),
-            Event.attr(Range(15, 17), AttrKind.CLASS),
-            Event.exit(Range(20, 20), BlockContainer.ATTRIBUTES),
-            Event.enter(Range(20, 20), BlockContainer.PARA),
-            Event.str(20, 24),
-            Event.exit(Range(25, 25), BlockContainer.PARA)
+            Event.space(12, 12),
+            Event.attr(Range(13, 13), AttrKind.CLASS_MARKER),
+            Event.attr(Range(14, 16), AttrKind.CLASS),
+            Event.exit(Range(17, 17), BlockContainer.ATTRIBUTES),
+            Event.enter(Range(19, 19), BlockContainer.PARA),
+            Event.str(19, 23),
+            Event.exit(Range(24, 24), BlockContainer.PARA) # the newlne added automatically
         ]
 
         self.assertEqual(actual, expected)
