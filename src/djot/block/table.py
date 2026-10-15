@@ -234,7 +234,7 @@ def parse_data_row(
             # rewind, this is not a valid table row
             return None
 
-        inline_parser.state.trim_last_space(pop_empty=False)
+        inline_parser.state.trim_trailing_space()
 
         inline_parser.state.push_event(
             Event.exit(
