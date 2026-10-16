@@ -120,7 +120,6 @@ class BlockState:
         logger.debug(f'🚪{self.cursor.pos}. Close {container}')
         result = container.on_close(ParsingContext(
             cursor=self.cursor,
-            last_span_end=self.last_event.span.end if self.last_event else None
         ))
         result.events = events + result.events
         return result
