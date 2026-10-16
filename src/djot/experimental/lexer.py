@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from enum import Enum, auto
-import re
 
 class LineKind(Enum):
     HEADING = auto()
