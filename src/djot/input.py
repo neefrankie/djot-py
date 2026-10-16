@@ -167,8 +167,6 @@ class InputText:
         else:
             self.line_end = i
 
-        self.line_end = i
-
     def start_newline(self):
         """
         Reset Line Context
