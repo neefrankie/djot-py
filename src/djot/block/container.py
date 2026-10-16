@@ -79,7 +79,6 @@ class ParsingContext:
     """
     cursor: InputText
     is_covered: bool = False
-    last_span_end: Optional[int] = None
 
 T = TypeVar('T')
 
