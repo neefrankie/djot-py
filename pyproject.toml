@@ -1,7 +1,7 @@
 [project]
 name = "djot-py"
 version = "0.1.0"
-description = "A pure Python implementation of the Jot markup language"
+description = "A pure Python implementation of the Djot markup language"
 readme = "README.md"
 authors = [
     { name = "Victor Nee", email = "neefrankie@gmail.com" }
