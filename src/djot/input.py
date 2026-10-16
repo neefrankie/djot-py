@@ -10,6 +10,7 @@ class MatchedRange:
     start: int
     end: int
     captures: List[str] = field(default_factory=list)
+
     
 # The TS version `find` is is a hack of JS regular expression,
 # which is already implemented by Python re.Pattern.search.
@@ -38,12 +39,6 @@ def find(
             captures=list(m.groups()) # Match.groups() returns a tuple containing string or None.
         )
 
-@dataclass(slots=True, frozen=True)
-class LineSpan:
-    start: int
-    eol_start: int
-    eol_end: int
-    indent: int
 
 class InputText:
     
