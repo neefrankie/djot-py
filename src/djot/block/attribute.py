@@ -6,7 +6,6 @@ from djot.event import (
     Event,
     BlockContainer,
 )
-from djot.common import Range
 
 from .container import (
     ContainerCap,
