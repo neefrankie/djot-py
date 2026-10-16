@@ -134,7 +134,22 @@ class InputText:
 
     def skip_space(self):
         """
-        Ignore leading space and update self.indent
+        This is not what is usually considered as skipping leading spaces.
+        It is actually skipping leading space of current node.
+        For example:
+
+        ```
+        > - item 1
+        0123456789
+        ```
+
+        When a bockquote rule opened, skip space to
+        position 2.
+        When a list item rule opened, skip space to
+        position 5.
+        So the indent is not actaully whitespace indentation.
+        It might be more properly described as the 
+        column position of first non-space character of a node.
         """
         newpos = self.pos
 
