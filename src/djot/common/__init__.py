@@ -1,4 +1,7 @@
-from .range import Range
+from .range import (
+    Range,
+    MatchedRange,
+)
 from .pos import (
     Pos,
     SourceLoc,
