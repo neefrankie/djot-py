@@ -79,14 +79,12 @@ class EventParser:
         logger.debug(f'Frame after continuation: {frame}')
 
         events.extend(frame.events)
-        self.state.update_last_event(events)
 
         #  if we hit a close fence, we can move to next line
         if frame.finished_line:
             logger.debug(f'--- Finished a line due to continuation')
             close_events = self.state.close_container_to_depth(frame.last_matched_idx)
             events.extend(close_events)
-            self.state.update_last_event(events)
             return events
 
         logger.debug(f'--- Stage: try open ----')
@@ -97,7 +95,7 @@ class EventParser:
         logger.debug(f'Frame after exhausting opening rules: {frame}')
 
         events.extend(frame.events)
-        self.state.update_last_event(events)
+        
         # Stop if the whole line is eaten.
         if frame.finished_line:
             logger.debug(f'--- Finished a line due to open')
@@ -119,7 +117,6 @@ class EventParser:
                 self.state.close_container_to_depth(frame.last_matched_idx)
             )
 
-        self.state.update_last_event(events)
 
         logger.debug(f'--- Stage: consume rest line ---')
         # add paragraph by default if there's text
@@ -129,7 +126,6 @@ class EventParser:
             new_starts_created=frame.new_starts_created
         )
         events.extend(text_events)
-        self.state.update_last_event(events)
 
         logger.debug('--- Finished processing a line ---')
         return events

@@ -25,9 +25,6 @@ class BlockState:
         # -1 mean the stack does not have such a container.
         self.raw_barrier_idx: int = -1
 
-        # This is a strange hack.
-        self.last_event: Optional[Event] = None
-
     @property
     def top_container(self) -> Optional[Container]:
         """Get the innermost node in current active AST path"""
@@ -106,16 +103,10 @@ class BlockState:
 
         return events
 
-    # This is a horrible hack.
-    def update_last_event(self, events: List[Event]):
-        if events:
-            self.last_event = events[-1]
-
     def _close_container(self, container: Container) -> RuleResult:
         events: List[Event] = []
         if container.inline_parser:
             events.extend(container.inline_parser.iter_merged_events())
-        self.update_last_event(events)
 
         logger.debug(f'🚪{self.cursor.pos}. Close {container}')
         result = container.on_close(ParsingContext(
