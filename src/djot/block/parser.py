@@ -201,7 +201,7 @@ class EventParser:
         # In djot.js, it uses let isBlank = (self.pos === self.starteol);
         # However, the logic here is not actually ask if the line is blank.
         # It is asking if the rest of line is blank, or Residual Blank Line
-        if self.state.cursor.is_eof:
+        if self.state.cursor.is_eol:
             logger.debug(f'{self.state.cursor.pos}. Current cursor has moved to EOL after skipping leading space. Stop trying to open any container.')
             return LineStepFrame(last_matched_idx=last_matched_idx)
 
