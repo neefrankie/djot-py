@@ -19,8 +19,6 @@ from .container import (
 
 @dataclass
 class AttributeRule(BlockRule):
-    """
-    """
 
     kind: ContainerCap = ContainerCap.BLOCK
     accepts_content: ContainerCap = ContainerCap.ATTRIBUTES
