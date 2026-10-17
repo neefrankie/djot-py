@@ -6,7 +6,7 @@ from typing import Any, Generic, List, Optional, TypeVar
 
 from djot.input import InputText
 from djot.inline import InlineParser
-from djot.attributes import AttributeParser, AttrFlowControl
+from djot.attributes import AttributeParser
 from djot.event import (
     Event,
 )
@@ -56,13 +56,6 @@ class FencedDivData:
 class CodeBlockData:
     close_pattern: re.Pattern
 
-@dataclass
-class AttributeData:
-    status: AttrFlowControl
-    indent: int
-    startpos: int
-    spans: List[Range]
-
 @dataclass(frozen=True)
 class ParsingContext:
     """Data passed to a rule's methods
@@ -100,10 +93,6 @@ class Container(Generic[T]):
         return f'Container<{self.rule.__class__.__name__}>'
 
     @property
-    def node_type(self) -> ContainerCap:
-        return self.rule.kind
-
-    @property
     def children_type(self) -> ContainerCap:
         return self.rule.accepts_content
 
@@ -113,10 +102,10 @@ class Container(Generic[T]):
 
     @property
     def accepts_raw_text(self):
-        return self.children_type == ContainerCap.TEXT
+        return self.rule.accepts_content == ContainerCap.TEXT
 
     def can_cantain(self, other: 'Container') -> bool:
-        return self.children_type == other.node_type
+        return self.rule.accepts_content == other.rule.kind
 
     def can_nest(self, rule: 'BlockRule') -> bool:
         return self.rule.accepts_content == rule.kind
@@ -134,6 +123,8 @@ class FlowControl(Enum):
     STOP = auto() # stop searching deeper in a node path.
     CLOSE = auto() # a container should be closed.
     FAIL = auto()
+    # LINE_FINISHED # Go to next line directly.
+    # FALLBACK # Stop parsing current block, rewind, and yield to paragraph rule.
 
 
 @dataclass
