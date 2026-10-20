@@ -72,6 +72,12 @@ class Cursor:
     _SPACE_TAB = ' \t'
     _PATT_WORD = re.compile(r'\w+\s')
     _WHITESPACE = ' \t\r\n'
+    # Inline
+    _RE_SPECIAL = re.compile(
+        r'''[\r\n"'()*+.:<=\[\\\]^_`${}~-]'''
+    )
+    # {=FORMAT}
+    _PATT_RAW_ATTRIBUTE = re.compile(r'\{=[^\s{}`]+\}')
 
     def __init__(self, src: str) -> None:
         src = src.replace('\r\n', '\n')
@@ -153,13 +159,25 @@ class Cursor:
     def get_line_text(self, ctx: LineContext) -> str:
         return self.src[ctx.start_offset:ctx.end_offset+1]
 
-    def is_left_brace(self, pos: int):
+    def is_left_brace(self, pos: int) -> bool:
         return self.src[pos] == '{'
 
-    def is_right_brace(self, pos: int):
+    def is_right_brace(self, pos: int) -> bool:
         return self.src[pos] == '}'
 
-    def is_rest_of_line_blank(self, start: int) -> bool:
+    def is_newline(self, pos: int) -> bool:
+        return self.src[pos] == '\n'
+
+    def is_space(self, pos: int) -> bool:
+        return self.src[pos] == ' ' 
+
+    def peek_is_blank(self, start: int) -> bool:
+        """
+        Find out if a line is blank from start to next newline.
+        It deals with two cases:
+        1. A plain blank line if start points to the start of a line.
+        2. The rest of line is blank is start is in the middle of a line.
+        """
         while start < self.length:
             c = self.src[start]
             if c in self._SPACE_TAB:
@@ -171,11 +189,6 @@ class Cursor:
 
         return False # EOF without newline.
 
-    def is_blankline(self, ctx: LineContext) -> bool:
-        if ctx.start_offset == ctx.end_offset:
-            return True
-
-        return all(c in self._SPACE_TAB for c in self.src[ctx.start_offset:ctx.end_offset])
 
     def is_blank_span(self, start: int, end: int) -> bool:
         if self.src[end] == '\n':
@@ -189,4 +202,68 @@ class Cursor:
     def is_whitespace(self, pos: int) -> bool:
         return self.src[pos] in self._SPACE_TAB
 
+    # Replace these regex:
+    # re.compile(r'`*')
+    # re.compile(r'`+')
+    def count_char(self, ch: str, start: int) -> int:
+        """Count consecutive chars"""
+
+        if self.src[start] != ch:
+            return 0
+        
+        i = start
+        
+        while i < self.length and self.src[i] == ch:
+            i += 1
+        
+        return i - start
+
+    def char_at(self, i: int) -> str | None:
+        if i >= self.length:
+            return None
+
+        return self.src[i]
+
+
+    def find_special(self, start: int, end: int) -> int | None:
+        """Find special characters
+        
+        This functions tries to follow the behavior in of 
+        findSpecial in djot.js, which includes endpos based on
+        if (result && result.index <= endpos).
+        Python Pattern.search, however, does not include endpos.
+        Here's the doc:
+        The optional parameter endpos limits how far the string will be searched; it will be as if the string is endpos characters long, so only the characters from pos to endpos - 1 will be searched for a match. 
+        """
+        m = self._RE_SPECIAL.search(self.src, start, end+1)
+
+        if m:
+            return m.start()
+
+        return None
     
+
+    def find_raw_attribute(self, pos: int, endpos: int) -> MatchedRange | None:
+        return find(self.src, self._PATT_RAW_ATTRIBUTE, pos, endpos)
+
+    def right_find_space_tab(self, span: Range) -> int:
+        """Find out trailing space starting position
+        
+        Returns:
+            int: the position of first non-space char from backward
+        """
+        start = span.start
+        end = span.end
+
+        while end >= start and self.src[end] in self._SPACE_TAB:
+            end = end - 1
+
+        return end
+
+    def right_find_space_char(self, span: Range) -> int:
+        start = span.start
+        end = span.end
+        while end >= start and self.src[end] == ' ':
+            end = end - 1
+
+        return end
