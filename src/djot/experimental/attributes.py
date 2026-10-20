@@ -52,14 +52,14 @@ class State(Enum):
     START = 13
 
 
-class AttrFlowControl(Enum):
+class AttrStatus(Enum):
     DONE = 0
     FAIL = 1
     CONTINUE = 2
 
 @dataclass(slots=True, frozen=True)
 class AttrParseResult:
-    status: AttrFlowControl
+    status: AttrStatus
     position: int # Last position the state machine stops.
 
 
@@ -162,7 +162,7 @@ class AttributeParser:
     def feed(self, startpos: int, endpos: int) -> AttrParseResult:
         if self.cursor.is_blank_span(startpos, endpos):
             return AttrParseResult(
-                status=AttrFlowControl.FAIL, 
+                status=AttrStatus.FAIL, 
                 position=startpos
             )
         
@@ -172,13 +172,13 @@ class AttributeParser:
             # State turned to DONE only when pos points to `}`
             if self.state == State.DONE:
                 return AttrParseResult(
-                    status=AttrFlowControl.DONE, 
+                    status=AttrStatus.DONE, 
                     position=pos
                 )
             elif self.state == State.FAIL:
                 self.lastpos = pos
                 return AttrParseResult(
-                    status=AttrFlowControl.FAIL, 
+                    status=AttrStatus.FAIL, 
                     position=pos
                 )
             else:
@@ -186,7 +186,7 @@ class AttributeParser:
                 pos += 1
 
         return AttrParseResult(
-            status=AttrFlowControl.CONTINUE,
+            status=AttrStatus.CONTINUE,
             position=pos
         )
 
