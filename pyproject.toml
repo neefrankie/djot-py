@@ -1,6 +1,6 @@
 [project]
 name = "djot-py"
-version = "0.1.2"
+version = "0.1.3"
 description = "A pure Python implementation of the Djot markup language"
 readme = "README.md"
 authors = [
