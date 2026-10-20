@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Tuple
+from typing import List, Tuple
 
 from djot.event import (
     Event,
@@ -11,19 +11,54 @@ from ..cursor import (
     LineContext,
 )
 from ..attributes import (
-    AttrFlowControl,
+    AttrStatus,
     AttributeParser,
-    AttrParseResult,
 )
 
-from .frame import (
+from .container import (
     ContainerCap,
-    BlockFrame,
-    FlowControl,
-    BlockRule,
-    RuleResult,
-    ParsingContext,
 )
+from .frame import (
+    BlockFrame,
+    BlockRule,
+    OpenResult,
+    OpenStatus,
+    ContinueResult,
+    ContinueAction,
+    LineAction,
+)
+
+from .context import (
+    ParsingContext,
+    
+)
+
+def parse_attributes(
+    cursor: Cursor,
+    parser: AttributeParser,
+    current_line: LineContext, 
+) -> Tuple[AttrStatus, LineContext]:
+    initial_line = current_line
+    res = parser.feed(current_line.pos, current_line.end_offset)
+
+    while res.status == AttrStatus.CONTINUE:
+        next_line = cursor.peek_line(current_line)
+        if next_line is None: # no more lines
+            return AttrStatus.FAIL, current_line.new_pos(res.position) # The cursor should stop at res.position of last line.
+
+        next_line = cursor.skip_frame_space(next_line)
+        # Multiple lines attributes should be indented.
+        if next_line.current_column <= initial_line.current_column:
+            return AttrStatus.FAIL, current_line.new_pos(res.position)
+        
+        # res.DONE and res.FAIL should break the loop
+        res = parser.feed(current_line.pos, next_line.end_offset)
+        current_line = next_line
+
+    # Now parsing result is either DONE or FAIL.
+    current_line = current_line.new_pos(res.position) # move cursor.
+
+    return res.status, current_line
 
 @dataclass
 class AttributeRule(BlockRule):
@@ -31,32 +66,33 @@ class AttributeRule(BlockRule):
     kind: ContainerCap = ContainerCap.BLOCK
     accepts_content: ContainerCap = ContainerCap.ATTRIBUTES
     
-    def try_open(self, ctx: ParsingContext) -> RuleResult:
+    def try_open(self, ctx: ParsingContext) -> OpenResult:
         if not ctx.cursor.is_left_brace(ctx.line.pos):
-            return RuleResult.fail()
+            return OpenResult(
+                status=OpenStatus.NOT_MATCHED,
+                block_start=ctx.line,
+            )
 
         attr_parser = AttributeParser(ctx.cursor)
 
-        res, end_line = self._parse_attributes(ctx.cursor, ctx.line, attr_parser)
+        status, end_line = parse_attributes(ctx.cursor, attr_parser, ctx.line)
 
-        match res.status:
-            case AttrFlowControl.CONTINUE:
+        match status:
+            case AttrStatus.CONTINUE:
                 raise Exception('Unexpected continue status for attributes parsing')
 
-            case AttrFlowControl.FAIL:
-                return RuleResult.fail()
-             
-            case AttrFlowControl.DONE:
-                if not ctx.cursor.is_blank_span(
-                    res.position+1, 
-                    end_line.end_offset
-                ):
-                    return RuleResult.fail()
-
-                frame = BlockFrame(
-                    rule=self,
-                    start=ctx.line,
+            case AttrStatus.FAIL:
+                return OpenResult(
+                    status=OpenStatus.FALLBACK,
+                    block_start=ctx.line,
                 )
+             
+            case AttrStatus.DONE:
+                if not ctx.cursor.peek_is_blank(end_line.pos+1):
+                    return OpenResult(
+                        status=OpenStatus.FALLBACK,
+                        block_start=ctx.line,
+                    )
 
                 events = [
                     Event.enter(
@@ -74,53 +110,38 @@ class AttributeRule(BlockRule):
                         # block attributes to next block starting point.
                         # It should be the end brace based on human intuition and symmetry.
                         span=ctx.cursor.new_span(
-                            start=res.position,
-                            end=res.position
+                            start=end_line.pos,
+                            end=end_line.pos
                         )
                     )
                 )
 
                 
-                return RuleResult(
-                    status=FlowControl.LINE_FINISHED,
+                return OpenResult(
+                    status=OpenStatus.MATCH_AND_CONSUMED,
+                    block_start=ctx.line,
+                    block_end=end_line.to_line_end(),
                     events=events,
-                    frame=frame,
-                    next_pos=end_line.to_line_end(),
+                    frame=None,
                 )
 
-    def _parse_attributes(
-        self, 
-        cursor: Cursor, 
-        ctx: LineContext, 
-        parser: AttributeParser
-    ) -> Tuple[AttrParseResult, LineContext]:
 
-        res = parser.feed(ctx.pos, ctx.end_offset)
-
-        if res.status == AttrFlowControl.CONTINUE:
-            next_line = cursor.peek_line(ctx)
-            if next_line is None:
-                return AttrParseResult(
-                    status=AttrFlowControl.FAIL,
-                    position=ctx.end_offset,
-                ), ctx
-            return self._parse_attributes(cursor, next_line, parser)
-        else:
-            return res, ctx
 
     def on_continue(
         self,
         frame: BlockFrame,
         ctx: ParsingContext
-    ) -> RuleResult:
-        # Since I don't permit newline inside attribute block,
-        # we don've even have to check this.
-        return RuleResult.fail()
+    ) -> ContinueResult:
+        # This acutally won't execute since no opening frame
+        # is created.
+        return ContinueResult(
+            action=ContinueAction.STOP,
+            line_action=LineAction.CONSUMED,
+        )
 
     def on_close(
         self, 
         frame: BlockFrame, 
         ctx: ParsingContext,
-    ) -> RuleResult:
-
-        return RuleResult.close()
+    ) -> List[Event]:
+        return []
