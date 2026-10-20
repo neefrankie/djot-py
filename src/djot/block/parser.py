@@ -276,6 +276,8 @@ class EventParser:
                         events=events,
                     )
 
+                break
+
             logger.debug(f'{self.state.cursor.pos}. Exhausted all rules. Opened any: {opened_any}')
             if not opened_any:
                 break
