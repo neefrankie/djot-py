@@ -4,15 +4,15 @@ from djot.logger import logger
 from djot.event import (
     Event,
 )
-from djot.inline import InlineParser
+from ..inline import InlineParser
 
 from ..cursor import Cursor, LineContext
 from .frame import (
     BlockFrame,
     ContainerCap,
-    ParsingContext,
-    RuleResult,
 )
+from .context import ParsingContext
+
 
 class BlockState:
     def __init__(self, cursor: Cursor):
@@ -61,15 +61,7 @@ class BlockState:
 
         return frame
 
-    def close_frames(
-        self,
-        last_matched_idx: int,
-        new_frame: BlockFrame,
-        line: LineContext,
-    ) -> List[Event]:
-        unmatched = self.close_frame_to_depth(last_matched_idx, line)
-        siblings = self.close_siblings_of(new_frame, line)
-        return unmatched + siblings
+    
 
     def pop_frame(self) -> Optional[BlockFrame]:
         if not self.frame_stack:
@@ -84,50 +76,29 @@ class BlockState:
 
         return top
 
-    def close_siblings_of(
-        self,
-        new_frame: BlockFrame,
-        line: LineContext
-    ) -> List[Event]:
-        """Close sibling nodes when pushing a new container"""
-        logger.debug(f'close siblings of {new_frame}. current stack: {len(self.frame_stack)}')
-        events: List[Event] = []
+    
 
-        while self.frame_stack:
-            if self.frame_stack[-1].can_cantain(new_frame):
-                break
-
-            top = self.pop_frame()
-            if not top:
-                break
-
-            close_result = self._close_frame(top, line)
-            events.extend(close_result.events)
-
-
-        return events
-
-    def _close_frame(self, frame: BlockFrame, line: LineContext) -> RuleResult:
+    def _close_frame(self, frame: BlockFrame, line: LineContext) -> List[Event]:
         events: List[Event] = []
         if frame.inline_parser:
             events.extend(frame.inline_parser.iter_merged_events())
         
 
         logger.debug(f'🚪{line.pos}. Close {frame}')
-        result = frame.on_close(ParsingContext(
+        events = frame.rule.on_close(frame, ParsingContext(
             cursor=self.cursor,
             line=line,
         ))
-        result.events = events + result.events
-        return result
+        
+        return events
 
 
     def close_frame_to_depth(
         self,
         last_matched_idx: int,
-        line: LineContext
+        stop_block: LineContext
     ) -> List[Event]:
-        """ Close containers from innermost element to the specified index (exclusive).
+        """ Close frames from innermost element to the specified index (exclusive).
 
         In a tree view, it closes all children nodes under last_matched_idx.
 
@@ -147,8 +118,41 @@ class BlockState:
 
             close_result = self._close_frame(
                 top_frame,
-                line
+                stop_block
             )
-            events.extend(close_result.events)
+            events.extend(close_result)
 
         return events
+
+    def close_frame_to_parent(
+        self,
+        new_frame: BlockFrame,
+        line: LineContext
+    ) -> List[Event]:
+        """Close sibling nodes when pushing a new container"""
+        logger.debug(f'close siblings of {new_frame}. current stack: {len(self.frame_stack)}')
+        events: List[Event] = []
+
+        while self.frame_stack:
+            if self.frame_stack[-1].can_cantain(new_frame):
+                break
+
+            top = self.pop_frame()
+            if not top:
+                break
+
+            close_result = self._close_frame(top, line)
+            events.extend(close_result)
+
+
+        return events
+
+    def close_frames(
+        self,
+        last_matched_idx: int,
+        new_frame: BlockFrame,
+        line: LineContext,
+    ) -> List[Event]:
+        unmatched = self.close_frame_to_depth(last_matched_idx, line)
+        siblings = self.close_frame_to_parent(new_frame, line)
+        return unmatched + siblings
