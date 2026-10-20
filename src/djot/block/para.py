@@ -5,7 +5,6 @@ from ..event import (
     BlockContainer,
     Event,
 )
-from ..logger import logger
 from ..common import Range
 
 from .container import (
