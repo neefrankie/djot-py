@@ -323,7 +323,7 @@ class InputText:
         return self.src[pos] in self._DELIMITERS
 
     def is_space(self, i: int) -> bool:
-            return self.src[i] == ' '
+        return self.src[i] == ' '
     
     def is_whitespace(self, pos: int) -> bool:
         
