@@ -2,60 +2,28 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum, auto
 import re
-from typing import Generic, List, NamedTuple, Optional, TypeVar
+from typing import List, Optional
 
-from djot.inline import InlineParser
-from djot.common import Range, ListStyle
+from ..inline import InlineParser
+from djot.common import Range
 from djot.event import Event
 
 from ..attributes import AttributeParser
 
-from ..cursor import LineContext, Cursor
+from ..cursor import LineContext
 
-
-class ContainerCap(Enum):
-    NONE = auto()
-    INLINE = auto()
-    BLOCK = auto()
-    TEXT = auto()
-    CELLS = auto()
-    ATTRIBUTES = auto()
-    LIST_ITEM = auto()
-
-@dataclass(slots=True, frozen=True)
-class ParsingContext:
-    """Data passed to a rule's methods
-    
-    Attributes:
-        cursor: The input text and its current reading position
-        is_covered: Is a container shadowned by innner container?
-        last_span_end: last event's ending position
-            
-    NOTE:
-        `is_covered` indicates top containers in a stack have higher precedence over a lower one. 
-        For example, if a fenced div wraps code block, 
-        the code block should claim the owership of any line starting with ::: rather than letting the containing fenced div to take it as ending markup.
-    """
-    cursor: Cursor
-    line: LineContext
-    is_covered: bool = False
-
-class FootnoteData(NamedTuple):
-    label: str
-    indent: int
-
-class RefDefData(NamedTuple):
-    key: str
-    indent: int
-
-class ListData(NamedTuple):
-    styles: List[ListStyle]
-    indent: int
-
-T = TypeVar('T')
+from .context import (
+    ParsingContext,
+)
+from .container import (
+    ContainerCap,
+    FootnoteData,
+    RefDefData,
+    ListData,
+)
 
 @dataclass(slots=True)
-class BlockFrame(Generic[T]):
+class BlockFrame:
     rule: 'BlockRule'
     start: LineContext # snapshot of cursor position the moment this frame is created.
     closing_boundary: Optional[Range] = None # the position of closing token.
@@ -68,6 +36,7 @@ class BlockFrame(Generic[T]):
     list_style: Optional[ListData] = None
     fenced_div_colons: Optional[int] = None
     code_block_close_pattern: Optional[re.Pattern] = None
+    reference_definition: Optional[RefDefData] = None
 
     def update_closing_boundary(self, start: int, end: int):
         self.closing_boundary = Range(start, end)
@@ -93,24 +62,21 @@ class BlockFrame(Generic[T]):
     def can_nest(self, rule: 'BlockRule') -> bool:
         return self.rule.accepts_content == rule.kind
 
-    def on_continue(self, ctx: ParsingContext) -> 'RuleResult':
+    def on_continue(self, ctx: ParsingContext) -> 'ContinueResult':
         return self.rule.on_continue(self, ctx)
 
-    def on_close(self, ctx: ParsingContext) -> 'RuleResult':
+    def on_close(self, ctx: ParsingContext) -> List[Event]:
         return self.rule.on_close(self, ctx)
 
-
-class FlowControl(Enum):
-    OPEN = auto()
-    CONTINUE = auto()
-    LINE_FINISHED = auto() # Go to next line directly.
-    FALLBACK = auto() # Stop parsing current block, rewind, and yield to paragraph rule.
-    STOP = auto() # stop searching deeper in a node path.
+class OpenStatus(Enum):
+    NOT_MATCHED = auto() # Current rule does not apply to a block, continue to try next rules.
+    FALLBACK = auto() # Syntax error, fallback to paragraph rule.
+    MATCHED = auto() # A rule applied successfully, so stop trying the rest of rules.
+    MATCH_AND_CONSUMED = auto() # A rule applied successfully and consumed the whole line, so stop trying any rules and jump to next line directly.
     CLOSE = auto() # a container should be closed.
-    FAIL = auto()
     
 @dataclass(slots=True)
-class RuleResult:
+class OpenResult:
     """Data carried out after applying each rule.
     
     Attributes:
@@ -119,51 +85,50 @@ class RuleResult:
         container: Open operation usually creates a new container. However, continue/close operation could fallback to a new container.
         finished_line: Flag indicating whether an operation gobbles the whole line so that we stop early.
     """
-    status: FlowControl
+    status: OpenStatus
+    block_start: LineContext
+    block_end: Optional[LineContext] = None
     events: List[Event] = field(default_factory=list) # events we could yield immediately.
     frame: Optional[BlockFrame] = None
-    next_pos: Optional[LineContext] = None # position of next element in a line if status is open or continue.
 
     def __repr__(self) -> str:
-        return f'RuleResult(status={self.status.name}, new events: {len(self.events)}, new frame: {self.frame})'
+        return f'RuleResult(status={self.status.name}, next_block={self.block_start}, new events: {len(self.events)}, new frame: {self.frame})'
 
-    @property
-    def finished_line(self) -> bool:
-        return self.status == FlowControl.LINE_FINISHED
+class ContinueAction(Enum):
+    """
+    Determine the lifecycle of a frame.
+    
+    CONTINUE: continue to inner frames.
+    STOP: stop searcing for inner frames and all frames from here
+    to the end should be closed.
+    """
+    CONTINUE = auto()
+    STOP = auto()
+    CLOSE = auto()
 
-    @property
-    def is_continue(self) -> bool:
-        return self.status == FlowControl.CONTINUE
+class LineAction(Enum):
+    """
+    Whether a line is consume in continue operation.
+    For CONSUMED, circirt-break and to to next line directly.
+    """
+    PROCEED = auto()
+    CONSUMED = auto()
 
-    @property
-    def is_open(self) -> bool:
-        return self.status == FlowControl.OPEN or self.status == FlowControl.LINE_FINISHED
-
-    @classmethod
-    def open(cls) -> 'RuleResult':
-        return RuleResult(
-            status=FlowControl.OPEN
-        )
-
-    @classmethod
-    def fail(cls) -> 'RuleResult':
-        return cls(status=FlowControl.FAIL)
-
-    @classmethod
-    def continue_ok(
-        cls, 
-        events: Optional[List[Event]] = None, 
-    ) -> 'RuleResult':
-        return cls(
-            status=FlowControl.CONTINUE,
-            events=events or [],
-        )
-
-    @classmethod
-    def close(cls) -> 'RuleResult':
-        return cls(
-            status=FlowControl.CLOSE,
-        )
+@dataclass(slots=True, frozen=True)
+class ContinueResult:
+    """
+    This differs from OpenResult in term of line finished.
+    ContinueAction determines the lifecycle of a frame.
+    A frame could be allowed to continue while it consumed
+    the whole line since a frame may cover multiple lines,
+    or it could be terminateded while consumed the whole line.
+    """
+    action: ContinueAction # determin the lifecycle of frame.
+    # Mode rules do not generate event during on continue phase.
+    # There are two exceptions: reference definition and table.
+    events: List[Event] = field(default_factory=list)
+    block_end: Optional[LineContext] = None
+    line_action: LineAction = LineAction.PROCEED
 
 # In djot.js it is called BlockSpec.
 @dataclass
@@ -186,6 +151,18 @@ class BlockRule(ABC):
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}({self.kind.name}->{self.accepts_content.name})'
 
+    @abstractmethod
+    def try_open(self, ctx: ParsingContext) -> OpenResult:
+        pass
+
+    @abstractmethod
+    def on_continue(self, frame: BlockFrame, ctx: ParsingContext) -> ContinueResult:
+        pass
+
+    @abstractmethod
+    def on_close(self, frame: BlockFrame, ctx: ParsingContext) -> List[Event]:
+        pass
+
     def can_be_root(self):
         """Whether current node can be root node or not.
                 
@@ -206,14 +183,4 @@ class BlockRule(ABC):
     def accepts_text_only(self) -> bool:
         return self.accepts_content == ContainerCap.TEXT
 
-    @abstractmethod
-    def try_open(self, ctx: ParsingContext) -> RuleResult:
-        pass
-
-    @abstractmethod
-    def on_continue(self, frame: BlockFrame, ctx: ParsingContext) -> RuleResult:
-        pass
-
-    @abstractmethod
-    def on_close(self, frame: BlockFrame, ctx: ParsingContext) -> RuleResult:
-        pass
+    
