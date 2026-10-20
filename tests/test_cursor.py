@@ -9,7 +9,7 @@ from djot.experimental.cursor import (
 from djot.experimental.block.attribute import (
     AttributeRule,
 )
-from djot.experimental.block.frame import (
+from djot.experimental.block.context import (
     ParsingContext,
 )
         
@@ -22,10 +22,10 @@ class TestCursor(unittest.TestCase):
         actual: List[LineContext] = []
 
         cursor = Cursor(text)
-        ctx = LineContext()
-        while ctx.end_offset < len(text):
-            ctx = cursor.next_line(ctx)
-            actual.append(ctx)
+        line = cursor.next_line(LineContext())
+        while line is not None:
+            actual.append(line)
+            line = cursor.next_line(line)
 
         expected = [
             LineContext(0, 5, 0),
@@ -66,10 +66,12 @@ class TestCursor(unittest.TestCase):
         #       012345 67890 12345678
 
         cursor = Cursor(text)
-        ctx = cursor.next_line(LineContext())
+        line = cursor.next_line(LineContext())
+
+        assert line is not None
 
         rule = AttributeRule()
-        result = rule.try_open(ParsingContext(cursor, ctx))
+        result = rule.try_open(ParsingContext(cursor, line))
 
         for e in result.events:
             print(e)
