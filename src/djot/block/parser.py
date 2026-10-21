@@ -155,7 +155,7 @@ class EventParser:
         for idx, container in enumerate(self.state.container_stack):
             
             # 1. Prepare cursor for rule
-            self.state.cursor.skip_space()
+            self.state.cursor.skip_frame_space()
 
             # 2. If current container contains a raw text block,
             # flag it as is_covered, indicating that you are shadowed
@@ -196,7 +196,7 @@ class EventParser:
 
     def _try_open_new_cotainer(self, last_matched_idx: int) -> LineStepFrame:
         logger.debug(f'{self.state.cursor.pos} --- Try open new containers')
-        self.state.cursor.skip_space()
+        self.state.cursor.skip_frame_space()
 
         # In djot.js, it uses let isBlank = (self.pos === self.starteol);
         # However, the logic here is not actually ask if the line is blank.
@@ -262,7 +262,7 @@ class EventParser:
                         events=events,
                     )
 
-                self.state.cursor.skip_space()
+                self.state.cursor.skip_frame_space()
 
                 new_starts_created = True
 
@@ -388,7 +388,7 @@ class EventParser:
         > Blockquote paragraph
         Paragraph continnued.
         """
-        self.state.cursor.skip_space()
+        self.state.cursor.skip_frame_space()
         is_eol = self.state.cursor.is_eol
         
         tip = self.state.top_container
@@ -410,7 +410,7 @@ class EventParser:
         """
         If there are still contents after exhausted continue container and open container.
         """
-        self.state.cursor.skip_space()
+        self.state.cursor.skip_frame_space()
         events = []
         is_eol = self.state.cursor.is_eol
 
