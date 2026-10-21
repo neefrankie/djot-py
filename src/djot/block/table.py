@@ -21,6 +21,9 @@ from .container import (
     OpenStatus,
     BlockRule,
     OpenResult,
+    ContinueResult,
+    ContinueAction,
+    LineAction,
     ParsingContext,
 )
 
@@ -317,7 +320,7 @@ class TableRule(BlockRule):
         # From cursor.pos, search pattern: r'(\|[^\r\n]*\|)[ \t]*\r?\n'
         m = cursor.find_table_row()
         if not m:
-            return OpenResult.fail()
+            return OpenResult.not_matched()
 
         container = BlockFrame(
             rule=self,
@@ -354,7 +357,7 @@ class TableRule(BlockRule):
         # another rule on current line.
         # We don't need any pop since Event and Container has never been pushed.
         if row_parsed is None:
-            return OpenResult.fail()
+            return OpenResult.not_matched()
 
         events.extend(row_parsed)
         print(f'Row events: {len(events)}')
@@ -374,10 +377,12 @@ class TableRule(BlockRule):
         self,
         container: BlockFrame,
         ctx: ParsingContext
-    ) -> OpenResult:
+    ) -> ContinueResult:
         m = ctx.cursor.find_table_row()
         if not m:
-            return OpenResult.stop()
+            return ContinueResult(
+                action=ContinueAction.STOP,
+            )
 
         rawrow = m.captures[0] # | fruit  | price |
         parsed_row = parse_row(
@@ -386,14 +391,16 @@ class TableRule(BlockRule):
         )
 
         if parsed_row is None:
-            return OpenResult.stop()
+            return ContinueResult(
+                action=ContinueAction.STOP,
+            )
 
         container.update_closing_boundary(ctx.cursor.line_end, ctx.cursor.line_end)
 
-        return OpenResult(
-            status=OpenStatus.CONTINUE,
+        return ContinueResult(
+            action=ContinueAction.CONTINUE,
+            line_action=LineAction.CONSUMED,
             events=parsed_row,
-            finished_line=True,
             next_pos=ctx.cursor.line_end,
         )
 
@@ -401,15 +408,12 @@ class TableRule(BlockRule):
         self, 
         container: BlockFrame, 
         ctx: ParsingContext,
-    ) -> OpenResult:
+    ) -> List[Event]:
         assert container.closing_boundary is not None
-        return OpenResult(
-            status=OpenStatus.CLOSE,
-            events=[Event.exit(
-                kind=BlockContainer.TABLE,
-                span=ctx.cursor.new_span(
-                    container.closing_boundary.start,
-                    container.closing_boundary.end,
-                )
-            )]
-        )
+        return [Event.exit(
+            kind=BlockContainer.TABLE,
+            span=ctx.cursor.new_span(
+                container.closing_boundary.start,
+                container.closing_boundary.end,
+            )
+        )]

@@ -8,7 +8,6 @@ from ..event import (
     Event,
     InlineLeaf,
 )
-from ..common import Range
 from ..logger import logger
 
 from .container import (
@@ -18,6 +17,9 @@ from .container import (
     OpenStatus,
     BlockRule,
     OpenResult,
+    ContinueResult,
+    ContinueAction,
+    LineAction,
     ParsingContext,
 )
 
@@ -59,7 +61,7 @@ class CodeBlockRule(BlockRule):
         # followed by optional space, followed by newline.
         m = cursor.find_code_fence()
         if not m:
-            return OpenResult.fail()
+            return OpenResult.not_matched()
 
         border = m.captures[0] # ~~~ or ```
         ws = m.captures[1] # whitespace after fence
@@ -126,15 +128,19 @@ class CodeBlockRule(BlockRule):
         self,
         container: BlockFrame,
         ctx: ParsingContext
-    ) -> OpenResult:
+    ) -> ContinueResult:
         if not isinstance(container.data, CodeBlockData):
-            return OpenResult.stop()
+            return ContinueResult(
+                action=ContinueAction.STOP,
+            )
 
         # Similar to fenced div, if we didn't find ending markup,
         # yield to inner nodes.
         m = ctx.cursor.find(container.data.close_pattern)
         if not m:
-            return OpenResult.continue_ok()
+            return ContinueResult(
+                action=ContinueAction.CONTINUE,
+            )
 
         # If we find ending token, it should stop at this container.
         container.update_closing_boundary(m.start, m.start + len(m.captures[0]) - 1)
@@ -142,9 +148,9 @@ class CodeBlockRule(BlockRule):
         # ctx.cursor.advance_to(m.end) # before newline
         next_pos = ctx.cursor.line_end
 
-        return OpenResult(
-            status=OpenStatus.STOP,
-            finished_line=True,
+        return ContinueResult(
+            action=ContinueAction.STOP,
+            line_action=LineAction.CONSUMED,
             next_pos=next_pos,
         )
 
@@ -152,7 +158,7 @@ class CodeBlockRule(BlockRule):
         self, 
         container: BlockFrame, 
         ctx: ParsingContext,
-    ) -> OpenResult:
+    ) -> List[Event]:
         sp = ctx.cursor.pos
         ep = ctx.cursor.pos
 
@@ -168,10 +174,7 @@ class CodeBlockRule(BlockRule):
         if sp == ep:
             logger.warning(f'Unclosed code block at {ctx.cursor.pos}', )
 
-        return OpenResult(
-            status=OpenStatus.CLOSE,
-            events=[event]
-        )
+        return [event]
 
         
 

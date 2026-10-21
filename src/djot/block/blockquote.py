@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import List
 
 from ..input import InputText
 from ..event import (
@@ -13,6 +14,8 @@ from .container import (
     OpenStatus,
     BlockRule,
     OpenResult,
+    ContinueResult,
+    ContinueAction,
     ParsingContext,
 )
 
@@ -23,7 +26,7 @@ class BlockquoteRule(BlockRule):
 
     def try_open(self, cursor: InputText) -> OpenResult:
         if not cursor.is_blockquote(cursor.pos):
-            return OpenResult.fail()
+            return OpenResult.not_matched()
 
         # Djot.js performs addContainer here.
         # So all previous containers closed at this snapshot.
@@ -52,35 +55,34 @@ class BlockquoteRule(BlockRule):
         self,
         container: BlockFrame,
         ctx: ParsingContext
-    ) -> OpenResult:
+    ) -> ContinueResult:
         if ctx.cursor.peek_is_blockquote_prefix():
             container.update_closing_boundary(
                 ctx.cursor.line_end,
                 ctx.cursor.line_end
             )
             next_pos = ctx.cursor.pos + 1 # Eat starting >
-            return OpenResult(
-                status=OpenStatus.CONTINUE,
+            return ContinueResult(
+                action=ContinueAction.CONTINUE,
                 next_pos=next_pos,
             )
         
-        return OpenResult.stop()
+        return ContinueResult(
+            action=ContinueAction.STOP,
+        )
 
     def on_close(
         self, 
         container: BlockFrame, 
         ctx: ParsingContext,
-    ) -> OpenResult:
+    ) -> List[Event]:
         assert container.closing_boundary is not None
-        return OpenResult(
-            status=OpenStatus.CLOSE,
-            events=[
-                Event.exit(
-                    kind=BlockContainer.BLOCK_QUOTE,
-                    span=ctx.cursor.new_span(
-                        container.closing_boundary.start,
-                        container.closing_boundary.end,
-                    )
+        return [
+            Event.exit(
+                kind=BlockContainer.BLOCK_QUOTE,
+                span=ctx.cursor.new_span(
+                    container.closing_boundary.start,
+                    container.closing_boundary.end,
                 )
-            ]
-        )
+            )
+        ]

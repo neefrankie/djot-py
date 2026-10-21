@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import List
 
 from djot.input import InputText
 from djot.attributes import AttributeParser
@@ -13,6 +14,9 @@ from .container import (
     OpenStatus,
     BlockRule,
     OpenResult,
+    ContinueResult,
+    ContinueAction,
+    LineAction,
     ParsingContext,
 )
 
@@ -84,19 +88,18 @@ class AttributeRule(BlockRule):
         self,
         container: BlockFrame,
         ctx: ParsingContext
-    ) -> OpenResult:
+    ) -> ContinueResult:
         # Since I don't permit newline inside attribute block,
         # we don've even have to check this.
-        return OpenResult(
-            status=OpenStatus.CLOSE
+        return ContinueResult(
+            action=ContinueAction.CLOSE,
+            line_action=LineAction.CONSUMED,
         )
 
     def on_close(
         self, 
         container: BlockFrame, 
         ctx: ParsingContext,
-    ) -> OpenResult:
+    ) -> List[Event]:
 
-        return OpenResult(
-            status=OpenStatus.CLOSE,
-        )
+        return []

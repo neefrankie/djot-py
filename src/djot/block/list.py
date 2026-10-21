@@ -22,6 +22,8 @@ from .container import (
     OpenStatus,
     BlockRule,
     OpenResult,
+    ContinueResult,
+    ContinueAction,
     ParsingContext,
 )
 
@@ -37,7 +39,7 @@ class ListRule(BlockRule):
     def try_open(self, cursor: InputText) -> OpenResult:
         m = cursor.find_list_marker() # matches the marker followed by a whitespace.
         if not m:
-            return OpenResult.fail()
+            return OpenResult.not_matched()
         start_pos = m.start
         end_pos = m.end # whitespace
         marker = cursor.src[start_pos:end_pos] # content before whitespace.
@@ -55,7 +57,7 @@ class ListRule(BlockRule):
         styles = parse_list_styles(marker)
         logger.debug(f'⏺ styles: {styles!r}')
         if styles is None:
-            return OpenResult.fail()
+            return OpenResult.not_matched()
         
         container = BlockFrame(
             rule=self,
@@ -90,9 +92,11 @@ class ListRule(BlockRule):
         self,
         container: BlockFrame,
         ctx: ParsingContext
-    ) -> OpenResult:
+    ) -> ContinueResult:
         if not isinstance(container.data, ListData):
-            return OpenResult.stop()
+            return ContinueResult(
+                action=ContinueAction.STOP,
+            )
 
         # As long as next line is indented more than previous line,
         # keep the container.
@@ -104,7 +108,9 @@ class ListRule(BlockRule):
                 ctx.cursor.line_end,
                 ctx.cursor.line_end,
             )
-            return OpenResult.continue_ok()
+            return ContinueResult(
+                action=ContinueAction.CONTINUE,
+            )
 
         if ctx.cursor.is_eol_at(ctx.cursor.pos):
             logger.debug(f'{ctx.cursor.pos}. ListRule.on_continue due to blankline')
@@ -112,11 +118,15 @@ class ListRule(BlockRule):
                 ctx.cursor.line_end,
                 ctx.cursor.line_end,
             )
-            return OpenResult.continue_ok()
+            return ContinueResult(
+                action=ContinueAction.CONTINUE,
+            )
 
         m = ctx.cursor.find_list_marker()
         if m is None:
-            return OpenResult.stop()
+            return ContinueResult(
+                action=ContinueAction.STOP,
+            )
 
         marker = ctx.cursor.src[m.start:m.end]
         mtask = ctx.cursor.find_task_list_marker()
@@ -134,7 +144,9 @@ class ListRule(BlockRule):
         )
 
         if not newstyles:
-            return OpenResult.stop()
+            return ContinueResult(
+                action=ContinueAction.STOP,
+            )
 
         container.data.styles = newstyles
         
@@ -142,31 +154,30 @@ class ListRule(BlockRule):
             ctx.cursor.line_end,
             ctx.cursor.line_end,
         )
-        return OpenResult.continue_ok()
+        return ContinueResult(
+            action=ContinueAction.CONTINUE,
+        )
 
     def on_close(
         self, 
         container: BlockFrame, 
         ctx: ParsingContext,
-    ) -> OpenResult:
+    ) -> List[Event]:
         assert container.closing_boundary is not None
 
-        return OpenResult(
-            status=OpenStatus.CLOSE,
-            events=[
-                Event.exit(
-                    kind=BlockContainer.LIST,
-                    # TODO: this is a very weired behavior. In djot.js, this position is non-deterministic.
-                    # Most of time it ends at next line start.
-                    # However, at EOF, it ends at EOF.
-                    # A more reasonable position should always be the end of line of last list item.
-                    span=ctx.cursor.new_span(
-                        container.closing_boundary.start,
-                        container.closing_boundary.end
-                    )
+        return [
+            Event.exit(
+                kind=BlockContainer.LIST,
+                # TODO: this is a very weired behavior. In djot.js, this position is non-deterministic.
+                # Most of time it ends at next line start.
+                # However, at EOF, it ends at EOF.
+                # A more reasonable position should always be the end of line of last list item.
+                span=ctx.cursor.new_span(
+                    container.closing_boundary.start,
+                    container.closing_boundary.end
                 )
-            ]
-        )
+            )
+        ]
 
 
 @dataclass
@@ -181,7 +192,7 @@ class ListItemRule(BlockRule):
         """
         m = cursor.find_list_marker()
         if m is None:
-            return OpenResult.fail()
+            return OpenResult.not_matched()
         
         sp = m.start
         ep = m.end
@@ -201,7 +212,7 @@ class ListItemRule(BlockRule):
 
         styles = parse_list_styles(marker)
         if len(styles) == 0:
-            return OpenResult.fail()
+            return OpenResult.not_matched()
 
         container = BlockFrame(
             rule=self,
@@ -256,9 +267,11 @@ class ListItemRule(BlockRule):
         self,
         container: BlockFrame,
         ctx: ParsingContext
-    ) -> OpenResult:
+    ) -> ContinueResult:
         if not isinstance(container.data, ListData):
-            return OpenResult.fail()
+            return ContinueResult(
+                action=ContinueAction.STOP,
+            )
 
         # A line indented should be taken as a continuation of previous list item.
         # - one
@@ -269,26 +282,27 @@ class ListItemRule(BlockRule):
                 ctx.cursor.line_end,
                 ctx.cursor.line_end,
             )
-            return OpenResult.continue_ok()
+            return ContinueResult(
+                action=ContinueAction.CONTINUE,
+            )
 
-        return OpenResult.fail()
+        return ContinueResult(
+            action=ContinueAction.STOP,
+        )
 
     def on_close(
         self, 
         container: BlockFrame, 
         ctx: ParsingContext,
-    ) -> OpenResult:
+    ) -> List[Event]:
         assert container.closing_boundary is not None
 
-        return OpenResult(
-            status=OpenStatus.CLOSE,
-            events=[
-                Event.exit(
-                    kind=BlockContainer.LIST_ITEM,
-                    span=ctx.cursor.new_span(
-                        start=container.closing_boundary.start,
-                        end=container.closing_boundary.end,
-                    )
+        return [
+            Event.exit(
+                kind=BlockContainer.LIST_ITEM,
+                span=ctx.cursor.new_span(
+                    start=container.closing_boundary.start,
+                    end=container.closing_boundary.end,
                 )
-            ]
-        )
+            )
+        ]

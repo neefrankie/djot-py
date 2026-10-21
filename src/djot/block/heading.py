@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import List
 
 from ..input import InputText
 from ..event import (
@@ -14,6 +15,8 @@ from .container import (
     OpenStatus,
     BlockRule,
     OpenResult,
+    ContinueResult,
+    ContinueAction,
     ParsingContext,
 )
 
@@ -62,10 +65,10 @@ class HeadingRule(BlockRule):
     def try_open(self, cursor: InputText) -> OpenResult:
         level = cursor.count_char('#')
         if level == 0:
-            return OpenResult.fail()
+            return OpenResult.not_matched()
 
         if not cursor.is_whitespace(cursor.pos + level):
-            return OpenResult.fail()
+            return OpenResult.not_matched()
 
         start = cursor.pos
         endchar = start + level - 1
@@ -93,48 +96,54 @@ class HeadingRule(BlockRule):
         self,
         container: BlockFrame,
         ctx: ParsingContext
-    ) -> OpenResult:
+    ) -> ContinueResult:
         level = ctx.cursor.count_char('#')
         if level == 0:
-            return OpenResult.stop()
+            return ContinueResult(
+                action=ContinueAction.STOP,
+            )
         
         if not isinstance(container.data, HeadingData):
-            return OpenResult.fail()
+            return ContinueResult(
+                action=ContinueAction.STOP,
+            )
 
         # TODO: this seems unreasonable since the specification says 
         # you can split heading over multiple lines. 
         # The following lines do not need to have starting #.
         # In my opinion, the multi-line heading should not be allowed in the first place.
         if container.data.level != level: 
-            return OpenResult.stop()
+            return ContinueResult(
+                action=ContinueAction.STOP,
+            )
 
         if not ctx.cursor.is_whitespace(ctx.cursor.pos + level):
-            return OpenResult.stop()
+            return ContinueResult(
+                action=ContinueAction.STOP,
+            )
 
         container.update_closing_boundary(ctx.cursor.line_end, ctx.cursor.line_end)
         next_pos = ctx.cursor.pos + level # eat the leading #s
 
-        return OpenResult(
-            status=OpenStatus.CONTINUE,
+        return ContinueResult(
+            action=ContinueAction.CONTINUE,
             next_pos=next_pos,
         )
+    
 
     def on_close(
         self, 
         container: BlockFrame, 
         ctx: ParsingContext,
-    ) -> OpenResult:
+    ) -> List[Event]:
         assert container.closing_boundary is not None
 
-        return OpenResult(
-            status=OpenStatus.CLOSE,
-            events=[
-                Event.exit(
-                    span=ctx.cursor.new_span(
-                        container.closing_boundary.start,
-                        container.closing_boundary.end,
-                    ),
-                    kind=BlockContainer.HEADING
-                )
-            ]
-        )
+        return [
+            Event.exit(
+                span=ctx.cursor.new_span(
+                    container.closing_boundary.start,
+                    container.closing_boundary.end,
+                ),
+                kind=BlockContainer.HEADING
+            )
+        ]

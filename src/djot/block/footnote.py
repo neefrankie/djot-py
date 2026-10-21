@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import List
 
 from ..input import InputText
 from ..event import (
@@ -15,6 +16,8 @@ from .container import (
     OpenStatus,
     BlockRule,
     OpenResult,
+    ContinueResult,
+    ContinueAction,
     ParsingContext,
 )
 
@@ -45,7 +48,7 @@ class FootnoteRule(BlockRule):
     def try_open(self, cursor: InputText) -> OpenResult:
         m = cursor.find_footnotestart()
         if m is None:
-            return OpenResult.fail()
+            return OpenResult.not_matched()
 
         # '[^foo]: '
         start_pos = m.start # [
@@ -88,35 +91,38 @@ class FootnoteRule(BlockRule):
         self,
         container: BlockFrame,
         ctx: ParsingContext
-    ) -> OpenResult:
+    ) -> ContinueResult:
         if not isinstance(container.data, FootnoteData):
-            return OpenResult.stop()
+            return ContinueResult(
+                action=ContinueAction.STOP,
+            )
 
         if ctx.cursor.indent > container.data.indent or ctx.cursor.pos == ctx.cursor.line_end: # line start or line end
             container.update_closing_boundary(
                 ctx.cursor.line_end,
                 ctx.cursor.line_end,
             )
-            return OpenResult.continue_ok()
+            return ContinueResult(
+                action=ContinueAction.CONTINUE,
+            )
 
-        return OpenResult.stop()
+        return ContinueResult(
+                action=ContinueAction.STOP,
+        )
 
     def on_close(
         self, 
         container: BlockFrame, 
         ctx: ParsingContext,
-    ) -> OpenResult:
+    ) -> List[Event]:
         assert container.closing_boundary is not None
 
-        return OpenResult(
-            status=OpenStatus.CLOSE,
-            events=[
-                Event.exit(
-                    kind=BlockContainer.FOOTNOTE,
-                    span=ctx.cursor.new_span(
-                        container.closing_boundary.start,
-                        container.closing_boundary.end,
-                    )
+        return [
+            Event.exit(
+                kind=BlockContainer.FOOTNOTE,
+                span=ctx.cursor.new_span(
+                    container.closing_boundary.start,
+                    container.closing_boundary.end,
                 )
-            ]
-        )
+            )
+        ]

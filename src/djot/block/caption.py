@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import List
 
 from ..input import InputText
 from ..event import (
@@ -13,6 +14,8 @@ from .container import (
     OpenStatus,
     BlockRule,
     OpenResult,
+    ContinueResult,
+    ContinueAction,
     ParsingContext,
 )
 
@@ -32,7 +35,7 @@ class CaptionRule(BlockRule):
     def try_open(self, cursor: InputText) -> OpenResult:
         m = cursor.find_caption_start()
         if not m:
-            return OpenResult.fail()
+            return OpenResult.not_matched()
 
         container = BlockFrame(
             rule=self,
@@ -57,34 +60,35 @@ class CaptionRule(BlockRule):
         self,
         container: BlockFrame,
         ctx: ParsingContext
-    ) -> OpenResult:
+    ) -> ContinueResult:
         # Check if the line is indented.
         if ctx.cursor.peek_is_whitespace():
-            return OpenResult.stop()
+            return ContinueResult(
+                action=ContinueAction.STOP,
+            )
 
         container.update_closing_boundary(
             ctx.cursor.line_end,
             ctx.cursor.line_end,
         )
-        return OpenResult.continue_ok()
+        return ContinueResult(
+            action=ContinueAction.CONTINUE,
+        )
 
     def on_close(
         self, 
         container: BlockFrame, 
         ctx: ParsingContext,
-    ) -> OpenResult:
+    ) -> List[Event]:
         assert container.closing_boundary is not None
 
-        return OpenResult(
-            status=OpenStatus.CLOSE,
-            events=[
-                Event.exit(
-                    kind=BlockContainer.CAPTION,
-                    span=ctx.cursor.new_span(
-                        start=container.closing_boundary.start,
-                        end=container.closing_boundary.end,
-                    )
+        return [
+            Event.exit(
+                kind=BlockContainer.CAPTION,
+                span=ctx.cursor.new_span(
+                    start=container.closing_boundary.start,
+                    end=container.closing_boundary.end,
                 )
-            ]
-        )
+            )
+        ]
         

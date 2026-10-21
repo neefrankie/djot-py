@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import List
 
 from ..input import InputText
 from ..event import (
@@ -12,6 +13,8 @@ from .container import (
     OpenStatus,
     BlockRule,
     OpenResult,
+    ContinueResult,
+    ContinueAction,
     ParsingContext,
 )
 
@@ -37,7 +40,7 @@ class ThematicBreakRule(BlockRule):
         # - * * also works for this regex.
         m = cursor.find_thematic_break()
         if not m:
-            return OpenResult.fail()
+            return OpenResult.not_matched()
 
         event = Event.leaf(
             kind=BlockLeaf.THEMATIC_BREAK,
@@ -60,14 +63,14 @@ class ThematicBreakRule(BlockRule):
         self,
         container: BlockFrame,
         ctx: ParsingContext
-    ) -> OpenResult:
-        return OpenResult.stop()
+    ) -> ContinueResult:
+        return ContinueResult(
+            action=ContinueAction.STOP,
+        )
 
     def on_close(
         self, 
         container: BlockFrame, 
         ctx: ParsingContext,
-    ) -> OpenResult:
-        return OpenResult(
-            status=OpenStatus.CLOSE
-        )
+    ) -> List[Event]:
+        return []

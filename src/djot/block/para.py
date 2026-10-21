@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import List
 
 from ..input import InputText
 from ..event import (
@@ -13,6 +14,8 @@ from .container import (
     OpenStatus,
     BlockRule,
     OpenResult,
+    ContinueResult,
+    ContinueAction,
     ParsingContext,
 )
 
@@ -46,7 +49,7 @@ class ParaRule(BlockRule):
         self,
         container: BlockFrame,
         ctx: ParsingContext
-    ) -> OpenResult:
+    ) -> ContinueResult:
         # TODO This won't handle all cases.
         # Lazy content checking is determined in main loop, resulting to inconsistency.
         if not ctx.cursor.peek_is_whitespace():
@@ -54,30 +57,31 @@ class ParaRule(BlockRule):
                 ctx.cursor.line_end,
                 ctx.cursor.line_end
             )
-            return OpenResult.continue_ok()
+            return ContinueResult(
+                action=ContinueAction.CONTINUE,
+            )
 
-        return OpenResult.stop()
+        return ContinueResult(
+            action=ContinueAction.STOP,
+        )
 
     def on_close(
         self, 
         container: BlockFrame, 
         ctx: ParsingContext,
-    ) -> OpenResult:
+    ) -> List[Event]:
         # Actions performed in djot.js
         # 1. transfer inline matches
         # 2. pop container
         # 3. query last event's endpos
         # 4. emit exit para event.
         assert container.closing_boundary is not None
-        return OpenResult(
-            status=OpenStatus.CLOSE,
-            events=[
-                Event.exit(
-                    kind=BlockContainer.PARA,
-                    span=ctx.cursor.new_span(
-                        container.closing_boundary.start,
-                        container.closing_boundary.end,
-                    )
+        return [
+            Event.exit(
+                kind=BlockContainer.PARA,
+                span=ctx.cursor.new_span(
+                    container.closing_boundary.start,
+                    container.closing_boundary.end,
                 )
-            ]
-        )
+            )
+        ]
