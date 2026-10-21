@@ -60,7 +60,7 @@ class CaptionRule(BlockRule):
     ) -> RuleResult:
         # Check if the line is indented.
         if ctx.cursor.peek_is_whitespace():
-            return RuleResult.fail()
+            return RuleResult.stop()
 
         container.update_closing_boundary(
             ctx.cursor.line_end,

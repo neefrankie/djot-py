@@ -90,7 +90,7 @@ class FootnoteRule(BlockRule):
         ctx: ParsingContext
     ) -> RuleResult:
         if not isinstance(container.data, FootnoteData):
-            return RuleResult.fail()
+            return RuleResult.stop()
 
         if ctx.cursor.indent > container.data.indent or ctx.cursor.pos == ctx.cursor.line_end: # line start or line end
             container.update_closing_boundary(
@@ -99,7 +99,7 @@ class FootnoteRule(BlockRule):
             )
             return RuleResult.continue_ok()
 
-        return RuleResult.fail()
+        return RuleResult.stop()
 
     def on_close(
         self, 

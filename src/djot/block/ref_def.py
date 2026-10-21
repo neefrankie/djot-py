@@ -93,10 +93,10 @@ class ReferenceDefinitionRule(BlockRule):
         ctx: ParsingContext
     ) -> RuleResult:
         if not isinstance(container.data, RefDefData):
-            return RuleResult.fail()
+            return RuleResult.stop()
 
         if container.data.indent >= ctx.cursor.indent: # previous line was indented more than this line
-            return RuleResult.fail()
+            return RuleResult.stop()
 
         # Find URL split over multiple lines.
         nws = ctx.cursor.find_non_whitespace()
@@ -104,9 +104,9 @@ class ReferenceDefinitionRule(BlockRule):
         # Current position should not exceed the end of the line,
         # and content should be ended with a newline.
         if not ctx.cursor.is_current_before_eol:
-            return RuleResult.fail()
+            return RuleResult.stop()
         if not nws:
-            return RuleResult.fail()
+            return RuleResult.stop()
         if nws.end != ctx.cursor.line_end - 1: # non-whitespace extends to EOL.
             return RuleResult.fail()
         

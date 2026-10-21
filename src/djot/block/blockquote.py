@@ -22,7 +22,7 @@ class BlockquoteRule(BlockRule):
     accepts_content: ContainerCap = ContainerCap.BLOCK
 
     def try_open(self, cursor: InputText) -> RuleResult:
-        if not cursor.peek_is_blockquote_prefix():
+        if not cursor.is_blockquote(cursor.pos):
             return RuleResult.fail()
 
         # Djot.js performs addContainer here.
@@ -64,7 +64,7 @@ class BlockquoteRule(BlockRule):
                 next_pos=next_pos,
             )
         
-        return RuleResult.fail()
+        return RuleResult.stop()
 
     def on_close(
         self, 

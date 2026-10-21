@@ -12,7 +12,7 @@ from ..logger import logger
 from .container import (
     ParsingContext,
     BlockFrame,
-
+    OpenStatus,
     BlockRule,
     RuleResult,
 )
@@ -69,7 +69,7 @@ class EventParser:
         return self.state.cursor.src
     
     def process_line(self) -> List[Event]:
-        self.state.cursor.start_newline()
+        
         logger.debug(f'▶ Start a newline: {self.state.cursor} ===')
         events: List[Event] = []
 
@@ -83,8 +83,6 @@ class EventParser:
         #  if we hit a close fence, we can move to next line
         if frame.finished_line:
             logger.debug(f'--- Finished a line due to continuation')
-            close_events = self.state.close_frame_to_depth(frame.last_matched_idx)
-            events.extend(close_events)
             return events
 
         logger.debug(f'--- Stage: try open ----')
@@ -102,26 +100,17 @@ class EventParser:
             return events
 
         logger.debug(f'--- Stage: handle lazy content ---')
-        is_lazy = self._is_lazy_line(
+        close_events = self._close_unmatched_if_not_lazy(
             last_matched_idx=frame.last_matched_idx,
             new_starts_created=frame.new_starts_created
         )
 
-        logger.debug(f'{self.state.cursor.pos}. Is lazy content: {is_lazy}')
-
-        if not is_lazy:
-            logger.debug(f'{self.state.cursor.pos}. Not lazy content. Close containers to {frame.last_matched_idx}.')
-            # Stack might change here.
-            # Therefore djot.js perform tip = self.tip() again after here.
-            events.extend(
-                self.state.close_frame_to_depth(frame.last_matched_idx)
-            )
-
+        events.extend(close_events)
 
         logger.debug(f'--- Stage: consume rest line ---')
         # add paragraph by default if there's text
         text_events = self._consume_line_text(
-            tip=self.state.top_container,
+            tip=self.state.top_frame,
             last_matched_idx=frame.last_matched_idx,
             new_starts_created=frame.new_starts_created
         )
@@ -147,12 +136,13 @@ class EventParser:
 
         last_matched_idx = -1
         line_is_finished = False
+        is_explicit_close = False # True indicates explicitly closed element appeared.
         events: List[Event] = []
 
         # 1. Determine if the top of curent stack has a raw block like CodeBlock.
         has_raw_barrierr = (self.state.raw_barrier_idx != -1)
 
-        for idx, container in enumerate(self.state.frame_stack):
+        for idx, frame in enumerate(self.state.frame_stack):
             
             # 1. Prepare cursor for rule
             self.state.cursor.skip_frame_space()
@@ -162,31 +152,39 @@ class EventParser:
             # by inner containers, yield your right to children.
             is_covered = has_raw_barrierr and (idx < self.state.raw_barrier_idx)
 
-            res = container.on_continue(ParsingContext(
+            cont_res = frame.on_continue(ParsingContext(
                 cursor=self.state.cursor,
                 is_covered=is_covered,
             ))
-            logger.debug(f'{self.state.cursor.pos}. {container} continue result: {res}')
-            if res.next_pos is not None:
-                logger.debug(f'Cursor is moving from {self.state.cursor.pos} to {res.next_pos}')
-                self.state.cursor.advance_to(res.next_pos)
 
-            # TODO: replace this by next_pos == cursor.eol_end?
-            if res.finished_line:
+            logger.debug(f'{self.state.cursor.pos}. {frame} continue result: {cont_res}')
+
+            if cont_res.next_pos is not None:
+                logger.debug(f'Cursor is moving from {self.state.cursor.pos} to {cont_res.next_pos}')
+                self.state.cursor.advance_pos(cont_res.next_pos)
+
+            if cont_res.finished_line:
                 line_is_finished = True
 
-            # The moment a container cannot continue, stop immediately
-            if res.is_continue:
-                last_matched_idx = idx
-                if res.events:
-                    events.extend(res.events)
-            else:
-                break
+            events.extend(cont_res.events)
 
-            # NOTE: res.finished_line is not bound to res.status.
-            # Be very careful. Djot.js heavily relies on this unpredicated state.
-            if line_is_finished:
-                break
+            match cont_res.status:
+                case OpenStatus.STOP:
+                    break
+
+                case OpenStatus.CLOSE:
+                    is_explicit_close = True
+                    break
+
+                case OpenStatus.CONTINUE:
+                    last_matched_idx = idx
+
+
+        if is_explicit_close:
+            close_events = self.state.close_frame_to_depth(last_matched_idx)
+            # Ensure proper order since continued events
+            # should not come before previous elements' closed events.
+            events = close_events + events
 
         return LineStepFrame(
             last_matched_idx=last_matched_idx,
@@ -222,10 +220,21 @@ class EventParser:
     def _apply_rules(self, parent: Optional[BlockFrame], parent_idx: int) -> LineStepFrame:
         events: List[Event] = []
         last_matched_idx = parent_idx
+        # Based on its used, this variable cover two meanings:
+        # 1. did open a new container
+        # 2. current line is not consumed by this container.
+        # However, when it was used, current line is always not 
+        # consumed to the end as finished_line = true short circuit to next line.
         new_starts_created = False
 
+        # The while loop determines the type of an element after each advancement.
+        # When should you break out of the while loop?
+        # 1. If no rule applied.
+        # 2. If a rule matched, but does not accept further block elements.
+        # 3. If a rule matches, and consumed the whole line.
+        # 4. Fallback
         while True:
-            opened_any = False
+            more_frames_required = False
 
             logger.debug(f'{self.state.cursor.pos} --- Start trying rule')
 
@@ -240,46 +249,61 @@ class EventParser:
                 if not is_type_matched:
                     continue
 
-                open_res = self._try_open(rule, last_matched_idx)
-                if open_res is None:
-                    logger.debug(f'{self.state.cursor.pos}. {rule.__class__.__name__} cannot open')
-                    continue
+                result = rule.try_open(self.state.cursor)
 
-                logger.debug(f'{self.state.cursor.pos}. 🌈 {rule.__class__.__name__} open result {open_res}')
+                match result.status:
+                    case OpenStatus.NOT_MATCHED:
+                        logger.debug(f'{self.state.cursor.pos}. {rule.__class__.__name__} cannot open')
+                        continue
 
-                events.extend(open_res.events)
-                last_matched_idx = len(self.state.frame_stack)-1
-                parent = self.state.frame_stack[last_matched_idx] # move node in tree deeper
+                    case OpenStatus.FALLBACK:
+                        logger.debug(f'{self.state.cursor.pos}. {rule.__class__.__name__} fallback.')
+                        _, para_events = self._open_para(last_matched_idx)
 
-                logger.debug(f'{self.state.cursor.pos}. Update last matched container to {last_matched_idx}')
+                        last_matched_idx = self.state.last_frame_index
+                        events.extend(para_events)
 
-                if open_res.finished_line:
-                    logger.debug(f'{rule.__class__.__name__} finished a line')
-                    return LineStepFrame(
-                        last_matched_idx=last_matched_idx,
-                        finished_line=True,
-                        new_starts_created=new_starts_created,
-                        events=events,
-                    )
+                        return LineStepFrame(
+                            last_matched_idx=last_matched_idx,
+                            events=events,
+                        )
 
-                self.state.cursor.skip_frame_space()
+                    case OpenStatus.MATCHED:
+                        logger.debug(f'{self.state.cursor.pos}. {rule.__class__.__name__} matched.')
 
-                new_starts_created = True
+                        events.extend(self._handle_matched(last_matched_idx, result))
+                        if result.frame is not None:
+                            last_matched_idx = self.state.last_frame_index
+                            parent = self.state.frame_stack[last_matched_idx]
 
-                opened_any = True
+                        self.state.cursor.skip_frame_space()
 
-                # Check if current rule could nest a child block.
-                if not rule.accepts_blocks():
-                    return LineStepFrame(
-                        last_matched_idx=last_matched_idx,
-                        new_starts_created=new_starts_created,
-                        events=events,
-                    )
+                        if rule.accepts_blocks():
+                            more_frames_required = True
+                            break
+                        else:
+                            return LineStepFrame(
+                                last_matched_idx=last_matched_idx,
+                                new_starts_created=new_starts_created,
+                                events=events,
+                            )
 
-                break
+                    case OpenStatus.MATCH_AND_CONSUMED:
+                        events.extend(self._handle_matched(last_matched_idx, result))
 
-            logger.debug(f'{self.state.cursor.pos}. Exhausted all rules. Opened any: {opened_any}')
-            if not opened_any:
+                        if result.frame is not None:
+                            last_matched_idx = self.state.last_frame_index
+                        return LineStepFrame(
+                            last_matched_idx=last_matched_idx,
+                            finished_line=True,
+                            new_starts_created=new_starts_created,
+                            events=events,
+                        )
+
+            logger.debug(f'{self.state.cursor.pos}. Exhausted all rules.')
+
+            if not more_frames_required:
+                logger.debug(f'{self.state.cursor.pos}. No rule applicable. Fallthrough.')
                 break
         
         return LineStepFrame(
@@ -288,52 +312,79 @@ class EventParser:
             events=events,
         )
 
-    def _try_open(self, rule: BlockRule, last_matched_idx: int) -> RuleResult | None:
-        result = rule.try_open(self.state.cursor)
-        
-        if not result.is_open:
-            return None
-
-        if result.container is None:
-            raise Exception('No container created after opening an element')
-
-        closed_events = self.state.close_frames(last_matched_idx, result.container)
-
-        result.events = closed_events + result.events
-
-        result.container = self.state.push_frame(
-            result.container,
+    def _handle_matched(
+        self, 
+        last_matched_idx: int,
+        result: RuleResult
+    ):
+        events = self.state.close_frame_to_depth(
+            last_matched_idx,
         )
 
-        logger.debug(f'{self.state.cursor.pos}. ✅{rule.__class__.__name__} opened')
-        if result.next_pos is not None:
-            logger.debug(f'Cursor is moving from {self.state.cursor.pos} to {result.next_pos}')
-            self.state.cursor.advance_to(result.next_pos)
+        if result.frame is not None:
+            sibling_events = self.state.close_frame_to_parent(
+                result.frame,
+            )
+            events.extend(sibling_events)
+            self.state.push_frame(result.frame)
 
-        return result
+        events.extend(result.events)
+
+        return events
+
+    def _close_unmatched_if_not_lazy(
+        self,
+        last_matched_idx: int,
+        new_starts_created: bool,
+    ) -> List[Event]:
+        """
+        Check if the following content is lazy.
+        For example,
+
+        > Blockquote paragraph
+        Paragraph continnued.
+        """
+        self.state.cursor.skip_frame_space()
+
+        is_eol = self.state.cursor.is_eol_reached
+        
+        tip = self.state.top_frame
+
+        is_lazy = (
+            not is_eol
+            and not new_starts_created # If we created a new container, and the container has trailing content, do not trigger lazy continuation
+            and last_matched_idx < len(self.state.frame_stack) - 1 # not last one
+            and tip is not None
+            and tip.rule.accepts_inline_only() # paraggraph, heading, caption
+        )
+
+        if not is_lazy:
+            logger.debug(f'{self.state.cursor.pos}. Not lazy content. Close frames to {last_matched_idx}.')
+            
+            events = self.state.close_frame_to_depth(last_matched_idx)
+
+            return events
+
+        return []
 
     def _open_para(self, last_matched_idx: int):
         logger.debug(f'{self.state.cursor.pos}. Fallback to paragraph.')
         
         result = self.para_rule.try_open(self.state.cursor)
         # ParaRule could always open a new container.
-        assert result.container is not None
+        assert result.frame is not None
 
         logger.debug(f'{self.state.cursor.pos}. ✅Para opened')
 
-        closed_events = self.state.close_frames(last_matched_idx, result.container)
+        closed_events = self.state.close_frames(last_matched_idx, result.frame)
 
         events = closed_events + result.events
         
-        result.container = self.state.push_frame(
-            result.container,
+        frame = self.state.push_frame(
+            result.frame,
         )
 
-        if result.next_pos is not None:
-            logger.debug(f'Cursor is moving from {self.state.cursor.pos} to {result.next_pos}')
-            self.state.cursor.advance_to(result.next_pos)
-
-        return (result.container, events)
+        return (frame, events)
 
     def _parse_inline(self, tip: BlockFrame):
         """Parse inline content for paragraph, heading and caption.
@@ -391,7 +442,7 @@ class EventParser:
         self.state.cursor.skip_frame_space()
         is_eol = self.state.cursor.is_eol_reached
         
-        tip = self.state.top_container
+        tip = self.state.top_frame
 
         return (
             not is_eol
@@ -439,13 +490,11 @@ class EventParser:
         return events
 
     def parse(self) -> Iterator[Event]:
-        while not self.state.cursor.is_eof:
+        while self.state.cursor.next_line():
             line_events = self.process_line()
 
             for event in line_events:
                 yield event
-
-            self.state.cursor.advance_to_new_line()
 
         logger.debug(f'{self.state.cursor.pos}. Cleanup.')
         for event in self.state.close_frame_to_depth(-1):

@@ -128,7 +128,7 @@ class CodeBlockRule(BlockRule):
         ctx: ParsingContext
     ) -> RuleResult:
         if not isinstance(container.data, CodeBlockData):
-            return RuleResult.fail()
+            return RuleResult.stop()
 
         # Similar to fenced div, if we didn't find ending markup,
         # yield to inner nodes.
@@ -143,7 +143,7 @@ class CodeBlockRule(BlockRule):
         next_pos = ctx.cursor.line_end
 
         return RuleResult(
-            status=OpenStatus.STOP, # TODO: what this actually means is stopping searching in the tree chain.
+            status=OpenStatus.STOP,
             finished_line=True,
             next_pos=next_pos,
         )

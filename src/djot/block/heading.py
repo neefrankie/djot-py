@@ -96,7 +96,7 @@ class HeadingRule(BlockRule):
     ) -> RuleResult:
         level = ctx.cursor.count_char('#')
         if level == 0:
-            return RuleResult.fail()
+            return RuleResult.stop()
         
         if not isinstance(container.data, HeadingData):
             return RuleResult.fail()
@@ -106,10 +106,10 @@ class HeadingRule(BlockRule):
         # The following lines do not need to have starting #.
         # In my opinion, the multi-line heading should not be allowed in the first place.
         if container.data.level != level: 
-            return RuleResult.fail()
+            return RuleResult.stop()
 
         if not ctx.cursor.is_whitespace(ctx.cursor.pos + level):
-            return RuleResult.fail()
+            return RuleResult.stop()
 
         container.update_closing_boundary(ctx.cursor.line_end, ctx.cursor.line_end)
         next_pos = ctx.cursor.pos + level # eat the leading #s

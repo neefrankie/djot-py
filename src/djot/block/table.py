@@ -363,7 +363,7 @@ class TableRule(BlockRule):
         next_pos = cursor.line_end
         
         return RuleResult(
-            status=OpenStatus.MATCHED,
+            status=OpenStatus.MATCH_AND_CONSUMED,
             frame=container,
             events=events,
             finished_line=True, # if we successfully parsed a row, the whole line is gobbled.
@@ -377,7 +377,7 @@ class TableRule(BlockRule):
     ) -> RuleResult:
         m = ctx.cursor.find_table_row()
         if not m:
-            return RuleResult.fail()
+            return RuleResult.stop()
 
         rawrow = m.captures[0] # | fruit  | price |
         parsed_row = parse_row(
@@ -386,7 +386,7 @@ class TableRule(BlockRule):
         )
 
         if parsed_row is None:
-            return RuleResult.fail()
+            return RuleResult.stop()
 
         container.update_closing_boundary(ctx.cursor.line_end, ctx.cursor.line_end)
 

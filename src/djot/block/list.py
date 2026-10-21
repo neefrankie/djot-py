@@ -92,7 +92,7 @@ class ListRule(BlockRule):
         ctx: ParsingContext
     ) -> RuleResult:
         if not isinstance(container.data, ListData):
-            return RuleResult.fail()
+            return RuleResult.stop()
 
         # As long as next line is indented more than previous line,
         # keep the container.
@@ -116,7 +116,7 @@ class ListRule(BlockRule):
 
         m = ctx.cursor.find_list_marker()
         if m is None:
-            return RuleResult.fail()
+            return RuleResult.stop()
 
         marker = ctx.cursor.src[m.start:m.end]
         mtask = ctx.cursor.find_task_list_marker()
@@ -134,7 +134,7 @@ class ListRule(BlockRule):
         )
 
         if not newstyles:
-            return RuleResult.fail()
+            return RuleResult.stop()
 
         container.data.styles = newstyles
         

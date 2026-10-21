@@ -56,7 +56,7 @@ class ParaRule(BlockRule):
             )
             return RuleResult.continue_ok()
 
-        return RuleResult.fail()
+        return RuleResult.stop()
 
     def on_close(
         self, 

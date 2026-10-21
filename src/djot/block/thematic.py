@@ -5,7 +5,6 @@ from ..event import (
     BlockLeaf,
     Event,
 )
-from ..common import Range
 
 from .container import (
     ContainerCap,
@@ -40,11 +39,6 @@ class ThematicBreakRule(BlockRule):
         if not m:
             return RuleResult.fail()
 
-        container = BlockFrame(
-            rule=self,
-            start_pos=m.start,
-            closing_boundary=Range(m.end, m.end)
-        )
         event = Event.leaf(
             kind=BlockLeaf.THEMATIC_BREAK,
             span=cursor.new_span(
@@ -56,8 +50,8 @@ class ThematicBreakRule(BlockRule):
         next_pos = m.end
         
         return RuleResult(
-            status=OpenStatus.MATCHED,
-            frame=container,
+            status=OpenStatus.MATCH_AND_CONSUMED,
+            frame=None,
             events=[event],
             next_pos=next_pos,
         )
@@ -67,7 +61,7 @@ class ThematicBreakRule(BlockRule):
         container: BlockFrame,
         ctx: ParsingContext
     ) -> RuleResult:
-        return RuleResult.fail()
+        return RuleResult.stop()
 
     def on_close(
         self, 
