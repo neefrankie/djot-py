@@ -25,34 +25,34 @@ class ContainerCap(Enum):
     ATTRIBUTES = auto()
     LIST_ITEM = auto()
 
-@dataclass
+@dataclass(slots=True)
 class HeadingData:
     level: int
 
-@dataclass
+@dataclass(slots=True)
 class FootnoteData:
     label: str
     indent: int
 
-@dataclass
+@dataclass(slots=True)
 class RefDefData:
     key: str
     indent: int
 
-@dataclass
+@dataclass(slots=True)
 class ListData:
     styles: List[ListStyle]
     indent: int
 
-@dataclass
+@dataclass(slots=True)
 class TableData:
     columns: int
 
-@dataclass
+@dataclass(slots=True)
 class FencedDivData:
     colons: int
 
-@dataclass
+@dataclass(slots=True)
 class CodeBlockData:
     close_pattern: re.Pattern
 
