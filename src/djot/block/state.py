@@ -104,7 +104,7 @@ class BlockState:
                 break
 
             close_result = self._close_container(top)
-            events.extend(close_result.events)
+            events.extend(close_result)
 
         return events
 
@@ -125,7 +125,7 @@ class BlockState:
                 break
 
             close_result = self._close_container(top)
-            events.extend(close_result.events)
+            events.extend(close_result)
 
 
         return events
@@ -136,7 +136,7 @@ class BlockState:
         return unmatched + siblings
 
 
-    def _close_container(self, container: BlockFrame) -> OpenResult:
+    def _close_container(self, container: BlockFrame) -> List[Event]:
         events: List[Event] = []
         if container.inline_parser:
             events.extend(container.inline_parser.iter_merged_events())
@@ -145,5 +145,6 @@ class BlockState:
         result = container.on_close(ParsingContext(
             cursor=self.cursor,
         ))
-        result.events = events + result.events
+        events.extend(result)
+        
         return result
