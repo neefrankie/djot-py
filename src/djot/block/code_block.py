@@ -114,14 +114,12 @@ class CodeBlockRule(BlockRule):
                     )
                 )
 
-        # cursor.advance_to(m.end)
-        next_pos = m.end
+        cursor.advance_pos(m.end)
+
         return OpenResult(
-            status=OpenStatus.MATCHED,
+            status=OpenStatus.MATCH_AND_CONSUMED,
             events=events,
             frame=container,
-            finished_line=True,
-            next_pos=next_pos
         )
 
     def on_continue(
@@ -145,13 +143,11 @@ class CodeBlockRule(BlockRule):
         # If we find ending token, it should stop at this container.
         container.update_closing_boundary(m.start, m.start + len(m.captures[0]) - 1)
 
-        # ctx.cursor.advance_to(m.end) # before newline
-        next_pos = ctx.cursor.line_end
+        ctx.cursor.advance_pos(m.end)
 
         return ContinueResult(
             action=ContinueAction.STOP,
             line_action=LineAction.CONSUMED,
-            next_pos=next_pos,
         )
 
     def on_close(
