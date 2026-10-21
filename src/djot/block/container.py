@@ -113,7 +113,7 @@ class BlockFrame(Generic[T]):
     def on_continue(self, ctx: ParsingContext) -> 'ContinueResult':
         return self.rule.on_continue(self, ctx)
 
-    def on_close(self, ctx: ParsingContext) -> 'OpenResult':
+    def on_close(self, ctx: ParsingContext) -> List[Event]:
         return self.rule.on_close(self, ctx)
         
 
@@ -123,10 +123,6 @@ class OpenStatus(Enum):
     FALLBACK = auto() # Syntax error, fallback to paragraph rule.
     MATCH_AND_CONSUMED = auto() # A rule applied successfully and consumed the whole line, so stop trying any rules and jump to next line directly.
 
-    FAIL = auto()
-
-    CONTINUE = auto()
-    STOP = auto() # stop searching deeper in a node path.
     CLOSE = auto() # a container should be closed.
     
 class ContinueAction(Enum):
@@ -163,24 +159,9 @@ class OpenResult:
         return f'RuleResult(status={self.status.name}, new events: {len(self.events)}, new container: {self.frame}, finished_line={self.finished_line})'
 
     @classmethod
-    def fail(cls) -> 'OpenResult':
+    def not_matched(cls) -> 'OpenResult':
         return cls(status=OpenStatus.NOT_MATCHED)
 
-    @classmethod
-    def stop(cls) -> 'OpenResult':
-        return cls(status=OpenStatus.STOP)
-
-    @classmethod
-    def continue_ok(
-        cls, 
-        events: Optional[List[Event]] = None, 
-        finished_line: bool = False
-    ) -> 'OpenResult':
-        return cls(
-            status=OpenStatus.CONTINUE,
-            events=events or [],
-            finished_line=finished_line,
-        )
 
 class LineAction(Enum):
     """
@@ -256,5 +237,5 @@ class BlockRule(ABC):
         pass
 
     @abstractmethod
-    def on_close(self, container: BlockFrame, ctx: ParsingContext) -> OpenResult:
+    def on_close(self, container: BlockFrame, ctx: ParsingContext) -> List[Event]:
         pass
