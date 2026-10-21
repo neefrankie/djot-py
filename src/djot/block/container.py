@@ -166,11 +166,6 @@ class RuleResult:
             finished_line=finished_line,
         )
 
-    @classmethod
-    def close(cls) -> 'RuleResult':
-        return cls(
-            status=OpenStatus.CLOSE,
-        )
 
 # In djot.js it is called BlockSpec.
 @dataclass
