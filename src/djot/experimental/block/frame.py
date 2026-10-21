@@ -73,7 +73,6 @@ class OpenStatus(Enum):
     FALLBACK = auto() # Syntax error, fallback to paragraph rule.
     MATCHED = auto() # A rule applied successfully, so stop trying the rest of rules.
     MATCH_AND_CONSUMED = auto() # A rule applied successfully and consumed the whole line, so stop trying any rules and jump to next line directly.
-    CLOSE = auto() # a container should be closed.
     
 @dataclass(slots=True)
 class OpenResult:
