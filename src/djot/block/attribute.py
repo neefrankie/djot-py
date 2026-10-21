@@ -2,7 +2,10 @@ from dataclasses import dataclass
 from typing import List
 
 from djot.input import InputText
-from djot.attributes import AttributeParser
+from djot.attributes import (
+    AttributeParser,
+    AttrFlowControl
+)
 from djot.event import (
     Event,
     BlockContainer,
@@ -34,18 +37,21 @@ class AttributeRule(BlockRule):
             )
 
         attribute_parser = AttributeParser(cursor)
-        # From { to EOL
+        
         res = attribute_parser.feed(cursor.pos, cursor.line_end)
-        if res.is_fail(): # Cursor is not moved. No need to rewind.
-            return OpenResult(
-                status=OpenStatus.FALLBACK,
-            )
 
-        # Attributes should stand alone on a line.
-        if res.is_done() and not cursor.is_rest_of_line_blank(res.position + 1):
-            return OpenResult(
-                status=OpenStatus.FALLBACK,
-            )
+        match res.status:
+            case AttrFlowControl.FAIL:
+                return OpenResult(
+                    status=OpenStatus.FALLBACK,
+                )
+
+            case AttrFlowControl.DONE:
+                # Attributes should stand alone on a line.
+                if not cursor.is_rest_of_line_blank(res.position + 1):
+                    return OpenResult(
+                        status=OpenStatus.FALLBACK,
+                    )
 
         container = BlockFrame(
             rule=self,
@@ -75,13 +81,11 @@ class AttributeRule(BlockRule):
             )
         )
         
-        next_pos = cursor.line_end
+        cursor.advance_pos(cursor.line_end)
         return OpenResult(
-            status=OpenStatus.MATCHED,
+            status=OpenStatus.MATCH_AND_CONSUMED,
             events=events,
             frame=container,
-            next_pos=next_pos,
-            finished_line=True,
         )
 
     def on_continue(
@@ -101,5 +105,4 @@ class AttributeRule(BlockRule):
         container: BlockFrame, 
         ctx: ParsingContext,
     ) -> List[Event]:
-
         return []
