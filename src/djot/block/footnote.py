@@ -46,7 +46,7 @@ class FootnoteRule(BlockRule):
     accepts_content: ContainerCap = ContainerCap.BLOCK
 
     def try_open(self, cursor: InputText) -> OpenResult:
-        m = cursor.find_footnotestart()
+        m = cursor.find_footnote_definition()
         if m is None:
             return OpenResult.not_matched()
 
@@ -79,12 +79,12 @@ class FootnoteRule(BlockRule):
                 )
             ) 
         ]
-        
+
+        cursor.advance_pos(end_pos) # move to first space
         return OpenResult(
             status=OpenStatus.MATCHED,
             frame=container,
             events=events,
-            next_pos=end_pos # move to first space
         )
 
     def on_continue(
@@ -107,7 +107,7 @@ class FootnoteRule(BlockRule):
             )
 
         return ContinueResult(
-                action=ContinueAction.STOP,
+            action=ContinueAction.STOP,
         )
 
     def on_close(

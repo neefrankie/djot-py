@@ -600,7 +600,15 @@ class InputText:
         """Matches ^ followed by any number of space or tab"""
         return find(self.src, self._PATT_CAPTION_START, self.pos)
 
-    def find_footnotestart(self):
+    def find_footnote_definition(self):
+        # '[^foo]: '
+        if self.src[self.pos] != '[':
+            return None
+        if self.pos + 1 >= self.length - 1:
+            return None
+        if self.src[self.pos+1] != '^':
+            return None
+        
         return find(self.src, self._PATT_FOOTNOTE_START, self.pos)
 
     def find_reference_definition(self):
