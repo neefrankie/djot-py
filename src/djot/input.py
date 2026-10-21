@@ -633,9 +633,6 @@ class InputText:
     def find_next_bar_or_tick(self):
         return find(self.src, self._PATT_NEXT_BAR_OR_TICK, self.pos)
 
-    def find_word(self) -> Optional[MatchedRange]:
-        return find(self.src, self._PATT_WORD, self.pos)
-
     def find_div_fence_start(self) -> Optional[MatchedRange]:
         return find(self.src, self._PATT_DIV_FENCE_START, self.pos)
 
@@ -647,8 +644,6 @@ class InputText:
 
     def find_code_fence(self):
         return find(self.src, self._PATT_CODE_FENCE, self.pos)
-
-    
 
     def find_raw_attribute(self, pos: int, endpos: int) -> Optional[MatchedRange]:
         return find(self.src, self._PATT_RAW_ATTRIBUTE, pos, endpos)
