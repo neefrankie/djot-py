@@ -7,7 +7,7 @@ from ..event import (
 )
 from ..inline import InlineParser
 from .container import (
-    Container,
+    BlockFrame,
     ContainerCap,
     ParsingContext,
     RuleResult,
@@ -19,21 +19,21 @@ class BlockState:
 
         # A container stack describes a path in a tree from root to a leaf.
         # When we push a new container, we are exiting a node and switch to a sibling.
-        self.frame_stack: List[Container[Any]] = []
+        self.frame_stack: List[BlockFrame[Any]] = []
         # Index of container with opaque content, a block of raw text
         # with higher precedence shadowing outer container.
         # -1 mean the stack does not have such a container.
         self.raw_barrier_idx: int = -1
 
     @property
-    def top_container(self) -> Optional[Container]:
+    def top_container(self) -> Optional[BlockFrame]:
         """Get the innermost node in current active AST path"""
         return self.frame_stack[-1] if self.frame_stack else None
 
     def get_adjusted_text_start(self, indent: int | None):
         return self.cursor.get_adjusted_text_start(indent)
 
-    def last_matched_container(self, idx: int) -> Optional[Container]:
+    def last_matched_container(self, idx: int) -> Optional[BlockFrame]:
         if not self.frame_stack:
             return None
         if idx < 0 or idx >= len(self.frame_stack):
@@ -43,8 +43,8 @@ class BlockState:
 
     def push_frame(
         self, 
-        frame: Container,
-    ) -> Container:
+        frame: BlockFrame,
+    ) -> BlockFrame:
 
         if frame.children_type == ContainerCap.INLINE:
             # Why not attach the InlineParser when the container is created?
@@ -63,7 +63,7 @@ class BlockState:
 
         return frame
 
-    def pop_frame(self) -> Optional[Container]:
+    def pop_frame(self) -> Optional[BlockFrame]:
         if not self.frame_stack:
             return None
 
@@ -106,7 +106,7 @@ class BlockState:
 
     def close_frame_to_parent(
         self,
-        new_container: Container
+        new_container: BlockFrame
     ) -> List[Event]:
         """Close sibling nodes when pushing a new container"""
         logger.debug(f'close siblings of {new_container}. current stack: {len(self.frame_stack)}')
@@ -126,13 +126,13 @@ class BlockState:
 
         return events
 
-    def close_frames(self, last_matched_idx: int, new_container: Container) -> List[Event]:
+    def close_frames(self, last_matched_idx: int, new_container: BlockFrame) -> List[Event]:
         unmatched = self.close_frame_to_depth(last_matched_idx)
         siblings = self.close_frame_to_parent(new_container)
         return unmatched + siblings
 
 
-    def _close_container(self, container: Container) -> RuleResult:
+    def _close_container(self, container: BlockFrame) -> RuleResult:
         events: List[Event] = []
         if container.inline_parser:
             events.extend(container.inline_parser.iter_merged_events())

@@ -9,7 +9,7 @@ from djot.event import (
 
 from .container import (
     ContainerCap,
-    Container,
+    BlockFrame,
     FlowControl,
     BlockRule,
     RuleResult,
@@ -37,7 +37,7 @@ class AttributeRule(BlockRule):
         if res.is_done() and not cursor.is_rest_of_line_blank(res.position + 1):
             return RuleResult.fail()
 
-        container = Container(
+        container = BlockFrame(
             rule=self,
             start_pos=cursor.pos
         )
@@ -73,7 +73,7 @@ class AttributeRule(BlockRule):
 
     def on_continue(
         self,
-        container: Container,
+        container: BlockFrame,
         ctx: ParsingContext
     ) -> RuleResult:
         # Since I don't permit newline inside attribute block,
@@ -82,7 +82,7 @@ class AttributeRule(BlockRule):
 
     def on_close(
         self, 
-        container: Container, 
+        container: BlockFrame, 
         ctx: ParsingContext,
     ) -> RuleResult:
 

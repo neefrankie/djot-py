@@ -11,7 +11,7 @@ from ..logger import logger
 
 from .container import (
     ParsingContext,
-    Container,
+    BlockFrame,
 
     BlockRule,
     RuleResult,
@@ -219,7 +219,7 @@ class EventParser:
         # Cascade Open
         return self._apply_rules(parent, last_matched_idx)
 
-    def _apply_rules(self, parent: Optional[Container], parent_idx: int) -> LineStepFrame:
+    def _apply_rules(self, parent: Optional[BlockFrame], parent_idx: int) -> LineStepFrame:
         events: List[Event] = []
         last_matched_idx = parent_idx
         new_starts_created = False
@@ -335,7 +335,7 @@ class EventParser:
 
         return (result.container, events)
 
-    def _parse_inline(self, tip: Container):
+    def _parse_inline(self, tip: BlockFrame):
         """Parse inline content for paragraph, heading and caption.
 
         When they are in lazy mode, they escaped the on_continue check.
@@ -351,7 +351,7 @@ class EventParser:
             line_end = self.state.cursor.line_end
             tip.update_closing_boundary(line_end, line_end) # TODO: a temporary solution for lazy content
 
-    def _parse_text(self, tip: Container) -> Event:
+    def _parse_text(self, tip: BlockFrame) -> Event:
         """Code block"""
         start_pos = self.state.get_adjusted_text_start(tip.indent)
         logger.debug(f'{self.state.cursor.pos}. Text only.')
@@ -363,7 +363,7 @@ class EventParser:
 
         return event
 
-    def _parse_blankline(self, tip: Container | None) -> Event:
+    def _parse_blankline(self, tip: BlockFrame | None) -> Event:
         line_end = self.state.cursor.line_end
 
         if tip and tip.closing_boundary:
@@ -403,7 +403,7 @@ class EventParser:
 
     def _consume_line_text(
         self,
-        tip: Optional[Container],
+        tip: Optional[BlockFrame],
         last_matched_idx: int,
         new_starts_created: bool,
     ) -> List[Event]:

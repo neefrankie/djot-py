@@ -9,7 +9,7 @@ from ..common import Range
 
 from .container import (
     ContainerCap,
-    Container,
+    BlockFrame,
     HeadingData,
     FlowControl,
     BlockRule,
@@ -74,7 +74,7 @@ class HeadingRule(BlockRule):
         
         return RuleResult(
             status=FlowControl.OPEN,
-            container=Container(
+            container=BlockFrame(
                 rule=self,
                 data=HeadingData(level=level),
                 start_pos=cursor.pos,
@@ -91,7 +91,7 @@ class HeadingRule(BlockRule):
 
     def on_continue(
         self,
-        container: Container,
+        container: BlockFrame,
         ctx: ParsingContext
     ) -> RuleResult:
         level = ctx.cursor.count_char('#')
@@ -121,7 +121,7 @@ class HeadingRule(BlockRule):
 
     def on_close(
         self, 
-        container: Container, 
+        container: BlockFrame, 
         ctx: ParsingContext,
     ) -> RuleResult:
         assert container.closing_boundary is not None

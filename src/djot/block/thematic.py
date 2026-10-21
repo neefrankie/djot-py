@@ -9,7 +9,7 @@ from ..common import Range
 
 from .container import (
     ContainerCap,
-    Container,
+    BlockFrame,
     FlowControl,
     BlockRule,
     RuleResult,
@@ -40,7 +40,7 @@ class ThematicBreakRule(BlockRule):
         if not m:
             return RuleResult.fail()
 
-        container = Container(
+        container = BlockFrame(
             rule=self,
             start_pos=m.start,
             closing_boundary=Range(m.end, m.end)
@@ -64,14 +64,14 @@ class ThematicBreakRule(BlockRule):
 
     def on_continue(
         self,
-        container: Container,
+        container: BlockFrame,
         ctx: ParsingContext
     ) -> RuleResult:
         return RuleResult.fail()
 
     def on_close(
         self, 
-        container: Container, 
+        container: BlockFrame, 
         ctx: ParsingContext,
     ) -> RuleResult:
         return RuleResult(

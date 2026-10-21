@@ -17,7 +17,7 @@ from djot.common.list_style import (
 
 from .container import (
     ContainerCap,
-    Container,
+    BlockFrame,
     ListData,
     FlowControl,
     BlockRule,
@@ -57,7 +57,7 @@ class ListRule(BlockRule):
         if styles is None:
             return RuleResult.fail()
         
-        container = Container(
+        container = BlockFrame(
             rule=self,
             start_pos=cursor.pos,
             closing_boundary=Range(cursor.line_end, cursor.line_end),
@@ -88,7 +88,7 @@ class ListRule(BlockRule):
 
     def on_continue(
         self,
-        container: Container,
+        container: BlockFrame,
         ctx: ParsingContext
     ) -> RuleResult:
         if not isinstance(container.data, ListData):
@@ -146,7 +146,7 @@ class ListRule(BlockRule):
 
     def on_close(
         self, 
-        container: Container, 
+        container: BlockFrame, 
         ctx: ParsingContext,
     ) -> RuleResult:
         assert container.closing_boundary is not None
@@ -203,7 +203,7 @@ class ListItemRule(BlockRule):
         if len(styles) == 0:
             return RuleResult.fail()
 
-        container = Container(
+        container = BlockFrame(
             rule=self,
             start_pos=cursor.pos,
             closing_boundary=Range(cursor.line_end, cursor.line_end),
@@ -254,7 +254,7 @@ class ListItemRule(BlockRule):
 
     def on_continue(
         self,
-        container: Container,
+        container: BlockFrame,
         ctx: ParsingContext
     ) -> RuleResult:
         if not isinstance(container.data, ListData):
@@ -275,7 +275,7 @@ class ListItemRule(BlockRule):
 
     def on_close(
         self, 
-        container: Container, 
+        container: BlockFrame, 
         ctx: ParsingContext,
     ) -> RuleResult:
         assert container.closing_boundary is not None

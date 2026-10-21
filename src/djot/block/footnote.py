@@ -10,7 +10,7 @@ from ..common import Range
 
 from .container import (
     ContainerCap,
-    Container,
+    BlockFrame,
     FootnoteData,
     FlowControl,
     BlockRule,
@@ -51,7 +51,7 @@ class FootnoteRule(BlockRule):
         start_pos = m.start # [
         end_pos = m.end # space aftr :
         label = m.captures[0] # foo
-        container = Container(
+        container = BlockFrame(
             rule=self,
             data=FootnoteData(
                 label=label,
@@ -86,7 +86,7 @@ class FootnoteRule(BlockRule):
 
     def on_continue(
         self,
-        container: Container,
+        container: BlockFrame,
         ctx: ParsingContext
     ) -> RuleResult:
         if not isinstance(container.data, FootnoteData):
@@ -103,7 +103,7 @@ class FootnoteRule(BlockRule):
 
     def on_close(
         self, 
-        container: Container, 
+        container: BlockFrame, 
         ctx: ParsingContext,
     ) -> RuleResult:
         assert container.closing_boundary is not None

@@ -76,7 +76,7 @@ class ParsingContext:
 T = TypeVar('T')
 
 @dataclass
-class Container(Generic[T]):
+class BlockFrame(Generic[T]):
     rule: 'BlockRule'
     start_pos: int = 0 # snapshot of cursor position the moment this container is created.
     closing_boundary: Optional[Range] = None # the position of closing token.
@@ -104,7 +104,7 @@ class Container(Generic[T]):
     def accepts_raw_text(self):
         return self.rule.accepts_content == ContainerCap.TEXT
 
-    def can_cantain(self, other: 'Container') -> bool:
+    def can_cantain(self, other: 'BlockFrame') -> bool:
         return self.rule.accepts_content == other.rule.kind
 
     def can_nest(self, rule: 'BlockRule') -> bool:
@@ -139,7 +139,7 @@ class RuleResult:
     """
     status: FlowControl
     events: List[Event] = field(default_factory=list)
-    container: Optional[Container[Any]] = None
+    container: Optional[BlockFrame[Any]] = None
     finished_line: bool = False
     next_pos: Optional[int] = None
 
@@ -228,9 +228,9 @@ class BlockRule(ABC):
         pass
 
     @abstractmethod
-    def on_continue(self, container: Container, ctx: ParsingContext) -> RuleResult:
+    def on_continue(self, container: BlockFrame, ctx: ParsingContext) -> RuleResult:
         pass
 
     @abstractmethod
-    def on_close(self, container: Container, ctx: ParsingContext) -> RuleResult:
+    def on_close(self, container: BlockFrame, ctx: ParsingContext) -> RuleResult:
         pass

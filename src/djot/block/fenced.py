@@ -11,7 +11,7 @@ from ..logger import logger
 
 from .container import (
     ContainerCap,
-    Container,
+    BlockFrame,
     FencedDivData,
     FlowControl,
     BlockRule,
@@ -60,7 +60,7 @@ class FencedDivRule(BlockRule):
         clsp = m2.start # class name start position
         lang = m2.captures[0]
 
-        container = Container(
+        container = BlockFrame(
             rule=self,
             data=FencedDivData(
                 colons=len(colons),
@@ -97,7 +97,7 @@ class FencedDivRule(BlockRule):
 
     def on_continue(
         self,
-        container: Container,
+        container: BlockFrame,
         ctx: ParsingContext
     ) -> RuleResult:
         """The lifecycle of state-driven vs syntax-drive elements
@@ -183,7 +183,7 @@ class FencedDivRule(BlockRule):
 
     def on_close(
         self,
-        container: Container, 
+        container: BlockFrame, 
         ctx: ParsingContext,
     ) -> RuleResult:
         sp = ctx.cursor.pos

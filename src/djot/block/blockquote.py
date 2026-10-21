@@ -9,7 +9,7 @@ from ..common import Range
 
 from .container import (
     ContainerCap,
-    Container,
+    BlockFrame,
     FlowControl,
     BlockRule,
     RuleResult,
@@ -27,7 +27,7 @@ class BlockquoteRule(BlockRule):
 
         # Djot.js performs addContainer here.
         # So all previous containers closed at this snapshot.
-        container = container=Container(
+        container = container=BlockFrame(
             rule=self,
             start_pos=cursor.pos,
             closing_boundary=Range(cursor.line_end, cursor.line_end)
@@ -50,7 +50,7 @@ class BlockquoteRule(BlockRule):
 
     def on_continue(
         self,
-        container: Container,
+        container: BlockFrame,
         ctx: ParsingContext
     ) -> RuleResult:
         if ctx.cursor.peek_is_blockquote_prefix():
@@ -68,7 +68,7 @@ class BlockquoteRule(BlockRule):
 
     def on_close(
         self, 
-        container: Container, 
+        container: BlockFrame, 
         ctx: ParsingContext,
     ) -> RuleResult:
         assert container.closing_boundary is not None

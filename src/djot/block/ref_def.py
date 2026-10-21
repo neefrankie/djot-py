@@ -10,7 +10,7 @@ from ..common import Range
 
 from .container import (
     ContainerCap,
-    Container,
+    BlockFrame,
     RefDefData,
     FlowControl,
     BlockRule,
@@ -44,7 +44,7 @@ class ReferenceDefinitionRule(BlockRule):
 
         label = m.captures[0] # anything inside []
         value = m.captures[1].lstrip() # anything after :
-        container = Container(
+        container = BlockFrame(
             rule=self,
             data=RefDefData(
                 key=label,
@@ -89,7 +89,7 @@ class ReferenceDefinitionRule(BlockRule):
 
     def on_continue(
         self,
-        container: Container,
+        container: BlockFrame,
         ctx: ParsingContext
     ) -> RuleResult:
         if not isinstance(container.data, RefDefData):
@@ -130,7 +130,7 @@ class ReferenceDefinitionRule(BlockRule):
 
     def on_close(
         self, 
-        container: Container, 
+        container: BlockFrame, 
         ctx: ParsingContext,
     ) -> RuleResult:
         assert container.closing_boundary is not None

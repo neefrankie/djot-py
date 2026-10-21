@@ -16,7 +16,7 @@ from djot.common import (
 
 from .container import (
     ContainerCap,
-    Container,
+    BlockFrame,
     TableData,
     FlowControl,
     BlockRule,
@@ -319,7 +319,7 @@ class TableRule(BlockRule):
         if not m:
             return RuleResult.fail()
 
-        container = Container(
+        container = BlockFrame(
             rule=self,
             data=TableData(
                 columns=0
@@ -372,7 +372,7 @@ class TableRule(BlockRule):
 
     def on_continue(
         self,
-        container: Container,
+        container: BlockFrame,
         ctx: ParsingContext
     ) -> RuleResult:
         m = ctx.cursor.find_table_row()
@@ -399,7 +399,7 @@ class TableRule(BlockRule):
 
     def on_close(
         self, 
-        container: Container, 
+        container: BlockFrame, 
         ctx: ParsingContext,
     ) -> RuleResult:
         assert container.closing_boundary is not None

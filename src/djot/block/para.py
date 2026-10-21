@@ -9,7 +9,7 @@ from ..common import Range
 
 from .container import (
     ContainerCap,
-    Container,
+    BlockFrame,
     FlowControl,
     BlockRule,
     RuleResult,
@@ -23,7 +23,7 @@ class ParaRule(BlockRule):
     accepts_content: ContainerCap = ContainerCap.INLINE
 
     def try_open(self, cursor: InputText) -> RuleResult:
-        container = Container(
+        container = BlockFrame(
             rule=self,
             start_pos=cursor.pos,
             closing_boundary=Range(cursor.line_end, cursor.line_end)
@@ -44,7 +44,7 @@ class ParaRule(BlockRule):
 
     def on_continue(
         self,
-        container: Container,
+        container: BlockFrame,
         ctx: ParsingContext
     ) -> RuleResult:
         # TODO This won't handle all cases.
@@ -60,7 +60,7 @@ class ParaRule(BlockRule):
 
     def on_close(
         self, 
-        container: Container, 
+        container: BlockFrame, 
         ctx: ParsingContext,
     ) -> RuleResult:
         # Actions performed in djot.js

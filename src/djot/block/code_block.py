@@ -13,7 +13,7 @@ from ..logger import logger
 
 from .container import (
     ContainerCap,
-    Container,
+    BlockFrame,
     CodeBlockData,
     FlowControl,
     BlockRule,
@@ -67,7 +67,7 @@ class CodeBlockRule(BlockRule):
         is_raw = lang.startswith('=') # =FORMAT
         close_pattern = re.compile(r'(' + border + border[0:1] + r'*)' + r'[ \t]*[\r\n]')
 
-        container = Container(
+        container = BlockFrame(
             rule=self,
             indent=cursor.indent,
             data=CodeBlockData(
@@ -124,7 +124,7 @@ class CodeBlockRule(BlockRule):
 
     def on_continue(
         self,
-        container: Container,
+        container: BlockFrame,
         ctx: ParsingContext
     ) -> RuleResult:
         if not isinstance(container.data, CodeBlockData):
@@ -150,7 +150,7 @@ class CodeBlockRule(BlockRule):
 
     def on_close(
         self, 
-        container: Container, 
+        container: BlockFrame, 
         ctx: ParsingContext,
     ) -> RuleResult:
         sp = ctx.cursor.pos

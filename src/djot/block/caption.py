@@ -9,7 +9,7 @@ from ..common import Range
 
 from .container import (
     ContainerCap,
-    Container,
+    BlockFrame,
     FlowControl,
     BlockRule,
     RuleResult,
@@ -34,7 +34,7 @@ class CaptionRule(BlockRule):
         if not m:
             return RuleResult.fail()
 
-        container = Container(
+        container = BlockFrame(
             rule=self,
             start_pos=m.start,
             closing_boundary=Range(cursor.pos, cursor.line_end)
@@ -55,7 +55,7 @@ class CaptionRule(BlockRule):
 
     def on_continue(
         self,
-        container: Container,
+        container: BlockFrame,
         ctx: ParsingContext
     ) -> RuleResult:
         # Check if the line is indented.
@@ -70,7 +70,7 @@ class CaptionRule(BlockRule):
 
     def on_close(
         self, 
-        container: Container, 
+        container: BlockFrame, 
         ctx: ParsingContext,
     ) -> RuleResult:
         assert container.closing_boundary is not None
