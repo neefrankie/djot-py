@@ -110,10 +110,10 @@ class BlockFrame(Generic[T]):
     def can_nest(self, rule: 'BlockRule') -> bool:
         return self.rule.accepts_content == rule.kind
 
-    def on_continue(self, ctx: ParsingContext) -> 'RuleResult':
+    def on_continue(self, ctx: ParsingContext) -> 'OpenResult':
         return self.rule.on_continue(self, ctx)
 
-    def on_close(self, ctx: ParsingContext) -> 'RuleResult':
+    def on_close(self, ctx: ParsingContext) -> 'OpenResult':
         return self.rule.on_close(self, ctx)
         
 
@@ -129,10 +129,22 @@ class OpenStatus(Enum):
     STOP = auto() # stop searching deeper in a node path.
     CLOSE = auto() # a container should be closed.
     
+class ContinueAction(Enum):
+    """
+    Determine the lifecycle of a frame.
+    
+    CONTINUE: continue to inner frames.
+    STOP: stop searcing for inner frames and all frames from here
+    to the end should be closed.
+    """
+    CONTINUE = auto()
+    STOP = auto()
+    CLOSE = auto()
+
 
 
 @dataclass
-class RuleResult:
+class OpenResult:
     """Data carried out after applying each rule.
     
     Attributes:
@@ -151,11 +163,11 @@ class RuleResult:
         return f'RuleResult(status={self.status.name}, new events: {len(self.events)}, new container: {self.frame}, finished_line={self.finished_line})'
 
     @classmethod
-    def fail(cls) -> 'RuleResult':
+    def fail(cls) -> 'OpenResult':
         return cls(status=OpenStatus.NOT_MATCHED)
 
     @classmethod
-    def stop(cls) -> 'RuleResult':
+    def stop(cls) -> 'OpenResult':
         return cls(status=OpenStatus.STOP)
 
     @classmethod
@@ -163,13 +175,35 @@ class RuleResult:
         cls, 
         events: Optional[List[Event]] = None, 
         finished_line: bool = False
-    ) -> 'RuleResult':
+    ) -> 'OpenResult':
         return cls(
             status=OpenStatus.CONTINUE,
             events=events or [],
             finished_line=finished_line,
         )
 
+class LineAction(Enum):
+    """
+    Whether a line is consume in continue operation.
+    For CONSUMED, circirt-break and to to next line directly.
+    """
+    PROCEED = auto()
+    CONSUMED = auto()
+
+@dataclass(slots=True, frozen=True)
+class ContinueResult:
+    """
+    This differs from OpenResult in term of line finished.
+    ContinueAction determines the lifecycle of a frame.
+    A frame could be allowed to continue while it consumed
+    the whole line since a frame may cover multiple lines,
+    or it could be terminateded while consumed the whole line.
+    """
+    action: ContinueAction # determin the lifecycle of frame.
+    # Mode rules do not generate event during on continue phase.
+    # There are two exceptions: reference definition and table.
+    events: List[Event] = field(default_factory=list)
+    line_action: LineAction = LineAction.PROCEED
 
 # In djot.js it is called BlockSpec.
 @dataclass
@@ -213,13 +247,13 @@ class BlockRule(ABC):
         return self.accepts_content == ContainerCap.TEXT
 
     @abstractmethod
-    def try_open(self, cursor: InputText) -> RuleResult:
+    def try_open(self, cursor: InputText) -> OpenResult:
         pass
 
     @abstractmethod
-    def on_continue(self, container: BlockFrame, ctx: ParsingContext) -> RuleResult:
+    def on_continue(self, container: BlockFrame, ctx: ParsingContext) -> OpenResult:
         pass
 
     @abstractmethod
-    def on_close(self, container: BlockFrame, ctx: ParsingContext) -> RuleResult:
+    def on_close(self, container: BlockFrame, ctx: ParsingContext) -> OpenResult:
         pass
