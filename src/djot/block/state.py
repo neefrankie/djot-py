@@ -30,6 +30,10 @@ class BlockState:
         """Get the innermost node in current active AST path"""
         return self.frame_stack[-1] if self.frame_stack else None
 
+    @property
+    def last_frame_index(self) -> int:
+        return len(self.frame_stack) - 1
+
     def get_adjusted_text_start(self, indent: int | None):
         return self.cursor.get_adjusted_text_start(indent)
 
