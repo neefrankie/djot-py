@@ -26,7 +26,7 @@ class BlockState:
         self.raw_barrier_idx: int = -1
 
     @property
-    def top_container(self) -> Optional[BlockFrame]:
+    def top_frame(self) -> Optional[BlockFrame]:
         """Get the innermost node in current active AST path"""
         return self.frame_stack[-1] if self.frame_stack else None
 
