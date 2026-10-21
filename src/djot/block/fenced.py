@@ -15,7 +15,7 @@ from .container import (
     FencedDivData,
     OpenStatus,
     BlockRule,
-    RuleResult,
+    OpenResult,
     ParsingContext,
 )
 
@@ -42,12 +42,12 @@ class FencedDivRule(BlockRule):
     kind: ContainerCap = ContainerCap.BLOCK
     accepts_content: ContainerCap = ContainerCap.BLOCK
 
-    def try_open(self, cursor: InputText) -> RuleResult:
+    def try_open(self, cursor: InputText) -> OpenResult:
 
         # Find at least 3 colons, following by optional space.
         m = cursor.find_div_fence_start()
         if not m:
-            return RuleResult.fail()
+            return OpenResult.fail()
 
         colons = m.captures[0]
 
@@ -55,7 +55,7 @@ class FencedDivRule(BlockRule):
         # followed by optinal space, followying by newline.
         m2 = cursor.find_div_fence_end(m.end+1)
         if not m2:
-            return RuleResult.fail()
+            return OpenResult.fail()
 
         clsp = m2.start # class name start position
         lang = m2.captures[0]
@@ -87,7 +87,7 @@ class FencedDivRule(BlockRule):
 
         next_pos = m2.end + 1 # after \n
 
-        return RuleResult(
+        return OpenResult(
             status=OpenStatus.MATCHED,
             events=events,
             frame=container,
@@ -99,7 +99,7 @@ class FencedDivRule(BlockRule):
         self,
         container: BlockFrame,
         ctx: ParsingContext
-    ) -> RuleResult:
+    ) -> OpenResult:
         """The lifecycle of state-driven vs syntax-drive elements
         
         Fenced div (or code block) is syntactically difference from other elements.
@@ -142,7 +142,7 @@ class FencedDivRule(BlockRule):
         # is fenced div, and it contains a deeper container code block,
         # current container find a ::: symbol, it should yield to code block.
         if ctx.is_covered:
-            return RuleResult.continue_ok() # see #109
+            return OpenResult.continue_ok() # see #109
 
         # Now you do not have code block as innner node.
         # Go ahead as usuall.
@@ -155,12 +155,12 @@ class FencedDivRule(BlockRule):
         # any closing markup for current fenced div.
         # So we should yield to inner nodes.
         if not m:
-            return RuleResult.continue_ok()
+            return OpenResult.continue_ok()
 
         # If data attached is not FencedDivData.
         # This should not happen but typing needs the guard.
         if not isinstance(container.data, FencedDivData):
-            return RuleResult.continue_ok()
+            return OpenResult.continue_ok()
 
         colons = m.captures[0]
         # Why do we save the ending symbol span?
@@ -174,18 +174,18 @@ class FencedDivRule(BlockRule):
             )
             
             next_pos = m.end # \n
-            return RuleResult(
+            return OpenResult(
                 status=OpenStatus.STOP,
                 next_pos=next_pos,
             )
 
-        return RuleResult.continue_ok()
+        return OpenResult.continue_ok()
 
     def on_close(
         self,
         container: BlockFrame, 
         ctx: ParsingContext,
-    ) -> RuleResult:
+    ) -> OpenResult:
         sp = ctx.cursor.pos
         ep = ctx.cursor.pos
 
@@ -201,7 +201,7 @@ class FencedDivRule(BlockRule):
         if sp == ep:
             logger.debug(f'Unclosed div at {ctx.cursor.pos}')
 
-        return RuleResult(
+        return OpenResult(
             status=OpenStatus.CLOSE,
             events=[event],
         )

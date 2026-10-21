@@ -14,7 +14,7 @@ from .container import (
     FootnoteData,
     OpenStatus,
     BlockRule,
-    RuleResult,
+    OpenResult,
     ParsingContext,
 )
 
@@ -42,10 +42,10 @@ class FootnoteRule(BlockRule):
     kind: ContainerCap = ContainerCap.BLOCK
     accepts_content: ContainerCap = ContainerCap.BLOCK
 
-    def try_open(self, cursor: InputText) -> RuleResult:
+    def try_open(self, cursor: InputText) -> OpenResult:
         m = cursor.find_footnotestart()
         if m is None:
-            return RuleResult.fail()
+            return OpenResult.fail()
 
         # '[^foo]: '
         start_pos = m.start # [
@@ -77,7 +77,7 @@ class FootnoteRule(BlockRule):
             ) 
         ]
         
-        return RuleResult(
+        return OpenResult(
             status=OpenStatus.MATCHED,
             frame=container,
             events=events,
@@ -88,27 +88,27 @@ class FootnoteRule(BlockRule):
         self,
         container: BlockFrame,
         ctx: ParsingContext
-    ) -> RuleResult:
+    ) -> OpenResult:
         if not isinstance(container.data, FootnoteData):
-            return RuleResult.stop()
+            return OpenResult.stop()
 
         if ctx.cursor.indent > container.data.indent or ctx.cursor.pos == ctx.cursor.line_end: # line start or line end
             container.update_closing_boundary(
                 ctx.cursor.line_end,
                 ctx.cursor.line_end,
             )
-            return RuleResult.continue_ok()
+            return OpenResult.continue_ok()
 
-        return RuleResult.stop()
+        return OpenResult.stop()
 
     def on_close(
         self, 
         container: BlockFrame, 
         ctx: ParsingContext,
-    ) -> RuleResult:
+    ) -> OpenResult:
         assert container.closing_boundary is not None
 
-        return RuleResult(
+        return OpenResult(
             status=OpenStatus.CLOSE,
             events=[
                 Event.exit(

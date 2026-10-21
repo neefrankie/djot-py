@@ -10,7 +10,7 @@ from .container import (
     BlockFrame,
     ContainerCap,
     ParsingContext,
-    RuleResult,
+    OpenResult,
 )
 
 class BlockState:
@@ -136,7 +136,7 @@ class BlockState:
         return unmatched + siblings
 
 
-    def _close_container(self, container: BlockFrame) -> RuleResult:
+    def _close_container(self, container: BlockFrame) -> OpenResult:
         events: List[Event] = []
         if container.inline_parser:
             events.extend(container.inline_parser.iter_merged_events())

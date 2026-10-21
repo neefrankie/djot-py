@@ -12,7 +12,7 @@ from .container import (
     BlockFrame,
     OpenStatus,
     BlockRule,
-    RuleResult,
+    OpenResult,
     ParsingContext,
 )
 
@@ -21,9 +21,9 @@ class BlockquoteRule(BlockRule):
     kind: ContainerCap = ContainerCap.BLOCK
     accepts_content: ContainerCap = ContainerCap.BLOCK
 
-    def try_open(self, cursor: InputText) -> RuleResult:
+    def try_open(self, cursor: InputText) -> OpenResult:
         if not cursor.is_blockquote(cursor.pos):
-            return RuleResult.fail()
+            return OpenResult.fail()
 
         # Djot.js performs addContainer here.
         # So all previous containers closed at this snapshot.
@@ -36,7 +36,7 @@ class BlockquoteRule(BlockRule):
         pos = cursor.pos
         next_pos = cursor.pos + 1 # after >
 
-        return RuleResult(
+        return OpenResult(
             status=OpenStatus.MATCHED,
             frame=container,
             events=[
@@ -52,27 +52,27 @@ class BlockquoteRule(BlockRule):
         self,
         container: BlockFrame,
         ctx: ParsingContext
-    ) -> RuleResult:
+    ) -> OpenResult:
         if ctx.cursor.peek_is_blockquote_prefix():
             container.update_closing_boundary(
                 ctx.cursor.line_end,
                 ctx.cursor.line_end
             )
             next_pos = ctx.cursor.pos + 1 # Eat starting >
-            return RuleResult(
+            return OpenResult(
                 status=OpenStatus.CONTINUE,
                 next_pos=next_pos,
             )
         
-        return RuleResult.stop()
+        return OpenResult.stop()
 
     def on_close(
         self, 
         container: BlockFrame, 
         ctx: ParsingContext,
-    ) -> RuleResult:
+    ) -> OpenResult:
         assert container.closing_boundary is not None
-        return RuleResult(
+        return OpenResult(
             status=OpenStatus.CLOSE,
             events=[
                 Event.exit(

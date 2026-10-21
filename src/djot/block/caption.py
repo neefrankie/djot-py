@@ -12,7 +12,7 @@ from .container import (
     BlockFrame,
     OpenStatus,
     BlockRule,
-    RuleResult,
+    OpenResult,
     ParsingContext,
 )
 
@@ -29,10 +29,10 @@ class CaptionRule(BlockRule):
     kind: ContainerCap = ContainerCap.BLOCK
     accepts_content: ContainerCap = ContainerCap.INLINE
 
-    def try_open(self, cursor: InputText) -> RuleResult:
+    def try_open(self, cursor: InputText) -> OpenResult:
         m = cursor.find_caption_start()
         if not m:
-            return RuleResult.fail()
+            return OpenResult.fail()
 
         container = BlockFrame(
             rule=self,
@@ -46,7 +46,7 @@ class CaptionRule(BlockRule):
             kind=BlockContainer.CAPTION,
             span=cursor.new_span(next_pos, next_pos), # ^ is ignored. Start from first non-space char.
         ) 
-        return RuleResult(
+        return OpenResult(
             status=OpenStatus.MATCHED,
             frame=container,
             events=[event],
@@ -57,25 +57,25 @@ class CaptionRule(BlockRule):
         self,
         container: BlockFrame,
         ctx: ParsingContext
-    ) -> RuleResult:
+    ) -> OpenResult:
         # Check if the line is indented.
         if ctx.cursor.peek_is_whitespace():
-            return RuleResult.stop()
+            return OpenResult.stop()
 
         container.update_closing_boundary(
             ctx.cursor.line_end,
             ctx.cursor.line_end,
         )
-        return RuleResult.continue_ok()
+        return OpenResult.continue_ok()
 
     def on_close(
         self, 
         container: BlockFrame, 
         ctx: ParsingContext,
-    ) -> RuleResult:
+    ) -> OpenResult:
         assert container.closing_boundary is not None
 
-        return RuleResult(
+        return OpenResult(
             status=OpenStatus.CLOSE,
             events=[
                 Event.exit(

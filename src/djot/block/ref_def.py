@@ -14,7 +14,7 @@ from .container import (
     RefDefData,
     OpenStatus,
     BlockRule,
-    RuleResult,
+    OpenResult,
     ParsingContext,
 )
 
@@ -37,10 +37,10 @@ class ReferenceDefinitionRule(BlockRule):
     # [ followed by anything not ], \r or \n, followed by ], followed by :, followed by space,
     # followed by optional non-space, with newline at end.
 
-    def try_open(self, cursor: InputText) -> RuleResult:
+    def try_open(self, cursor: InputText) -> OpenResult:
         m = cursor.find_reference_definition()
         if m is None:
-            return RuleResult.fail()
+            return OpenResult.fail()
 
         label = m.captures[0] # anything inside []
         value = m.captures[1].lstrip() # anything after :
@@ -80,7 +80,7 @@ class ReferenceDefinitionRule(BlockRule):
             )
         
         next_pos = cursor.line_end - 1 # move to EOL
-        return RuleResult(
+        return OpenResult(
             status=OpenStatus.MATCHED,
             frame=container,
             events=events,
@@ -91,12 +91,12 @@ class ReferenceDefinitionRule(BlockRule):
         self,
         container: BlockFrame,
         ctx: ParsingContext
-    ) -> RuleResult:
+    ) -> OpenResult:
         if not isinstance(container.data, RefDefData):
-            return RuleResult.stop()
+            return OpenResult.stop()
 
         if container.data.indent >= ctx.cursor.indent: # previous line was indented more than this line
-            return RuleResult.stop()
+            return OpenResult.stop()
 
         # Find URL split over multiple lines.
         nws = ctx.cursor.find_non_whitespace()
@@ -104,11 +104,11 @@ class ReferenceDefinitionRule(BlockRule):
         # Current position should not exceed the end of the line,
         # and content should be ended with a newline.
         if not ctx.cursor.is_current_before_eol:
-            return RuleResult.stop()
+            return OpenResult.stop()
         if not nws:
-            return RuleResult.stop()
+            return OpenResult.stop()
         if nws.end != ctx.cursor.line_end - 1: # non-whitespace extends to EOL.
-            return RuleResult.fail()
+            return OpenResult.fail()
         
         event = Event.leaf(
             kind=InlineLeaf.REFERENCE_VALUE,
@@ -122,7 +122,7 @@ class ReferenceDefinitionRule(BlockRule):
 
         next_pos = ctx.cursor.line_end # \n
         
-        return RuleResult(
+        return OpenResult(
             status=OpenStatus.CONTINUE,
             events=[event],
             next_pos=next_pos,
@@ -132,9 +132,9 @@ class ReferenceDefinitionRule(BlockRule):
         self, 
         container: BlockFrame, 
         ctx: ParsingContext,
-    ) -> RuleResult:
+    ) -> OpenResult:
         assert container.closing_boundary is not None
-        return RuleResult(
+        return OpenResult(
             status=OpenStatus.CLOSE,
             events=[
                 Event.exit(

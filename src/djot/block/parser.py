@@ -14,7 +14,7 @@ from .container import (
     BlockFrame,
     OpenStatus,
     BlockRule,
-    RuleResult,
+    OpenResult,
 )
 from .state import (
     BlockState,
@@ -315,7 +315,7 @@ class EventParser:
     def _handle_matched(
         self, 
         last_matched_idx: int,
-        result: RuleResult
+        result: OpenResult
     ):
         events = self.state.close_frame_to_depth(
             last_matched_idx,

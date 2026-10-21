@@ -12,7 +12,7 @@ from .container import (
     BlockFrame,
     OpenStatus,
     BlockRule,
-    RuleResult,
+    OpenResult,
     ParsingContext,
 )
 
@@ -23,9 +23,9 @@ class AttributeRule(BlockRule):
     kind: ContainerCap = ContainerCap.BLOCK
     accepts_content: ContainerCap = ContainerCap.ATTRIBUTES
 
-    def try_open(self, cursor: InputText) -> RuleResult:      
+    def try_open(self, cursor: InputText) -> OpenResult:      
         if not cursor.is_left_brace(cursor.pos):
-            return RuleResult(
+            return OpenResult(
                 status=OpenStatus.NOT_MATCHED,
             )
 
@@ -33,13 +33,13 @@ class AttributeRule(BlockRule):
         # From { to EOL
         res = attribute_parser.feed(cursor.pos, cursor.line_end)
         if res.is_fail(): # Cursor is not moved. No need to rewind.
-            return RuleResult(
+            return OpenResult(
                 status=OpenStatus.FALLBACK,
             )
 
         # Attributes should stand alone on a line.
         if res.is_done() and not cursor.is_rest_of_line_blank(res.position + 1):
-            return RuleResult(
+            return OpenResult(
                 status=OpenStatus.FALLBACK,
             )
 
@@ -72,7 +72,7 @@ class AttributeRule(BlockRule):
         )
         
         next_pos = cursor.line_end
-        return RuleResult(
+        return OpenResult(
             status=OpenStatus.MATCHED,
             events=events,
             frame=container,
@@ -84,10 +84,10 @@ class AttributeRule(BlockRule):
         self,
         container: BlockFrame,
         ctx: ParsingContext
-    ) -> RuleResult:
+    ) -> OpenResult:
         # Since I don't permit newline inside attribute block,
         # we don've even have to check this.
-        return RuleResult(
+        return OpenResult(
             status=OpenStatus.CLOSE
         )
 
@@ -95,8 +95,8 @@ class AttributeRule(BlockRule):
         self, 
         container: BlockFrame, 
         ctx: ParsingContext,
-    ) -> RuleResult:
+    ) -> OpenResult:
 
-        return RuleResult(
+        return OpenResult(
             status=OpenStatus.CLOSE,
         )

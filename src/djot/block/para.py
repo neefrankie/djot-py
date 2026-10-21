@@ -12,7 +12,7 @@ from .container import (
     BlockFrame,
     OpenStatus,
     BlockRule,
-    RuleResult,
+    OpenResult,
     ParsingContext,
 )
 
@@ -22,7 +22,7 @@ class ParaRule(BlockRule):
     kind: ContainerCap = ContainerCap.BLOCK
     accepts_content: ContainerCap = ContainerCap.INLINE
 
-    def try_open(self, cursor: InputText) -> RuleResult:
+    def try_open(self, cursor: InputText) -> OpenResult:
         container = BlockFrame(
             rule=self,
             start_pos=cursor.pos,
@@ -30,7 +30,7 @@ class ParaRule(BlockRule):
         )
 
         pos = cursor.pos
-        return RuleResult(
+        return OpenResult(
             status=OpenStatus.MATCHED,
             events=[
                 Event.enter(
@@ -46,7 +46,7 @@ class ParaRule(BlockRule):
         self,
         container: BlockFrame,
         ctx: ParsingContext
-    ) -> RuleResult:
+    ) -> OpenResult:
         # TODO This won't handle all cases.
         # Lazy content checking is determined in main loop, resulting to inconsistency.
         if not ctx.cursor.peek_is_whitespace():
@@ -54,22 +54,22 @@ class ParaRule(BlockRule):
                 ctx.cursor.line_end,
                 ctx.cursor.line_end
             )
-            return RuleResult.continue_ok()
+            return OpenResult.continue_ok()
 
-        return RuleResult.stop()
+        return OpenResult.stop()
 
     def on_close(
         self, 
         container: BlockFrame, 
         ctx: ParsingContext,
-    ) -> RuleResult:
+    ) -> OpenResult:
         # Actions performed in djot.js
         # 1. transfer inline matches
         # 2. pop container
         # 3. query last event's endpos
         # 4. emit exit para event.
         assert container.closing_boundary is not None
-        return RuleResult(
+        return OpenResult(
             status=OpenStatus.CLOSE,
             events=[
                 Event.exit(

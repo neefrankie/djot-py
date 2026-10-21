@@ -21,7 +21,7 @@ from .container import (
     ListData,
     OpenStatus,
     BlockRule,
-    RuleResult,
+    OpenResult,
     ParsingContext,
 )
 
@@ -34,10 +34,10 @@ class ListRule(BlockRule):
     kind: ContainerCap = ContainerCap.BLOCK
     accepts_content: ContainerCap = ContainerCap.LIST_ITEM
 
-    def try_open(self, cursor: InputText) -> RuleResult:
+    def try_open(self, cursor: InputText) -> OpenResult:
         m = cursor.find_list_marker() # matches the marker followed by a whitespace.
         if not m:
-            return RuleResult.fail()
+            return OpenResult.fail()
         start_pos = m.start
         end_pos = m.end # whitespace
         marker = cursor.src[start_pos:end_pos] # content before whitespace.
@@ -55,7 +55,7 @@ class ListRule(BlockRule):
         styles = parse_list_styles(marker)
         logger.debug(f'⏺ styles: {styles!r}')
         if styles is None:
-            return RuleResult.fail()
+            return OpenResult.fail()
         
         container = BlockFrame(
             rule=self,
@@ -79,7 +79,7 @@ class ListRule(BlockRule):
         ).with_list_styles(styles)
 
         # NOTE: cursor is not moved.
-        return RuleResult(
+        return OpenResult(
             status=OpenStatus.MATCHED,
             frame=container,
             events=[event],
@@ -90,9 +90,9 @@ class ListRule(BlockRule):
         self,
         container: BlockFrame,
         ctx: ParsingContext
-    ) -> RuleResult:
+    ) -> OpenResult:
         if not isinstance(container.data, ListData):
-            return RuleResult.stop()
+            return OpenResult.stop()
 
         # As long as next line is indented more than previous line,
         # keep the container.
@@ -104,7 +104,7 @@ class ListRule(BlockRule):
                 ctx.cursor.line_end,
                 ctx.cursor.line_end,
             )
-            return RuleResult.continue_ok()
+            return OpenResult.continue_ok()
 
         if ctx.cursor.is_eol_at(ctx.cursor.pos):
             logger.debug(f'{ctx.cursor.pos}. ListRule.on_continue due to blankline')
@@ -112,11 +112,11 @@ class ListRule(BlockRule):
                 ctx.cursor.line_end,
                 ctx.cursor.line_end,
             )
-            return RuleResult.continue_ok()
+            return OpenResult.continue_ok()
 
         m = ctx.cursor.find_list_marker()
         if m is None:
-            return RuleResult.stop()
+            return OpenResult.stop()
 
         marker = ctx.cursor.src[m.start:m.end]
         mtask = ctx.cursor.find_task_list_marker()
@@ -134,7 +134,7 @@ class ListRule(BlockRule):
         )
 
         if not newstyles:
-            return RuleResult.stop()
+            return OpenResult.stop()
 
         container.data.styles = newstyles
         
@@ -142,16 +142,16 @@ class ListRule(BlockRule):
             ctx.cursor.line_end,
             ctx.cursor.line_end,
         )
-        return RuleResult.continue_ok()
+        return OpenResult.continue_ok()
 
     def on_close(
         self, 
         container: BlockFrame, 
         ctx: ParsingContext,
-    ) -> RuleResult:
+    ) -> OpenResult:
         assert container.closing_boundary is not None
 
-        return RuleResult(
+        return OpenResult(
             status=OpenStatus.CLOSE,
             events=[
                 Event.exit(
@@ -174,14 +174,14 @@ class ListItemRule(BlockRule):
     kind: ContainerCap = ContainerCap.LIST_ITEM
     accepts_content: ContainerCap = ContainerCap.BLOCK
 
-    def try_open(self, cursor: InputText) -> RuleResult:
+    def try_open(self, cursor: InputText) -> OpenResult:
         """
         A list item consists of a list marker, followed by a space (or a newline)
         followed by one or more lines, indented relative to the list marker.
         """
         m = cursor.find_list_marker()
         if m is None:
-            return RuleResult.fail()
+            return OpenResult.fail()
         
         sp = m.start
         ep = m.end
@@ -201,7 +201,7 @@ class ListItemRule(BlockRule):
 
         styles = parse_list_styles(marker)
         if len(styles) == 0:
-            return RuleResult.fail()
+            return OpenResult.fail()
 
         container = BlockFrame(
             rule=self,
@@ -245,7 +245,7 @@ class ListItemRule(BlockRule):
             # cursor.advance_to(sp+5)
             next_pos = sp+5
 
-        return RuleResult(
+        return OpenResult(
             status=OpenStatus.MATCHED,
             frame=container,
             events=events,
@@ -256,9 +256,9 @@ class ListItemRule(BlockRule):
         self,
         container: BlockFrame,
         ctx: ParsingContext
-    ) -> RuleResult:
+    ) -> OpenResult:
         if not isinstance(container.data, ListData):
-            return RuleResult.fail()
+            return OpenResult.fail()
 
         # A line indented should be taken as a continuation of previous list item.
         # - one
@@ -269,18 +269,18 @@ class ListItemRule(BlockRule):
                 ctx.cursor.line_end,
                 ctx.cursor.line_end,
             )
-            return RuleResult.continue_ok()
+            return OpenResult.continue_ok()
 
-        return RuleResult.fail()
+        return OpenResult.fail()
 
     def on_close(
         self, 
         container: BlockFrame, 
         ctx: ParsingContext,
-    ) -> RuleResult:
+    ) -> OpenResult:
         assert container.closing_boundary is not None
 
-        return RuleResult(
+        return OpenResult(
             status=OpenStatus.CLOSE,
             events=[
                 Event.exit(

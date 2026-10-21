@@ -20,7 +20,7 @@ from .container import (
     TableData,
     OpenStatus,
     BlockRule,
-    RuleResult,
+    OpenResult,
     ParsingContext,
 )
 
@@ -311,13 +311,13 @@ class TableRule(BlockRule):
     kind: ContainerCap = ContainerCap.BLOCK
     accepts_content: ContainerCap = ContainerCap.CELLS
 
-    def try_open(self, cursor: InputText) -> RuleResult:
+    def try_open(self, cursor: InputText) -> OpenResult:
         # Try to find a row.
         # m.start points to starting `|`, m.end points to EOL `\n`
         # From cursor.pos, search pattern: r'(\|[^\r\n]*\|)[ \t]*\r?\n'
         m = cursor.find_table_row()
         if not m:
-            return RuleResult.fail()
+            return OpenResult.fail()
 
         container = BlockFrame(
             rule=self,
@@ -354,7 +354,7 @@ class TableRule(BlockRule):
         # another rule on current line.
         # We don't need any pop since Event and Container has never been pushed.
         if row_parsed is None:
-            return RuleResult.fail()
+            return OpenResult.fail()
 
         events.extend(row_parsed)
         print(f'Row events: {len(events)}')
@@ -362,7 +362,7 @@ class TableRule(BlockRule):
         # cursor.advance_to_eol()
         next_pos = cursor.line_end
         
-        return RuleResult(
+        return OpenResult(
             status=OpenStatus.MATCH_AND_CONSUMED,
             frame=container,
             events=events,
@@ -374,10 +374,10 @@ class TableRule(BlockRule):
         self,
         container: BlockFrame,
         ctx: ParsingContext
-    ) -> RuleResult:
+    ) -> OpenResult:
         m = ctx.cursor.find_table_row()
         if not m:
-            return RuleResult.stop()
+            return OpenResult.stop()
 
         rawrow = m.captures[0] # | fruit  | price |
         parsed_row = parse_row(
@@ -386,11 +386,11 @@ class TableRule(BlockRule):
         )
 
         if parsed_row is None:
-            return RuleResult.stop()
+            return OpenResult.stop()
 
         container.update_closing_boundary(ctx.cursor.line_end, ctx.cursor.line_end)
 
-        return RuleResult(
+        return OpenResult(
             status=OpenStatus.CONTINUE,
             events=parsed_row,
             finished_line=True,
@@ -401,9 +401,9 @@ class TableRule(BlockRule):
         self, 
         container: BlockFrame, 
         ctx: ParsingContext,
-    ) -> RuleResult:
+    ) -> OpenResult:
         assert container.closing_boundary is not None
-        return RuleResult(
+        return OpenResult(
             status=OpenStatus.CLOSE,
             events=[Event.exit(
                 kind=BlockContainer.TABLE,

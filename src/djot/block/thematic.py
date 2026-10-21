@@ -11,7 +11,7 @@ from .container import (
     BlockFrame,
     OpenStatus,
     BlockRule,
-    RuleResult,
+    OpenResult,
     ParsingContext,
 )
 
@@ -21,7 +21,7 @@ class ThematicBreakRule(BlockRule):
     kind: ContainerCap = ContainerCap.BLOCK
     accepts_content: ContainerCap = ContainerCap.NONE
 
-    def try_open(self, cursor: InputText) -> RuleResult:
+    def try_open(self, cursor: InputText) -> OpenResult:
         """
         A line containing thre oor more * or - characters, and nothing else
         (except spaces or tabs) is treated as a thematic break. (<hr> in HTML)
@@ -37,7 +37,7 @@ class ThematicBreakRule(BlockRule):
         # - * * also works for this regex.
         m = cursor.find_thematic_break()
         if not m:
-            return RuleResult.fail()
+            return OpenResult.fail()
 
         event = Event.leaf(
             kind=BlockLeaf.THEMATIC_BREAK,
@@ -49,7 +49,7 @@ class ThematicBreakRule(BlockRule):
 
         next_pos = m.end
         
-        return RuleResult(
+        return OpenResult(
             status=OpenStatus.MATCH_AND_CONSUMED,
             frame=None,
             events=[event],
@@ -60,14 +60,14 @@ class ThematicBreakRule(BlockRule):
         self,
         container: BlockFrame,
         ctx: ParsingContext
-    ) -> RuleResult:
-        return RuleResult.stop()
+    ) -> OpenResult:
+        return OpenResult.stop()
 
     def on_close(
         self, 
         container: BlockFrame, 
         ctx: ParsingContext,
-    ) -> RuleResult:
-        return RuleResult(
+    ) -> OpenResult:
+        return OpenResult(
             status=OpenStatus.CLOSE
         )
