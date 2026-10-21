@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import re
 import string
 from typing import List, Optional
@@ -39,6 +39,40 @@ def find(
             captures=list(m.groups()) # Match.groups() returns a tuple containing string or None.
         )
 
+@dataclass(slots=True, frozen=True)
+class LineContext:
+    start_offset: int = 0 # current line start position in global text.
+    end_offset: int = 0
+    pos: int = 0 # current char position in global text.
+
+    @property
+    def is_reaching_end(self) -> bool:
+        if self.end_offset == -1:
+            return False
+        
+        return self.pos == self.end_offset
+
+    @property
+    def current_column(self) -> int:
+        return self.pos - self.start_offset
+
+    @property
+    def next_line_start(self) -> int:
+        return self.end_offset + 1
+
+    def new_pos(self, pos: int) -> 'LineContext':
+        return replace(self, pos=pos)
+
+    def to_line_end(self) -> 'LineContext':
+        return replace(self, pos=self.end_offset)
+
+    def adjust_indented_start(self, indent: int | None) -> 'LineContext':
+        if indent is None:
+            return self
+        if self.pos <= indent + self.start_offset:
+            return self
+
+        return replace(self, pos=indent)
 
 class InputText:
     
@@ -105,34 +139,105 @@ class InputText:
             src += '\n'
 
         self.src = src
-        self.pos = 0
+        
         self.length = len(src)
 
         # Current line context
+        self.pos = -1
         self.indent = 0
-        self.line_start = 0
-        self.line_end = 0 # end of newline char
+        self.line_start = -1
+        self.line_end = -1
 
     def __repr__(self) -> str:
         return f'Cursor(line_start={self.line_start}, indent={self.indent}, line_end={self.line_end})'
 
     @property
-    def maxoffset(self) -> int:
-        return self.length - 1
+    def current_line(self) -> LineContext:
+        return LineContext(
+            start_offset=self.line_start,
+            end_offset=self.line_end,
+            pos=self.pos
+        )
 
-    @property
-    def is_eof(self) -> bool:
-        return self.pos >= self.length
+    def next_line(self) -> LineContext | None:
+        """
+        Move to next line
+        """
+        if self.line_end >= self.length - 1:
+            return None
 
-    @property
-    def is_eol(self) -> bool:
-        return self.pos == self.line_end
+        self.pos = self.line_end + 1
+        self.line_start = self.pos + 1
+        self.line_end = self.find_next_newline(self.line_start)
+        self.indent = 0
 
-    @property
-    def is_current_before_eol(self) -> bool:
-        return self.pos < self.line_end
+        return LineContext(
+            start_offset=self.line_start,
+            end_offset=self.line_end,
+            pos=self.pos
+        )
+    def advance_line(self, target: LineContext):
+        if target.end_offset >= self.length:
+            return False
 
-    def skip_space(self):
+        if target.start_offset <= self.current_line.end_offset:
+            return False
+
+        self.pos = target.pos
+        self.line_start = target.start_offset
+        self.line_end = target.end_offset
+        self.indent = 0
+        return True
+
+    def peek_line(self, previous: LineContext) -> LineContext | None:
+        if previous.end_offset >= self.length:
+            return None
+
+        start_offset = previous.next_line_start
+        end_offset = self.find_next_newline(start_offset)
+
+        return LineContext(
+            start_offset=start_offset,
+            end_offset=end_offset,
+            pos=start_offset
+        )
+
+    def locate_line(self, pos: int) -> LineContext | None:
+        if pos >= self.length or pos < 0:
+            return None
+
+        end_offset = self.find_next_newline(pos)
+        prev_newline = self.find_previous_newline(pos)
+        start_offset = prev_newline + 1
+
+        if start_offset > end_offset:
+            return None
+
+        return LineContext(
+            start_offset=start_offset,
+            end_offset=end_offset,
+            pos=start_offset
+        )
+
+    
+
+    def find_next_newline(self, pos: int) -> int:
+        i = self.src.find('\n', pos)
+        if i == -1:
+            return self.length
+        else:
+            return i
+
+    def find_previous_newline(self, pos: int) -> int:
+        return self.src.rfind('\n', 0, pos) # -1 is valid.
+
+    def new_span(self, start: int, end: int) -> Range:
+        return Range(
+            start=min(start, self.maxoffset),
+            end=min(end, self.maxoffset)
+        )
+
+    def skip_frame_space(self):
         """
         This is not what is usually considered as skipping leading spaces.
         It is actually skipping leading space of current node.
@@ -159,6 +264,141 @@ class InputText:
         self.indent = newpos - self.line_start
         self.pos = newpos
 
+    def is_left_brace(self, pos: int) -> bool:
+            return self.src[pos] == '{'
+    
+    def is_right_brace(self, pos: int) -> bool:
+        return self.src[pos] == '}'
+
+    def is_newline(self, pos: int) -> bool:
+        return self.src[pos] == '\n'
+
+    def is_space(self, pos: int) -> bool:
+        return self.src[pos] == ' '
+
+    def peek_is_blank(self, start: int) -> bool:
+        """
+        Find out if a line is blank from start to next newline.
+        It deals with two cases:
+        1. A plain blank line if start points to the start of a line.
+        2. The rest of line is blank if start is in the middle of a line.
+        """
+        while start < self.length:
+            c = self.src[start]
+            if c in self._SPACE_TAB:
+                start += 1
+            elif c == '\n':
+                return True
+            else:
+                return False # non-space
+
+        return False # EOF without newline.
+
+    def is_blank_span(self, start: int, end: int) -> bool:
+        if self.src[end] == '\n':
+            return all(c in self._SPACE_TAB for c in self.src[start:end])
+
+        return all(c in self._SPACE_TAB for c in self.src[start:end+1])
+
+    def is_word(self, pos: int) -> bool:
+        return find(self.src, self._PATT_WORD, pos) is not None
+
+    def is_whitespace(self, pos: int) -> bool:
+        if pos < 0 or pos >= self.length:
+            return True
+        return self.src[pos] in self._WHITESPACE
+
+
+    # Replace these regex:
+    # re.compile(r'`*')
+    # re.compile(r'`+')
+    def count_char(self, ch: str, start: Optional[int] = None) -> int:
+        """Count consecutive chars"""
+        if start is None:
+            pos = self.pos
+        else:
+            pos = start
+        
+        if self.src[pos] != ch:
+            return 0
+        
+        i = pos
+        
+        while i < self.length and self.src[i] == ch:
+            i += 1
+        
+        return i - pos
+
+    def char_at(self, pos: int) -> Optional[str]:
+        if pos >= self.length:
+            return None
+
+        return self.src[pos]
+
+
+    def find_special(self, start: int, end: int) -> Optional[int]:
+        """Find special characters
+        
+        This functions tries to follow the behavior in of 
+        findSpecial in djot.js, which includes endpos based on
+        if (result && result.index <= endpos).
+        Python Pattern.search, however, does not include endpos.
+        Here's the doc:
+        The optional parameter endpos limits how far the string will be searched; it will be as if the string is endpos characters long, so only the characters from pos to endpos - 1 will be searched for a match. 
+        """
+        m = self._RE_SPECIAL.search(self.src, start, end+1)
+
+        if m:
+            return m.start()
+
+        return None
+
+    def right_find_space_tab(self, span: Range) -> int:
+        """Find out trailing space starting position
+        
+        Returns:
+            int: the position of first non-space char from backward
+        """
+        start = span.start
+        end = span.end
+
+        while end >= start and self.src[end] in self._SPACE_TAB:
+            end = end - 1
+
+        return end
+
+    def right_find_space_char(self, span: Range) -> int:
+        start = span.start
+        end = span.end
+        while end >= start and self.src[end] == ' ':
+            end = end - 1
+
+        return end
+
+    @property
+    def maxoffset(self) -> int:
+        return self.length - 1
+
+    @property
+    def is_eof(self) -> bool:
+        return self.pos >= self.length
+
+    @property
+    def is_eol(self) -> bool:
+        return self.pos == self.line_end
+
+    @property
+    def is_current_before_eol(self) -> bool:
+        return self.pos < self.line_end
+
+    def start_newline(self):
+        """
+        Reset Line Context
+        """
+        self.next_line()
+
+    
+
     def skip_space_from(self, start: int) -> int:
         newpos = start
         while newpos < self.length and self.src[newpos] in self._SPACE_TAB:
@@ -175,20 +415,7 @@ class InputText:
 
         return self.src[i] == '\n'
 
-    def _calculate_eol(self):
-        i = self.src.find('\n', self.pos)
-        if i == -1:
-            self.line_end = self.length - 1
-        else:
-            self.line_end = i
-
-    def start_newline(self):
-        """
-        Reset Line Context
-        """
-        self.indent = 0
-        self.line_start = self.pos
-        self._calculate_eol()
+    
 
     def is_rest_of_line_blank(self, start: int) -> bool:
         while start < self.length:
@@ -238,17 +465,9 @@ class InputText:
 
         return self.pos - (self.indent - indent) # does this amount to indent itself?
 
-    def new_span(self, start: int, end: int) -> Range:
-        return Range(
-            start=min(start, self.maxoffset),
-            end=min(end, self.maxoffset)
-        )
     
-    def char_at(self, i: int) -> Optional[str]:
-        if i >= self.length:
-            return None
-
-        return self.src[i]
+    
+    
 
     def peek_char_is(self, ch: str) -> bool:
         if self.pos >= self.length or self.pos < 0:
@@ -256,25 +475,7 @@ class InputText:
         
         return self.src[self.pos] == ch
 
-    # Replace these regex:
-    # re.compile(r'`*')
-    # re.compile(r'`+')
-    def count_char(self, ch: str, start: Optional[int] = None) -> int:
-        """Count consecutive chars"""
-        if start is None:
-            pos = self.pos
-        else:
-            pos = start
-        
-        if self.src[pos] != ch:
-            return 0
-        
-        i = pos
-        
-        while i < self.length and self.src[i] == ch:
-            i += 1
-        
-        return i - pos
+    
 
 
     
@@ -321,15 +522,8 @@ class InputText:
             return False
 
         return self.src[pos] in self._DELIMITERS
-
-    def is_space(self, i: int) -> bool:
-        return self.src[i] == ' '
     
-    def is_whitespace(self, pos: int) -> bool:
-        
-        if pos < 0 or pos >= self.length:
-            return True
-        return self.src[pos] in self._WHITESPACE
+    
 
     def peek_is_whitespace(self) -> bool:
         if self.pos < 0 or self.pos >= self.length:
@@ -337,27 +531,7 @@ class InputText:
 
         return self.src[self.pos] in self._WHITESPACE
 
-    def find_trailing_space_tab(self, span: Range) -> int:
-        """Find out trailing space starting position
-        
-        Returns:
-            int: the position of first non-space char from backward
-        """
-        start = span.start
-        end = span.end
-
-        while end >= start and self.src[end] in self._SPACE_TAB:
-            end = end - 1
-
-        return end
-
-    def find_trailing_space(self, span: Range) -> int:
-        start = span.start
-        end = span.end
-        while end >= start and self.src[end] == ' ':
-            end = end - 1
-
-        return end
+    
 
     def is_not_whitespace(self, pos: int) -> bool:
         """
@@ -407,11 +581,7 @@ class InputText:
     def is_left_paren(self, i: int) -> bool:
         return self.src[i] == '('
 
-    def is_left_brace(self, i: int) -> bool:
-        return self.src[i] == '{'
-
-    def is_right_brace(self, i: int) -> bool:
-        return self.src[i] == '}'
+    
 
     def is_hat(self, i: int) -> bool:
         return self.src[i] == '^'
@@ -476,22 +646,7 @@ class InputText:
     def find_code_fence(self):
         return find(self.src, self._PATT_CODE_FENCE, self.pos)
 
-    def find_special(self, start: int, end: int) -> Optional[int]:
-        """Find special characters
-        
-        This functions tries to follow the behavior in of 
-        findSpecial in djot.js, which includes endpos based on
-        if (result && result.index <= endpos).
-        Python Pattern.search, however, does not include endpos.
-        Here's the doc:
-        The optional parameter endpos limits how far the string will be searched; it will be as if the string is endpos characters long, so only the characters from pos to endpos - 1 will be searched for a match. 
-        """
-        m = self._RE_SPECIAL.search(self.src, start, end+1)
-
-        if m:
-            return m.start()
-
-        return None
+    
 
     def find_raw_attribute(self, pos: int, endpos: int) -> Optional[MatchedRange]:
         return find(self.src, self._PATT_RAW_ATTRIBUTE, pos, endpos)
