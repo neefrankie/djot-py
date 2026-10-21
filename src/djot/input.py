@@ -193,6 +193,22 @@ class InputText:
         self.indent = 0
         return True
 
+    def advance_pos(self, newpos: int):
+        if newpos >= self.length:
+            raise Exception('Cursor.advance_pos: newpos is out of range')
+
+        if newpos < self.pos:
+            # Ensure monotony
+            raise Exception('Cursor.advance_pos: newpos is less than current pos')
+
+        if self.line_start <= newpos <= self.line_end: # same line
+            self.pos = newpos
+
+        new_line = self.locate_line(newpos)
+        assert new_line is not None
+
+        self.advance_line(new_line)
+
     def peek_line(self, previous: LineContext) -> LineContext | None:
         if previous.end_offset >= self.length:
             return None
@@ -456,8 +472,7 @@ class InputText:
     def advance_to_new_line(self):
         self.pos = (self.line_end or self.pos) + 1
     
-    def advance_to(self, newpos: int):
-        self.pos = newpos
+    
 
     def get_adjusted_text_start(self, indent: Optional[int]) -> int:
         if indent is None:
