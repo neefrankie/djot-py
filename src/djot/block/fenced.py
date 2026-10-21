@@ -55,7 +55,7 @@ class FencedDivRule(BlockRule):
         colons = m.captures[0]
 
         # After space, try to find any optional word (captured),
-        # followed by optinal space, followying by newline.
+        # followed by optinal space, followed by newline.
         m2 = cursor.find_div_fence_end(m.end+1)
         if not m2:
             return OpenResult.not_matched()
@@ -88,14 +88,12 @@ class FencedDivRule(BlockRule):
                 )
             )
 
-        next_pos = m2.end + 1 # after \n
+        cursor.advance_pos(m2.end + 1) # after \n
 
         return OpenResult(
-            status=OpenStatus.MATCHED,
+            status=OpenStatus.MATCH_AND_CONSUMED,
             events=events,
             frame=container,
-            finished_line=True,
-            next_pos=next_pos,
         )
 
     def on_continue(
