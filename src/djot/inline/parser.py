@@ -11,7 +11,7 @@ from ..event import (
 from ..common import Range
 from ..attributes import (
     AttributeParser,
-    AttrFlowControl
+    AttrStatus
 )
 
 from .state import InlineState
@@ -169,7 +169,7 @@ class InlineParser:
         result = attribute_parser.feed(sp, endpos)
 
         match result.status:
-            case AttrFlowControl.DONE:
+            case AttrStatus.DONE:
                 
                 self.state.push_event(
                     Event.enter( # The opening {
@@ -190,7 +190,7 @@ class InlineParser:
                 # restore state to prior to adding attribute parser
                 self.state.reset_attribute_state()
                 return result.position + 1
-            case AttrFlowControl.FAIL:
+            case AttrStatus.FAIL:
                 # If attribute parsing failed, turn pending Span to str.
                 # And then add { as plain text event. Then move cursor forward.
                 self.state.demote_span_to_str()

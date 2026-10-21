@@ -4,7 +4,7 @@ from typing import List
 from djot.input import InputText
 from djot.attributes import (
     AttributeParser,
-    AttrFlowControl
+    AttrStatus
 )
 from djot.event import (
     Event,
@@ -41,12 +41,12 @@ class AttributeRule(BlockRule):
         res = attribute_parser.feed(cursor.pos, cursor.line_end)
 
         match res.status:
-            case AttrFlowControl.FAIL:
+            case AttrStatus.FAIL:
                 return OpenResult(
                     status=OpenStatus.FALLBACK,
                 )
 
-            case AttrFlowControl.DONE:
+            case AttrStatus.DONE:
                 # Attributes should stand alone on a line.
                 if not cursor.is_rest_of_line_blank(res.position + 1):
                     return OpenResult(

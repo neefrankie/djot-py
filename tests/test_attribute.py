@@ -3,7 +3,7 @@ import unittest
 from djot.attributes import (
     AttributeParser,
     State,
-    AttrFlowControl,
+    AttrStatus,
     AttrKind,
     AttrParseResult,
 )
@@ -217,7 +217,7 @@ class TestAttributeParser(unittest.TestCase):
                     Event.attr(Range(18, 22), AttrKind.VALUE),
                 ],
                 AttrParseResult(
-                    status=AttrFlowControl.DONE,
+                    status=AttrStatus.DONE,
                     position=23,
                 )
             ),
@@ -237,8 +237,8 @@ class TestAttributeParser(unittest.TestCase):
     def test_failure(self):
 
         cases = [
-            ('{#ident .dark key=value', AttrParseResult(AttrFlowControl.FAIL, position=23)),
-            ('{#ident .dark key="no closing quote}', AttrParseResult(AttrFlowControl.FAIL, position=36))
+            ('{#ident .dark key=value', AttrParseResult(AttrStatus.FAIL, position=23)),
+            ('{#ident .dark key="no closing quote}', AttrParseResult(AttrStatus.FAIL, position=36))
         ]
 
         for text, expected in cases:

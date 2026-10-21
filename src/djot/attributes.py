@@ -50,20 +50,20 @@ class State(Enum):
     START = 13
 
 
-class AttrFlowControl(Enum):
+class AttrStatus(Enum):
     DONE = 0
     FAIL = 1
 
 @dataclass(slots=True, frozen=True)
 class AttrParseResult:
-    status: AttrFlowControl # TODO: if AttrFlowControl has only DONE and FAIL, is this still needed?
+    status: AttrStatus # TODO: if AttrFlowControl has only DONE and FAIL, is this still needed?
     position: int # Last position the state machine stops.
 
     def is_done(self) -> bool:
-        return self.status == AttrFlowControl.DONE
+        return self.status == AttrStatus.DONE
     
     def is_fail(self) -> bool:
-        return self.status == AttrFlowControl.FAIL
+        return self.status == AttrStatus.FAIL
 
 
 class AttributeParser:
@@ -172,13 +172,13 @@ class AttributeParser:
             # State turned to DONE only when pos points to `}`
             if self.state == State.DONE:
                 return AttrParseResult(
-                    status=AttrFlowControl.DONE, 
+                    status=AttrStatus.DONE, 
                     position=pos
                 )
             elif self.state == State.FAIL:
                 self.lastpos = pos
                 return AttrParseResult(
-                    status=AttrFlowControl.FAIL, 
+                    status=AttrStatus.FAIL, 
                     position=pos
                 )
             else:
@@ -188,7 +188,7 @@ class AttributeParser:
         # Default to FAIL.
         # This differs from js version, which returns CONTINUE to support newline in attributes.
         return AttrParseResult(
-            status=AttrFlowControl.FAIL,
+            status=AttrStatus.FAIL,
             position=pos
         )
 
