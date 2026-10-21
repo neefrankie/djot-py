@@ -159,6 +159,10 @@ class InputText:
             pos=self.pos
         )
 
+    @property
+    def is_eol_reached(self) -> bool:
+        return self.pos == self.line_end
+
     def next_line(self) -> LineContext | None:
         """
         Move to next line
@@ -176,7 +180,7 @@ class InputText:
             end_offset=self.line_end,
             pos=self.pos
         )
-    def advance_line(self, target: LineContext):
+    def advance_line(self, target: LineContext) -> bool:
         if target.end_offset >= self.length:
             return False
 
@@ -383,9 +387,7 @@ class InputText:
     def is_eof(self) -> bool:
         return self.pos >= self.length
 
-    @property
-    def is_eol(self) -> bool:
-        return self.pos == self.line_end
+    
 
     @property
     def is_current_before_eol(self) -> bool:

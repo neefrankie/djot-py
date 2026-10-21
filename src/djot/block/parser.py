@@ -89,7 +89,7 @@ class EventParser:
 
         logger.debug(f'--- Stage: try open ----')
         # Check for new container
-        frame = self._try_open_new_cotainer(
+        frame = self._try_open_new_frame(
             frame.last_matched_idx
         )
         logger.debug(f'Frame after exhausting opening rules: {frame}')
@@ -194,14 +194,14 @@ class EventParser:
             events=events, 
         )
 
-    def _try_open_new_cotainer(self, last_matched_idx: int) -> LineStepFrame:
+    def _try_open_new_frame(self, last_matched_idx: int) -> LineStepFrame:
         logger.debug(f'{self.state.cursor.pos} --- Try open new containers')
         self.state.cursor.skip_frame_space()
 
         # In djot.js, it uses let isBlank = (self.pos === self.starteol);
         # However, the logic here is not actually ask if the line is blank.
         # It is asking if the rest of line is blank, or Residual Blank Line
-        if self.state.cursor.is_eol:
+        if self.state.cursor.is_eol_reached:
             logger.debug(f'{self.state.cursor.pos}. Current cursor has moved to EOL after skipping leading space. Stop trying to open any container.')
             return LineStepFrame(last_matched_idx=last_matched_idx)
 
@@ -389,7 +389,7 @@ class EventParser:
         Paragraph continnued.
         """
         self.state.cursor.skip_frame_space()
-        is_eol = self.state.cursor.is_eol
+        is_eol = self.state.cursor.is_eol_reached
         
         tip = self.state.top_container
 
@@ -412,7 +412,7 @@ class EventParser:
         """
         self.state.cursor.skip_frame_space()
         events = []
-        is_eol = self.state.cursor.is_eol
+        is_eol = self.state.cursor.is_eol_reached
 
         if tip is None or tip.rule.accepts_block_only(): # For example blockquote
             if is_eol:
