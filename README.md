@@ -62,3 +62,10 @@ there needs a fundamental change in the line-based parsing algorithm.
 
 This is not hard to implement. However, too much choices might introduce future ambiguity.
 I prefere simplicity rather than feature-rich. For example, Typst style simply uses `-` and `+`. Leave styling to a renderer. And block attributes could be used to convey some basic styling information.
+
+## Chunk-based Advancement
+
+Djot.js adopt a strict line-based advancement. Traditional compiler adopts a character-based advancement.
+Markup languages like djot/markdown fall into neither of them. Each parsing step might span a char, half a line,
+or several lines. I call it chunk-based advancement. This idea might be already discussed in compiler theory.
+I'm not sure since I haven't read enough theoretical books.
