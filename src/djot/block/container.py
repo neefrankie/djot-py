@@ -110,7 +110,7 @@ class BlockFrame(Generic[T]):
     def can_nest(self, rule: 'BlockRule') -> bool:
         return self.rule.accepts_content == rule.kind
 
-    def on_continue(self, ctx: ParsingContext) -> 'OpenResult':
+    def on_continue(self, ctx: ParsingContext) -> 'ContinueResult':
         return self.rule.on_continue(self, ctx)
 
     def on_close(self, ctx: ParsingContext) -> 'OpenResult':
@@ -204,6 +204,7 @@ class ContinueResult:
     # There are two exceptions: reference definition and table.
     events: List[Event] = field(default_factory=list)
     line_action: LineAction = LineAction.PROCEED
+    next_pos: Optional[int] = None
 
 # In djot.js it is called BlockSpec.
 @dataclass
@@ -251,7 +252,7 @@ class BlockRule(ABC):
         pass
 
     @abstractmethod
-    def on_continue(self, container: BlockFrame, ctx: ParsingContext) -> OpenResult:
+    def on_continue(self, container: BlockFrame, ctx: ParsingContext) -> ContinueResult:
         pass
 
     @abstractmethod
