@@ -83,7 +83,6 @@ class BlockFrame(Generic[T]):
     indent: Optional[int] = None
     data: Optional[T] = None
     inline_parser: Optional[InlineParser] = None
-    attribute_parser: Optional[AttributeParser] = None # parse block attributes
 
     def update_closing_boundary(self, start: int, end: int):
         self.closing_boundary = Range(start, end)
