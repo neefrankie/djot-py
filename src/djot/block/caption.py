@@ -10,7 +10,7 @@ from ..common import Range
 from .container import (
     ContainerCap,
     BlockFrame,
-    FlowControl,
+    OpenStatus,
     BlockRule,
     RuleResult,
     ParsingContext,
@@ -47,7 +47,7 @@ class CaptionRule(BlockRule):
             span=cursor.new_span(next_pos, next_pos), # ^ is ignored. Start from first non-space char.
         ) 
         return RuleResult(
-            status=FlowControl.OPEN,
+            status=OpenStatus.OPEN,
             container=container,
             events=[event],
             next_pos=next_pos,
@@ -76,7 +76,7 @@ class CaptionRule(BlockRule):
         assert container.closing_boundary is not None
 
         return RuleResult(
-            status=FlowControl.CLOSE,
+            status=OpenStatus.CLOSE,
             events=[
                 Event.exit(
                     kind=BlockContainer.CAPTION,

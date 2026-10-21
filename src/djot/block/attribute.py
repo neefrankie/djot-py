@@ -10,7 +10,7 @@ from djot.event import (
 from .container import (
     ContainerCap,
     BlockFrame,
-    FlowControl,
+    OpenStatus,
     BlockRule,
     RuleResult,
     ParsingContext,
@@ -64,7 +64,7 @@ class AttributeRule(BlockRule):
         
         next_pos = cursor.line_end
         return RuleResult(
-            status=FlowControl.OPEN,
+            status=OpenStatus.OPEN,
             events=events,
             container=container,
             next_pos=next_pos,

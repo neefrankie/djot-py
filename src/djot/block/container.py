@@ -117,7 +117,7 @@ class BlockFrame(Generic[T]):
         return self.rule.on_close(self, ctx)
         
 
-class FlowControl(Enum):
+class OpenStatus(Enum):
     OPEN = auto()
     CONTINUE = auto()
     STOP = auto() # stop searching deeper in a node path.
@@ -137,7 +137,7 @@ class RuleResult:
         container: Open operation usually creates a new container. However, continue/close operation could fallback to a new container.
         finished_line: Flag indicating whether an operation gobbles the whole line so that we stop early.
     """
-    status: FlowControl
+    status: OpenStatus
     events: List[Event] = field(default_factory=list)
     container: Optional[BlockFrame[Any]] = None
     finished_line: bool = False
@@ -148,21 +148,21 @@ class RuleResult:
 
     @property
     def is_continue(self) -> bool:
-        return self.status == FlowControl.CONTINUE
+        return self.status == OpenStatus.CONTINUE
 
     @property
     def is_open(self) -> bool:
-        return self.status == FlowControl.OPEN
+        return self.status == OpenStatus.OPEN
 
     @classmethod
     def open(cls) -> 'RuleResult':
         return RuleResult(
-            status=FlowControl.OPEN
+            status=OpenStatus.OPEN
         )
 
     @classmethod
     def fail(cls) -> 'RuleResult':
-        return cls(status=FlowControl.FAIL)
+        return cls(status=OpenStatus.FAIL)
 
     @classmethod
     def continue_ok(
@@ -171,7 +171,7 @@ class RuleResult:
         finished_line: bool = False
     ) -> 'RuleResult':
         return cls(
-            status=FlowControl.CONTINUE,
+            status=OpenStatus.CONTINUE,
             events=events or [],
             finished_line=finished_line,
         )
@@ -179,7 +179,7 @@ class RuleResult:
     @classmethod
     def close(cls) -> 'RuleResult':
         return cls(
-            status=FlowControl.CLOSE,
+            status=OpenStatus.CLOSE,
         )
 
 # In djot.js it is called BlockSpec.

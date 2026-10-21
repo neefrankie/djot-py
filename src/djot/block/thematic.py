@@ -10,7 +10,7 @@ from ..common import Range
 from .container import (
     ContainerCap,
     BlockFrame,
-    FlowControl,
+    OpenStatus,
     BlockRule,
     RuleResult,
     ParsingContext,
@@ -56,7 +56,7 @@ class ThematicBreakRule(BlockRule):
         next_pos = m.end
         
         return RuleResult(
-            status=FlowControl.OPEN,
+            status=OpenStatus.OPEN,
             container=container,
             events=[event],
             next_pos=next_pos,
@@ -75,5 +75,5 @@ class ThematicBreakRule(BlockRule):
         ctx: ParsingContext,
     ) -> RuleResult:
         return RuleResult(
-            status=FlowControl.CLOSE
+            status=OpenStatus.CLOSE
         )

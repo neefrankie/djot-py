@@ -10,7 +10,7 @@ from ..common import Range
 from .container import (
     ContainerCap,
     BlockFrame,
-    FlowControl,
+    OpenStatus,
     BlockRule,
     RuleResult,
     ParsingContext,
@@ -31,7 +31,7 @@ class ParaRule(BlockRule):
 
         pos = cursor.pos
         return RuleResult(
-            status=FlowControl.OPEN,
+            status=OpenStatus.OPEN,
             events=[
                 Event.enter(
                     kind=BlockContainer.PARA,
@@ -70,7 +70,7 @@ class ParaRule(BlockRule):
         # 4. emit exit para event.
         assert container.closing_boundary is not None
         return RuleResult(
-            status=FlowControl.CLOSE,
+            status=OpenStatus.CLOSE,
             events=[
                 Event.exit(
                     kind=BlockContainer.PARA,

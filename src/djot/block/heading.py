@@ -11,7 +11,7 @@ from .container import (
     ContainerCap,
     BlockFrame,
     HeadingData,
-    FlowControl,
+    OpenStatus,
     BlockRule,
     RuleResult,
     ParsingContext,
@@ -73,7 +73,7 @@ class HeadingRule(BlockRule):
         next_pos = endchar + 1 # move to after ending #
         
         return RuleResult(
-            status=FlowControl.OPEN,
+            status=OpenStatus.OPEN,
             container=BlockFrame(
                 rule=self,
                 data=HeadingData(level=level),
@@ -115,7 +115,7 @@ class HeadingRule(BlockRule):
         next_pos = ctx.cursor.pos + level # eat the leading #s
 
         return RuleResult(
-            status=FlowControl.CONTINUE,
+            status=OpenStatus.CONTINUE,
             next_pos=next_pos,
         )
 
@@ -127,7 +127,7 @@ class HeadingRule(BlockRule):
         assert container.closing_boundary is not None
 
         return RuleResult(
-            status=FlowControl.CLOSE,
+            status=OpenStatus.CLOSE,
             events=[
                 Event.exit(
                     span=ctx.cursor.new_span(

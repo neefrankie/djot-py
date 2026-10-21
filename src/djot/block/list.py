@@ -19,7 +19,7 @@ from .container import (
     ContainerCap,
     BlockFrame,
     ListData,
-    FlowControl,
+    OpenStatus,
     BlockRule,
     RuleResult,
     ParsingContext,
@@ -80,7 +80,7 @@ class ListRule(BlockRule):
 
         # NOTE: cursor is not moved.
         return RuleResult(
-            status=FlowControl.OPEN,
+            status=OpenStatus.OPEN,
             container=container,
             events=[event],
             next_pos=cursor.pos,
@@ -152,7 +152,7 @@ class ListRule(BlockRule):
         assert container.closing_boundary is not None
 
         return RuleResult(
-            status=FlowControl.CLOSE,
+            status=OpenStatus.CLOSE,
             events=[
                 Event.exit(
                     kind=BlockContainer.LIST,
@@ -246,7 +246,7 @@ class ListItemRule(BlockRule):
             next_pos = sp+5
 
         return RuleResult(
-            status=FlowControl.OPEN,
+            status=OpenStatus.OPEN,
             container=container,
             events=events,
             next_pos=next_pos
@@ -281,7 +281,7 @@ class ListItemRule(BlockRule):
         assert container.closing_boundary is not None
 
         return RuleResult(
-            status=FlowControl.CLOSE,
+            status=OpenStatus.CLOSE,
             events=[
                 Event.exit(
                     kind=BlockContainer.LIST_ITEM,

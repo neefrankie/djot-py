@@ -15,7 +15,7 @@ from .container import (
     ContainerCap,
     BlockFrame,
     CodeBlockData,
-    FlowControl,
+    OpenStatus,
     BlockRule,
     RuleResult,
     ParsingContext,
@@ -115,7 +115,7 @@ class CodeBlockRule(BlockRule):
         # cursor.advance_to(m.end)
         next_pos = m.end
         return RuleResult(
-            status=FlowControl.OPEN,
+            status=OpenStatus.OPEN,
             events=events,
             container=container,
             finished_line=True,
@@ -143,7 +143,7 @@ class CodeBlockRule(BlockRule):
         next_pos = ctx.cursor.line_end
 
         return RuleResult(
-            status=FlowControl.STOP, # TODO: what this actually means is stopping searching in the tree chain.
+            status=OpenStatus.STOP, # TODO: what this actually means is stopping searching in the tree chain.
             finished_line=True,
             next_pos=next_pos,
         )
@@ -169,7 +169,7 @@ class CodeBlockRule(BlockRule):
             logger.warning(f'Unclosed code block at {ctx.cursor.pos}', )
 
         return RuleResult(
-            status=FlowControl.CLOSE,
+            status=OpenStatus.CLOSE,
             events=[event]
         )
 

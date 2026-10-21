@@ -18,7 +18,7 @@ from .container import (
     ContainerCap,
     BlockFrame,
     TableData,
-    FlowControl,
+    OpenStatus,
     BlockRule,
     RuleResult,
     ParsingContext,
@@ -363,7 +363,7 @@ class TableRule(BlockRule):
         next_pos = cursor.line_end
         
         return RuleResult(
-            status=FlowControl.OPEN,
+            status=OpenStatus.OPEN,
             container=container,
             events=events,
             finished_line=True, # if we successfully parsed a row, the whole line is gobbled.
@@ -391,7 +391,7 @@ class TableRule(BlockRule):
         container.update_closing_boundary(ctx.cursor.line_end, ctx.cursor.line_end)
 
         return RuleResult(
-            status=FlowControl.CONTINUE,
+            status=OpenStatus.CONTINUE,
             events=parsed_row,
             finished_line=True,
             next_pos=ctx.cursor.line_end,
@@ -404,7 +404,7 @@ class TableRule(BlockRule):
     ) -> RuleResult:
         assert container.closing_boundary is not None
         return RuleResult(
-            status=FlowControl.CLOSE,
+            status=OpenStatus.CLOSE,
             events=[Event.exit(
                 kind=BlockContainer.TABLE,
                 span=ctx.cursor.new_span(

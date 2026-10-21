@@ -10,7 +10,7 @@ from ..common import Range
 from .container import (
     ContainerCap,
     BlockFrame,
-    FlowControl,
+    OpenStatus,
     BlockRule,
     RuleResult,
     ParsingContext,
@@ -37,7 +37,7 @@ class BlockquoteRule(BlockRule):
         next_pos = cursor.pos + 1 # after >
 
         return RuleResult(
-            status=FlowControl.OPEN,
+            status=OpenStatus.OPEN,
             container=container,
             events=[
                 Event.enter(
@@ -60,7 +60,7 @@ class BlockquoteRule(BlockRule):
             )
             next_pos = ctx.cursor.pos + 1 # Eat starting >
             return RuleResult(
-                status=FlowControl.CONTINUE,
+                status=OpenStatus.CONTINUE,
                 next_pos=next_pos,
             )
         
@@ -73,7 +73,7 @@ class BlockquoteRule(BlockRule):
     ) -> RuleResult:
         assert container.closing_boundary is not None
         return RuleResult(
-            status=FlowControl.CLOSE,
+            status=OpenStatus.CLOSE,
             events=[
                 Event.exit(
                     kind=BlockContainer.BLOCK_QUOTE,

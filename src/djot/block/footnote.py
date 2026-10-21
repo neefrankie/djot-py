@@ -12,7 +12,7 @@ from .container import (
     ContainerCap,
     BlockFrame,
     FootnoteData,
-    FlowControl,
+    OpenStatus,
     BlockRule,
     RuleResult,
     ParsingContext,
@@ -78,7 +78,7 @@ class FootnoteRule(BlockRule):
         ]
         
         return RuleResult(
-            status=FlowControl.OPEN,
+            status=OpenStatus.OPEN,
             container=container,
             events=events,
             next_pos=end_pos # move to first space
@@ -109,7 +109,7 @@ class FootnoteRule(BlockRule):
         assert container.closing_boundary is not None
 
         return RuleResult(
-            status=FlowControl.CLOSE,
+            status=OpenStatus.CLOSE,
             events=[
                 Event.exit(
                     kind=BlockContainer.FOOTNOTE,

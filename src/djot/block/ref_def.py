@@ -12,7 +12,7 @@ from .container import (
     ContainerCap,
     BlockFrame,
     RefDefData,
-    FlowControl,
+    OpenStatus,
     BlockRule,
     RuleResult,
     ParsingContext,
@@ -81,7 +81,7 @@ class ReferenceDefinitionRule(BlockRule):
         
         next_pos = cursor.line_end - 1 # move to EOL
         return RuleResult(
-            status=FlowControl.OPEN,
+            status=OpenStatus.OPEN,
             container=container,
             events=events,
             next_pos=next_pos,
@@ -123,7 +123,7 @@ class ReferenceDefinitionRule(BlockRule):
         next_pos = ctx.cursor.line_end # \n
         
         return RuleResult(
-            status=FlowControl.CONTINUE,
+            status=OpenStatus.CONTINUE,
             events=[event],
             next_pos=next_pos,
         )
@@ -135,7 +135,7 @@ class ReferenceDefinitionRule(BlockRule):
     ) -> RuleResult:
         assert container.closing_boundary is not None
         return RuleResult(
-            status=FlowControl.CLOSE,
+            status=OpenStatus.CLOSE,
             events=[
                 Event.exit(
                     kind=BlockContainer.REFERENCE_DEFINITION,

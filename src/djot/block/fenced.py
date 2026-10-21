@@ -13,7 +13,7 @@ from .container import (
     ContainerCap,
     BlockFrame,
     FencedDivData,
-    FlowControl,
+    OpenStatus,
     BlockRule,
     RuleResult,
     ParsingContext,
@@ -88,7 +88,7 @@ class FencedDivRule(BlockRule):
         next_pos = m2.end + 1 # after \n
 
         return RuleResult(
-            status=FlowControl.OPEN,
+            status=OpenStatus.OPEN,
             events=events,
             container=container,
             finished_line=True,
@@ -175,7 +175,7 @@ class FencedDivRule(BlockRule):
             
             next_pos = m.end # \n
             return RuleResult(
-                status=FlowControl.STOP,
+                status=OpenStatus.STOP,
                 next_pos=next_pos,
             )
 
@@ -202,6 +202,6 @@ class FencedDivRule(BlockRule):
             logger.debug(f'Unclosed div at {ctx.cursor.pos}')
 
         return RuleResult(
-            status=FlowControl.CLOSE,
+            status=OpenStatus.CLOSE,
             events=[event],
         )
