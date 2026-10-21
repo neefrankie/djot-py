@@ -481,12 +481,6 @@ class InputText:
                 
         return None
 
-    
-    def advance_to_new_line(self):
-        self._pos = (self.line_end or self.pos) + 1
-    
-    
-
     def get_adjusted_text_start(self, indent: Optional[int]) -> int:
         if indent is None:
             return self.pos
@@ -495,20 +489,11 @@ class InputText:
 
         return self.pos - (self.indent - indent) # does this amount to indent itself?
 
-    
-    
-    
-
     def peek_char_is(self, ch: str) -> bool:
         if self.pos >= self.length or self.pos < 0:
             return False
         
         return self.src[self.pos] == ch
-
-    
-
-
-    
 
     # re.compile(r'''['!"#%&\\'()*+,\-./:;<=>?@\[\]^`{|}~']''')
     def is_ascii_punct(self, pos: int) -> bool:
@@ -553,15 +538,6 @@ class InputText:
 
         return self.src[pos] in self._DELIMITERS
     
-    
-
-    def peek_is_whitespace(self) -> bool:
-        if self.pos < 0 or self.pos >= self.length:
-            return False
-
-        return self.src[self.pos] in self._WHITESPACE
-
-    
 
     def is_not_whitespace(self, pos: int) -> bool:
         """
@@ -580,13 +556,6 @@ class InputText:
 
     def find_non_whitespace(self) -> Optional[MatchedRange]:
         return find(self.src, self._PATT_NON_WHITESPACE, self.pos)
-
-    # re.compile(r'[>][ \t\r\n]')
-    def peek_is_blockquote_prefix(self) -> bool:
-        if self.pos < 0 or self.pos + 1 >= self.length:
-            return False
-
-        return self.src[self.pos] == '>' and self.src[self.pos+1] in self._WHITESPACE
 
     def is_crlf(self, i: int):
         """
