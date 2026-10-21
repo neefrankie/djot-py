@@ -268,7 +268,7 @@ class InlineState:
         if not last_match.is_str:
             return
 
-        ep = self.cursor.find_trailing_space_tab(last_match.span)
+        ep = self.cursor.right_find_space_tab(last_match.span)
         
         if ep < last_match.span.start:
             self.events.pop() # space only
@@ -434,7 +434,7 @@ class InlineState:
         if not self.cursor.is_space(last_event.span.end):
             return
 
-        ep = self.cursor.find_trailing_space(last_event.span)
+        ep = self.cursor.right_find_space_char(last_event.span)
 
         if ep < last_event.span.start:
             if pop_empty:
