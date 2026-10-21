@@ -66,7 +66,7 @@ class AttributeRule(BlockRule):
         return RuleResult(
             status=OpenStatus.MATCHED,
             events=events,
-            container=container,
+            frame=container,
             next_pos=next_pos,
             finished_line=True,
         )

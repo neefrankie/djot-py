@@ -82,7 +82,7 @@ class ReferenceDefinitionRule(BlockRule):
         next_pos = cursor.line_end - 1 # move to EOL
         return RuleResult(
             status=OpenStatus.MATCHED,
-            container=container,
+            frame=container,
             events=events,
             next_pos=next_pos,
         )

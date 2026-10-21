@@ -38,7 +38,7 @@ class BlockquoteRule(BlockRule):
 
         return RuleResult(
             status=OpenStatus.MATCHED,
-            container=container,
+            frame=container,
             events=[
                 Event.enter(
                     kind=BlockContainer.BLOCK_QUOTE,

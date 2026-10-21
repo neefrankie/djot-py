@@ -364,7 +364,7 @@ class TableRule(BlockRule):
         
         return RuleResult(
             status=OpenStatus.MATCHED,
-            container=container,
+            frame=container,
             events=events,
             finished_line=True, # if we successfully parsed a row, the whole line is gobbled.
             next_pos=next_pos

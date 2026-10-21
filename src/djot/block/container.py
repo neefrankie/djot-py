@@ -143,12 +143,12 @@ class RuleResult:
     """
     status: OpenStatus
     events: List[Event] = field(default_factory=list)
-    container: Optional[BlockFrame[Any]] = None
+    frame: Optional[BlockFrame[Any]] = None
     finished_line: bool = False
     next_pos: Optional[int] = None
 
     def __repr__(self) -> str:
-        return f'RuleResult(status={self.status.name}, new events: {len(self.events)}, new container: {self.container}, finished_line={self.finished_line})'
+        return f'RuleResult(status={self.status.name}, new events: {len(self.events)}, new container: {self.frame}, finished_line={self.finished_line})'
 
     @property
     def is_continue(self) -> bool:

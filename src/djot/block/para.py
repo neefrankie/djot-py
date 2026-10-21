@@ -38,7 +38,7 @@ class ParaRule(BlockRule):
                     span=cursor.new_span(pos, pos)
                 )
             ],
-            container=container,
+            frame=container,
             next_pos=pos,
         )
 

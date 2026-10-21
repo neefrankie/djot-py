@@ -117,7 +117,7 @@ class CodeBlockRule(BlockRule):
         return RuleResult(
             status=OpenStatus.MATCHED,
             events=events,
-            container=container,
+            frame=container,
             finished_line=True,
             next_pos=next_pos
         )

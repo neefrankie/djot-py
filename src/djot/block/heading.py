@@ -74,7 +74,7 @@ class HeadingRule(BlockRule):
         
         return RuleResult(
             status=OpenStatus.MATCHED,
-            container=BlockFrame(
+            frame=BlockFrame(
                 rule=self,
                 data=HeadingData(level=level),
                 start_pos=cursor.pos,
