@@ -24,7 +24,7 @@ class AttributeRule(BlockRule):
     accepts_content: ContainerCap = ContainerCap.ATTRIBUTES
 
     def try_open(self, cursor: InputText) -> RuleResult:      
-        if not cursor.peek_char_is('{'):
+        if not cursor.is_left_brace(cursor.pos):
             return RuleResult.fail()
 
         attribute_parser = AttributeParser(cursor)
@@ -78,7 +78,7 @@ class AttributeRule(BlockRule):
     ) -> RuleResult:
         # Since I don't permit newline inside attribute block,
         # we don've even have to check this.
-        return RuleResult.fail()
+        return RuleResult.close()
 
     def on_close(
         self, 
