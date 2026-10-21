@@ -143,7 +143,7 @@ class InputText:
         self.length = len(src)
 
         # Current line context
-        self.pos = -1
+        self._pos = -1
         self.indent = 0
         self.line_start = -1
         self.line_end = -1
@@ -163,6 +163,10 @@ class InputText:
     def is_eol_reached(self) -> bool:
         return self.pos == self.line_end
 
+    @property
+    def pos(self) -> int:
+        return self.pos
+
     def next_line(self) -> LineContext | None:
         """
         Move to next line
@@ -170,7 +174,7 @@ class InputText:
         if self.line_end >= self.length - 1:
             return None
 
-        self.pos = self.line_end + 1
+        self._pos = self.line_end + 1
         self.line_start = self.pos + 1
         self.line_end = self.find_next_newline(self.line_start)
         self.indent = 0
@@ -187,7 +191,7 @@ class InputText:
         if target.start_offset <= self.current_line.end_offset:
             return False
 
-        self.pos = target.pos
+        self._pos = target.pos
         self.line_start = target.start_offset
         self.line_end = target.end_offset
         self.indent = 0
@@ -202,7 +206,7 @@ class InputText:
             raise Exception('Cursor.advance_pos: newpos is less than current pos')
 
         if self.line_start <= newpos <= self.line_end: # same line
-            self.pos = newpos
+            self._pos = newpos
 
         new_line = self.locate_line(newpos)
         assert new_line is not None
@@ -282,7 +286,7 @@ class InputText:
             newpos += 1
 
         self.indent = newpos - self.line_start
-        self.pos = newpos
+        self._pos = newpos
 
     def is_left_brace(self, pos: int) -> bool:
             return self.src[pos] == '{'
@@ -470,7 +474,7 @@ class InputText:
 
     
     def advance_to_new_line(self):
-        self.pos = (self.line_end or self.pos) + 1
+        self._pos = (self.line_end or self.pos) + 1
     
     
 
