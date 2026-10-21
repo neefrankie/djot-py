@@ -37,7 +37,8 @@ class BlockquoteRule(BlockRule):
         )
 
         pos = cursor.pos
-        next_pos = cursor.pos + 1 # after >
+
+        cursor.advance_pos(cursor.pos + 1) # after >
 
         return OpenResult(
             status=OpenStatus.MATCHED,
@@ -48,7 +49,6 @@ class BlockquoteRule(BlockRule):
                     span=cursor.new_span(pos, pos)
                 )
             ],
-            next_pos=next_pos,
         )
 
     def on_continue(
@@ -56,20 +56,22 @@ class BlockquoteRule(BlockRule):
         container: BlockFrame,
         ctx: ParsingContext
     ) -> ContinueResult:
-        if ctx.cursor.peek_is_blockquote_prefix():
-            container.update_closing_boundary(
-                ctx.cursor.line_end,
-                ctx.cursor.line_end
-            )
-            next_pos = ctx.cursor.pos + 1 # Eat starting >
+        if not ctx.cursor.is_blockquote(ctx.cursor.pos):
             return ContinueResult(
-                action=ContinueAction.CONTINUE,
-                next_pos=next_pos,
+                action=ContinueAction.STOP,
             )
-        
-        return ContinueResult(
-            action=ContinueAction.STOP,
+
+        container.update_closing_boundary(
+            ctx.cursor.line_end,
+            ctx.cursor.line_end
         )
+        next_pos = ctx.cursor.pos + 1 # Eat starting >
+        return ContinueResult(
+            action=ContinueAction.CONTINUE,
+            next_pos=next_pos,
+        )
+        
+        
 
     def on_close(
         self, 
