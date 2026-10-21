@@ -152,7 +152,11 @@ class RuleResult:
 
     @classmethod
     def fail(cls) -> 'RuleResult':
-        return cls(status=OpenStatus.FAIL)
+        return cls(status=OpenStatus.NOT_MATCHED)
+
+    @classmethod
+    def stop(cls) -> 'RuleResult':
+        return cls(status=OpenStatus.STOP)
 
     @classmethod
     def continue_ok(
