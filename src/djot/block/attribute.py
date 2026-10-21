@@ -25,17 +25,23 @@ class AttributeRule(BlockRule):
 
     def try_open(self, cursor: InputText) -> RuleResult:      
         if not cursor.is_left_brace(cursor.pos):
-            return RuleResult.fail()
+            return RuleResult(
+                status=OpenStatus.NOT_MATCHED,
+            )
 
         attribute_parser = AttributeParser(cursor)
         # From { to EOL
         res = attribute_parser.feed(cursor.pos, cursor.line_end)
         if res.is_fail(): # Cursor is not moved. No need to rewind.
-            return RuleResult.fail()
+            return RuleResult(
+                status=OpenStatus.FALLBACK,
+            )
 
         # Attributes should stand alone on a line.
         if res.is_done() and not cursor.is_rest_of_line_blank(res.position + 1):
-            return RuleResult.fail()
+            return RuleResult(
+                status=OpenStatus.FALLBACK,
+            )
 
         container = BlockFrame(
             rule=self,
@@ -44,7 +50,10 @@ class AttributeRule(BlockRule):
 
         pos = cursor.pos
         events = [
-            Event.enter(cursor.new_span(pos, pos), BlockContainer.ATTRIBUTES)
+            Event.enter(
+                cursor.new_span(pos, pos),
+                BlockContainer.ATTRIBUTES
+            )
         ]
 
         events.extend(attribute_parser.events)
@@ -78,7 +87,9 @@ class AttributeRule(BlockRule):
     ) -> RuleResult:
         # Since I don't permit newline inside attribute block,
         # we don've even have to check this.
-        return RuleResult.close()
+        return RuleResult(
+            status=OpenStatus.CLOSE
+        )
 
     def on_close(
         self, 
@@ -86,4 +97,6 @@ class AttributeRule(BlockRule):
         ctx: ParsingContext,
     ) -> RuleResult:
 
-        return RuleResult.close()
+        return RuleResult(
+            status=OpenStatus.CLOSE,
+        )
