@@ -118,13 +118,17 @@ class BlockFrame(Generic[T]):
         
 
 class OpenStatus(Enum):
-    OPEN = auto()
+    OPEN = auto() # A rule applied successfully, so stop trying the rest of rules.
+    NOT_MATCHED = auto() # Current rule does not apply to a block, continue to try next rules.
+    FALLBACK = auto() # Syntax error, fallback to paragraph rule.
+    MATCH_AND_CONSUMED = auto() # A rule applied successfully and consumed the whole line, so stop trying any rules and jump to next line directly.
+
+    FAIL = auto()
+
     CONTINUE = auto()
     STOP = auto() # stop searching deeper in a node path.
     CLOSE = auto() # a container should be closed.
-    FAIL = auto()
-    # LINE_FINISHED # Go to next line directly.
-    # FALLBACK # Stop parsing current block, rewind, and yield to paragraph rule.
+    
 
 
 @dataclass
