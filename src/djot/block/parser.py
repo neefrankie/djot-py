@@ -83,7 +83,7 @@ class EventParser:
         #  if we hit a close fence, we can move to next line
         if frame.finished_line:
             logger.debug(f'--- Finished a line due to continuation')
-            close_events = self.state.close_container_to_depth(frame.last_matched_idx)
+            close_events = self.state.close_frame_to_depth(frame.last_matched_idx)
             events.extend(close_events)
             return events
 
@@ -114,7 +114,7 @@ class EventParser:
             # Stack might change here.
             # Therefore djot.js perform tip = self.tip() again after here.
             events.extend(
-                self.state.close_container_to_depth(frame.last_matched_idx)
+                self.state.close_frame_to_depth(frame.last_matched_idx)
             )
 
 
@@ -143,7 +143,7 @@ class EventParser:
         djot.js makes implicit assumption that any continue method will
         either move the cursor to EOL, or does not move it any all.
         """
-        logger.debug(f'{self.state.cursor.pos}. Start checking continuation stack {len(self.state.container_stack)}')
+        logger.debug(f'{self.state.cursor.pos}. Start checking continuation stack {len(self.state.frame_stack)}')
 
         last_matched_idx = -1
         line_is_finished = False
@@ -152,7 +152,7 @@ class EventParser:
         # 1. Determine if the top of curent stack has a raw block like CodeBlock.
         has_raw_barrierr = (self.state.raw_barrier_idx != -1)
 
-        for idx, container in enumerate(self.state.container_stack):
+        for idx, container in enumerate(self.state.frame_stack):
             
             # 1. Prepare cursor for rule
             self.state.cursor.skip_frame_space()
@@ -248,8 +248,8 @@ class EventParser:
                 logger.debug(f'{self.state.cursor.pos}. 🌈 {rule.__class__.__name__} open result {open_res}')
 
                 events.extend(open_res.events)
-                last_matched_idx = len(self.state.container_stack)-1
-                parent = self.state.container_stack[last_matched_idx] # move node in tree deeper
+                last_matched_idx = len(self.state.frame_stack)-1
+                parent = self.state.frame_stack[last_matched_idx] # move node in tree deeper
 
                 logger.debug(f'{self.state.cursor.pos}. Update last matched container to {last_matched_idx}')
 
@@ -297,11 +297,11 @@ class EventParser:
         if result.container is None:
             raise Exception('No container created after opening an element')
 
-        closed_events = self.state.close_containers(last_matched_idx, result.container)
+        closed_events = self.state.close_frames(last_matched_idx, result.container)
 
         result.events = closed_events + result.events
 
-        result.container = self.state.push_container(
+        result.container = self.state.push_frame(
             result.container,
         )
 
@@ -321,11 +321,11 @@ class EventParser:
 
         logger.debug(f'{self.state.cursor.pos}. ✅Para opened')
 
-        closed_events = self.state.close_containers(last_matched_idx, result.container)
+        closed_events = self.state.close_frames(last_matched_idx, result.container)
 
         events = closed_events + result.events
         
-        result.container = self.state.push_container(
+        result.container = self.state.push_frame(
             result.container,
         )
 
@@ -396,7 +396,7 @@ class EventParser:
         return (
             not is_eol
             and not new_starts_created
-            and last_matched_idx < len(self.state.container_stack) - 1 # not last one
+            and last_matched_idx < len(self.state.frame_stack) - 1 # not last one
             and tip is not None
             and tip.rule.accepts_inline_only() # paraggraph, heading, caption
         )
@@ -448,6 +448,6 @@ class EventParser:
             self.state.cursor.advance_to_new_line()
 
         logger.debug(f'{self.state.cursor.pos}. Cleanup.')
-        for event in self.state.close_container_to_depth(-1):
+        for event in self.state.close_frame_to_depth(-1):
             yield event
 
