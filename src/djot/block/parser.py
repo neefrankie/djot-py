@@ -213,7 +213,7 @@ class EventParser:
             return LineStepFrame(last_matched_idx=last_matched_idx)
 
         # Why finding words stops?
-        if self.state.cursor.find_word():
+        if self.state.cursor.is_word(self.state.cursor.pos):
             return LineStepFrame(last_matched_idx=last_matched_idx)
 
         # Cascade Open
