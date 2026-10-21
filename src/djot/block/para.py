@@ -52,18 +52,20 @@ class ParaRule(BlockRule):
     ) -> ContinueResult:
         # TODO This won't handle all cases.
         # Lazy content checking is determined in main loop, resulting to inconsistency.
-        if not ctx.cursor.peek_is_whitespace():
-            container.update_closing_boundary(
-                ctx.cursor.line_end,
-                ctx.cursor.line_end
-            )
+        if ctx.cursor.is_whitespace(ctx.cursor.pos):
             return ContinueResult(
-                action=ContinueAction.CONTINUE,
+                action=ContinueAction.STOP,
             )
-
-        return ContinueResult(
-            action=ContinueAction.STOP,
+        
+        container.update_closing_boundary(
+            ctx.cursor.line_end,
+            ctx.cursor.line_end
         )
+        return ContinueResult(
+            action=ContinueAction.CONTINUE,
+        )
+
+        
 
     def on_close(
         self, 

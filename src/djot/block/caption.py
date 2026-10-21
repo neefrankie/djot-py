@@ -62,7 +62,7 @@ class CaptionRule(BlockRule):
         ctx: ParsingContext
     ) -> ContinueResult:
         # Check if the line is indented.
-        if ctx.cursor.peek_is_whitespace():
+        if ctx.cursor.is_whitespace(ctx.cursor.pos):
             return ContinueResult(
                 action=ContinueAction.STOP,
             )
