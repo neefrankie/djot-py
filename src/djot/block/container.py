@@ -150,20 +150,6 @@ class RuleResult:
     def __repr__(self) -> str:
         return f'RuleResult(status={self.status.name}, new events: {len(self.events)}, new container: {self.frame}, finished_line={self.finished_line})'
 
-    @property
-    def is_continue(self) -> bool:
-        return self.status == OpenStatus.CONTINUE
-
-    @property
-    def is_open(self) -> bool:
-        return self.status == OpenStatus.MATCHED
-
-    @classmethod
-    def open(cls) -> 'RuleResult':
-        return RuleResult(
-            status=OpenStatus.MATCHED
-        )
-
     @classmethod
     def fail(cls) -> 'RuleResult':
         return cls(status=OpenStatus.FAIL)
