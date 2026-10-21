@@ -167,23 +167,22 @@ class InputText:
     def pos(self) -> int:
         return self.pos
 
-    def next_line(self) -> LineContext | None:
+    def next_line(self) -> bool:
         """
         Move to next line
         """
+        if self.length == 0:
+            return False
+        
         if self.line_end >= self.length - 1:
-            return None
+            return False
 
         self._pos = self.line_end + 1
         self.line_start = self.pos + 1
         self.line_end = self.find_next_newline(self.line_start)
         self.indent = 0
 
-        return LineContext(
-            start_offset=self.line_start,
-            end_offset=self.line_end,
-            pos=self.pos
-        )
+        return True
     def advance_line(self, target: LineContext) -> bool:
         if target.end_offset >= self.length:
             return False
@@ -204,6 +203,9 @@ class InputText:
         if newpos < self.pos:
             # Ensure monotony
             raise Exception('Cursor.advance_pos: newpos is less than current pos')
+
+        if newpos == self.pos:
+            return
 
         if self.line_start <= newpos <= self.line_end: # same line
             self._pos = newpos
