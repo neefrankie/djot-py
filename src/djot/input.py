@@ -401,6 +401,13 @@ class InputText:
 
         return end
 
+    # re.compile(r'[>][ \t\r\n]')
+    def is_blockquote(self, pos: int) -> bool:
+        if pos < 0 or pos + 1 >= self.length:
+            return False
+
+        return self.src[self.pos] == '>' and self.src[self.pos+1] in self._WHITESPACE
+
     @property
     def maxoffset(self) -> int:
         return self.length - 1
