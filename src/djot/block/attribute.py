@@ -64,7 +64,7 @@ class AttributeRule(BlockRule):
         
         next_pos = cursor.line_end
         return RuleResult(
-            status=OpenStatus.OPEN,
+            status=OpenStatus.MATCHED,
             events=events,
             container=container,
             next_pos=next_pos,

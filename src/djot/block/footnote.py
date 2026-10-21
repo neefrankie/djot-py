@@ -78,7 +78,7 @@ class FootnoteRule(BlockRule):
         ]
         
         return RuleResult(
-            status=OpenStatus.OPEN,
+            status=OpenStatus.MATCHED,
             container=container,
             events=events,
             next_pos=end_pos # move to first space

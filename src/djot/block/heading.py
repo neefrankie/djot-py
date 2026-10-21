@@ -73,7 +73,7 @@ class HeadingRule(BlockRule):
         next_pos = endchar + 1 # move to after ending #
         
         return RuleResult(
-            status=OpenStatus.OPEN,
+            status=OpenStatus.MATCHED,
             container=BlockFrame(
                 rule=self,
                 data=HeadingData(level=level),

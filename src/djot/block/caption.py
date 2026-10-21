@@ -47,7 +47,7 @@ class CaptionRule(BlockRule):
             span=cursor.new_span(next_pos, next_pos), # ^ is ignored. Start from first non-space char.
         ) 
         return RuleResult(
-            status=OpenStatus.OPEN,
+            status=OpenStatus.MATCHED,
             container=container,
             events=[event],
             next_pos=next_pos,

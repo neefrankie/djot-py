@@ -31,7 +31,7 @@ class ParaRule(BlockRule):
 
         pos = cursor.pos
         return RuleResult(
-            status=OpenStatus.OPEN,
+            status=OpenStatus.MATCHED,
             events=[
                 Event.enter(
                     kind=BlockContainer.PARA,

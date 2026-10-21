@@ -37,7 +37,7 @@ class BlockquoteRule(BlockRule):
         next_pos = cursor.pos + 1 # after >
 
         return RuleResult(
-            status=OpenStatus.OPEN,
+            status=OpenStatus.MATCHED,
             container=container,
             events=[
                 Event.enter(

@@ -115,7 +115,7 @@ class CodeBlockRule(BlockRule):
         # cursor.advance_to(m.end)
         next_pos = m.end
         return RuleResult(
-            status=OpenStatus.OPEN,
+            status=OpenStatus.MATCHED,
             events=events,
             container=container,
             finished_line=True,

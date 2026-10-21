@@ -80,7 +80,7 @@ class ListRule(BlockRule):
 
         # NOTE: cursor is not moved.
         return RuleResult(
-            status=OpenStatus.OPEN,
+            status=OpenStatus.MATCHED,
             container=container,
             events=[event],
             next_pos=cursor.pos,
@@ -246,7 +246,7 @@ class ListItemRule(BlockRule):
             next_pos = sp+5
 
         return RuleResult(
-            status=OpenStatus.OPEN,
+            status=OpenStatus.MATCHED,
             container=container,
             events=events,
             next_pos=next_pos

@@ -88,7 +88,7 @@ class FencedDivRule(BlockRule):
         next_pos = m2.end + 1 # after \n
 
         return RuleResult(
-            status=OpenStatus.OPEN,
+            status=OpenStatus.MATCHED,
             events=events,
             container=container,
             finished_line=True,

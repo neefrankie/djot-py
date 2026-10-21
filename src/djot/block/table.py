@@ -363,7 +363,7 @@ class TableRule(BlockRule):
         next_pos = cursor.line_end
         
         return RuleResult(
-            status=OpenStatus.OPEN,
+            status=OpenStatus.MATCHED,
             container=container,
             events=events,
             finished_line=True, # if we successfully parsed a row, the whole line is gobbled.

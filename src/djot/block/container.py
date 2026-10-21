@@ -118,7 +118,7 @@ class BlockFrame(Generic[T]):
         
 
 class OpenStatus(Enum):
-    OPEN = auto() # A rule applied successfully, so stop trying the rest of rules.
+    MATCHED = auto() # A rule applied successfully, so stop trying the rest of rules.
     NOT_MATCHED = auto() # Current rule does not apply to a block, continue to try next rules.
     FALLBACK = auto() # Syntax error, fallback to paragraph rule.
     MATCH_AND_CONSUMED = auto() # A rule applied successfully and consumed the whole line, so stop trying any rules and jump to next line directly.
@@ -156,12 +156,12 @@ class RuleResult:
 
     @property
     def is_open(self) -> bool:
-        return self.status == OpenStatus.OPEN
+        return self.status == OpenStatus.MATCHED
 
     @classmethod
     def open(cls) -> 'RuleResult':
         return RuleResult(
-            status=OpenStatus.OPEN
+            status=OpenStatus.MATCHED
         )
 
     @classmethod

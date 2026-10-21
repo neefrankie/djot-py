@@ -56,7 +56,7 @@ class ThematicBreakRule(BlockRule):
         next_pos = m.end
         
         return RuleResult(
-            status=OpenStatus.OPEN,
+            status=OpenStatus.MATCHED,
             container=container,
             events=[event],
             next_pos=next_pos,
