@@ -15,6 +15,8 @@ from .container import (
     OpenStatus,
     BlockRule,
     OpenResult,
+    LineAction,
+    ContinueAction,
 )
 from .state import (
     BlockState,
@@ -163,20 +165,20 @@ class EventParser:
                 logger.debug(f'Cursor is moving from {self.state.cursor.pos} to {cont_res.next_pos}')
                 self.state.cursor.advance_pos(cont_res.next_pos)
 
-            if cont_res.finished_line:
+            if cont_res.line_action == LineAction.CONSUMED:
                 line_is_finished = True
 
             events.extend(cont_res.events)
 
-            match cont_res.status:
-                case OpenStatus.STOP:
+            match cont_res.action:
+                case ContinueAction.STOP:
                     break
 
-                case OpenStatus.CLOSE:
+                case ContinueAction.CLOSE:
                     is_explicit_close = True
                     break
 
-                case OpenStatus.CONTINUE:
+                case ContinueAction.CONTINUE:
                     last_matched_idx = idx
 
 
