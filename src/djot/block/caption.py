@@ -82,8 +82,11 @@ class CaptionRule(BlockRule):
         ctx: ParsingContext,
     ) -> List[Event]:
         assert frame.closing_boundary is not None
+        assert frame.inline_parser is not None
+        
+        events = list(frame.inline_parser.iter_merged_events())
 
-        return [
+        events.append(
             Event.exit(
                 kind=BlockContainer.CAPTION,
                 span=ctx.cursor.new_span(
@@ -91,5 +94,7 @@ class CaptionRule(BlockRule):
                     end=frame.closing_boundary.end,
                 )
             )
-        ]
+        )
+
+        return events
         
