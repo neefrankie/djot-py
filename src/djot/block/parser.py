@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Iterator, List, Optional
+from typing import Iterator, List, Optional, Tuple
 
 from ..input import InputText
 from ..event import (
@@ -112,9 +112,7 @@ class EventParser:
         logger.debug(f'--- Stage: consume rest line ---')
         # add paragraph by default if there's text
         text_events = self._consume_line_text(
-            tip=self.state.top_frame,
             last_matched_idx=frame.last_matched_idx,
-            new_starts_created=frame.new_starts_created
         )
         events.extend(text_events)
 
@@ -364,11 +362,76 @@ class EventParser:
             return events
 
         return []
+    
+    def _consume_line_text(
+        self,
+        last_matched_idx: int,
+    ) -> List[Event]:
+        """
+        If there are still contents after exhausted continue container and open container.
+        """
+        frame = self.state.top_frame
+        
+        events = []
+        is_eol = self.state.cursor.is_eol_reached
+
+        if frame is None:
+            frame, events = self._create_root_para()
+            last_matched_idx = self.state.last_frame_index
+
+        # Case 1: top stack is block container.
+        if frame.rule.accepts_block_only():
+            if is_eol:
+                # Blankline inside block-only container
+                return [self._parse_blankline(frame)]
+            else:
+                # Non-blank content inside block-only container
+                frame, para_events = self._open_para(last_matched_idx)
+                events.extend(para_events)
+
+        # Top container is text leaf.
+        if frame.rule.accepts_text_only():
+            events.append(self._parse_text(frame))
+        # Top container is inline.
+        elif frame.rule.accepts_inline_only and not is_eol:
+            self._parse_inline(frame)
+
+        return events
+
+    def _create_root_para(self) -> Tuple[BlockFrame, List[Event]]:
+        # djot.js used a complicated logic by mixing two conditions:
+        # `if (!tip || tip.content === ContentType.Block)`
+        # I think tip is null simply means there is no top container,
+        # indicating we are at the root level of a document.
+        # So create a fallback paragraph.
+        # Root level blankline is useless. 
+        # Simply ignore the original `if (isBlank)` case.
+        result = self.para_rule.try_open(self.state.cursor)
+        assert result.frame is not None
+
+        frame = self.state.push_frame(result.frame)
+
+        return frame, result.events
+
+    def _parse_blankline(self, tip: BlockFrame) -> Event:
+        line_end = self.state.cursor.line_end
+
+        if tip and tip.closing_boundary:
+            # Solve a problem of blankline nested in a block container.
+            # Move parent block's closing boundary.
+            # TODO: is there a more elegant way?
+            tip.update_closing_boundary(line_end, line_end)
+        
+        return Event.leaf(
+            kind=BlockLeaf.BLANKLINE,
+            span=self.state.cursor.new_span(line_end, line_end)
+        )
 
     def _open_para(self, last_matched_idx: int):
         logger.debug(f'{self.state.cursor.pos}. Fallback to paragraph.')
         
         result = self.para_rule.try_open(self.state.cursor)
+
         # ParaRule could always open a new container.
         assert result.frame is not None
 
@@ -412,80 +475,10 @@ class EventParser:
 
         return event
 
-    def _parse_blankline(self, tip: BlockFrame | None) -> Event:
-        line_end = self.state.cursor.line_end
-
-        if tip and tip.closing_boundary:
-            logger.debug(f'{self.state.cursor.pos}. parse bankline: {tip} updates last closing boundary to {line_end}')
-            tip.update_closing_boundary(line_end, line_end)
-        
-        return Event.leaf(
-            kind=BlockLeaf.BLANKLINE,
-            span=self.state.cursor.new_span(line_end, line_end)
-        )
+    
         
 
-    def _is_lazy_line(
-        self,
-        last_matched_idx: int,
-        new_starts_created: bool
-    ) -> bool:
-        """
-        Check if the following content is lazy.
-        For example,
-
-        > Blockquote paragraph
-        Paragraph continnued.
-        """
-        self.state.cursor.skip_frame_space()
-        is_eol = self.state.cursor.is_eol_reached
-        
-        tip = self.state.top_frame
-
-        return (
-            not is_eol
-            and not new_starts_created
-            and last_matched_idx < len(self.state.frame_stack) - 1 # not last one
-            and tip is not None
-            and tip.rule.accepts_inline_only() # paraggraph, heading, caption
-        )
-
-    def _consume_line_text(
-        self,
-        tip: Optional[BlockFrame],
-        last_matched_idx: int,
-        new_starts_created: bool,
-    ) -> List[Event]:
-        """
-        If there are still contents after exhausted continue container and open container.
-        """
-        self.state.cursor.skip_frame_space()
-        events = []
-        is_eol = self.state.cursor.is_eol_reached
-
-        if tip is None or tip.rule.accepts_block_only(): # For example blockquote
-            if is_eol:
-                if not new_starts_created:
-                    logger.debug(f'{self.state.cursor.pos}. Create blankline')
-                    # need to track these for tight/loose lists.
-                    # NOTE: what is considered as a blankline?
-                    # An empty line, of course. Anything else?
-                    # A blockquote line with '>' symbol only.
-                    # The blanklin defined in markdown/djot is different
-                    # from physical blankline.
-                    event = self._parse_blankline(tip)
-                    events.append(event)
-                return events
-            else:
-                tip, opened_events = self._open_para(last_matched_idx)
-                events.extend(opened_events)
-
-        if tip.rule.accepts_text_only(): # if child node is text only. Clode block.
-            events.append(self._parse_text(tip)) # gobble the whole line.
-        elif tip.rule.accepts_inline_only and not is_eol: # if child nodes are inline elements.
-            self._parse_inline(tip)
-
-        return events
+    
 
     def parse(self) -> Iterator[Event]:
         while self.state.cursor.next_line():
