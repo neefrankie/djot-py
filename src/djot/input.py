@@ -161,19 +161,19 @@ class InputText:
 
     @property
     def line_end(self) -> int:
-        return self.line_end
+        return self._line_end
 
     @property
     def indent(self) -> int:
-        return self.indent
+        return self._indent
 
     @property
     def is_eol_reached(self) -> bool:
-        return self.pos == self.line_end
+        return self._pos == self.line_end
 
     @property
     def pos(self) -> int:
-        return self.pos
+        return self._pos
 
     def next_line(self) -> bool:
         """
