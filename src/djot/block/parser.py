@@ -353,7 +353,7 @@ class EventParser:
             and tip.rule.accepts_inline_only() # paragraph, heading, caption
         )
 
-        logger.debug(f'{self.state.cursor.pos}. Is lazy content? {is_lazy}. is_eol: {is_eol}, new_starts_created: {new_starts_created}')
+        logger.debug(f'{self.state.cursor.pos}. Is lazy content? {is_lazy}.')
 
         if not is_lazy:
             logger.debug(f'{self.state.cursor.pos}. Not lazy content. Close frames to {last_matched_idx}.')
@@ -376,7 +376,15 @@ class EventParser:
         events = []
         is_eol = self.state.cursor.is_eol_reached
 
+        # Not top level container but we have contents remaining.
         if frame is None:
+            # If it is simply a 
+            if is_eol: # top-level blankline
+                logger.debug(f'{self.state.cursor.pos}.Top level blankline.')
+                return [self._parse_blankline(frame)]
+
+            # At top level but no container. Default to paragraph.
+            logger.debug(f'{self.state.cursor.pos}. No frame. Create root para.')
             frame, events = self._create_root_para()
             last_matched_idx = self.state.last_frame_index
 
@@ -384,17 +392,21 @@ class EventParser:
         if frame.rule.accepts_block_only():
             if is_eol:
                 # Blankline inside block-only container
+                logger.debug(f'{self.state.cursor.pos}.Blankline in block container.')
                 return [self._parse_blankline(frame)]
             else:
                 # Non-blank content inside block-only container
+                logger.debug(f'{self.state.cursor.pos}. Top frame accepts block-only. Create para.')
                 frame, para_events = self._open_para(last_matched_idx)
                 events.extend(para_events)
 
         # Top container is text leaf.
         if frame.rule.accepts_text_only():
+            logger.debug(f'{self.state.cursor.pos}. Top frame accepts text-only. Parse text.')
             events.append(self._parse_text(frame))
         # Top container is inline.
         elif frame.rule.accepts_inline_only and not is_eol:
+            logger.debug(f'{self.state.cursor.pos}. Top frame accepts inline-only. Parse inline.')
             self._parse_inline(frame)
 
         return events
@@ -414,7 +426,8 @@ class EventParser:
 
         return frame, result.events
 
-    def _parse_blankline(self, tip: BlockFrame) -> Event:
+    def _parse_blankline(self, tip: BlockFrame | None) -> Event:
+        logger.debug(f'{self.state.cursor.pos}. ✅ Parse blankline')
         line_end = self.state.cursor.line_end
 
         if tip and tip.closing_boundary:
