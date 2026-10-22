@@ -2,11 +2,14 @@ import unittest
 
 from typing import List
 
+from djot.common import Range
 from djot.cursor import (
     Cursor,
     LineContext,
 )
-
+from djot.token import (
+    FencedDivToken
+)
 class TestCursor(unittest.TestCase):
     def test_new_line(self):
         text = "hello\nworld\n  foo\n\nbar"
@@ -111,6 +114,32 @@ class TestCursor(unittest.TestCase):
         )
 
         self.assertEqual(actual, expected)
+
+    def test_div_start(self):
+        text = ":::: foo \nhello\n\nhi\n::::"
+        #       0123456789 012345 6 789 0123
+
+        cursor = Cursor(text)
+
+        actual = cursor.find_div_start(0)
+
+        expected = FencedDivToken(
+            colon_span=Range(
+                start=0,
+                end=4,
+            ),
+            colon_num=4,
+            lang_span=Range(
+                start=5,
+                end=7
+            )
+        )
+
+        self.assertEqual(actual, expected)
+
+        
+        
+
 
 
 
