@@ -24,10 +24,9 @@ class BackslashMatcher(Matcher):
         - Backslash before a space is parsed as non-breaking space.
         
         """
-        # Inspect if backslash is followed by [ \t]*\r?\n
-        line_end_pos = state.cursor.find_blank_end(pos+1, endpos)
-        # Hardbreak.
-        if line_end_pos is not None:
+        # Inspect if there are only space and tab between backslash and endline.
+        # If it is, this is a hardbreak.
+        if state.cursor.is_trailing_blank(pos+1, endpos):
             # see if there were preceding spaces and remove them.
             # Example: `\a \\n`
             state.trim_space_before_hardbreak()
@@ -42,11 +41,11 @@ class BackslashMatcher(Matcher):
             # The following is hard break.
             state.events.append(
                 Event.leaf(
-                    Range(pos+1, line_end_pos),
+                    Range(pos+1, endpos),
                     InlineLeaf.HARD_BREAK
                 )
             )
-            return line_end_pos + 1 # new pos starts after newline.
+            return endpos + 1 # new pos starts after newline.
         
         # Check if backslash is followed by any punctuations.
         # You might write somthihg like
