@@ -191,6 +191,15 @@ class InputText:
         self._indent = 0
 
         return True
+
+    def new_span(self, start: int, end: int) -> Range:
+        return Range(
+            start=min(start, self.length-1),
+            end=min(end, self.length-1)
+        )
+
+    # === Cursor movement ===
+
     def advance_line(self, target: LineContext) -> bool:
         if target.end_offset >= self.length:
             return False
@@ -222,6 +231,35 @@ class InputText:
         assert new_line is not None
 
         self.advance_line(new_line)
+
+    def skip_frame_space(self):
+        """
+        This is not what is usually considered as skipping leading spaces.
+        It is actually skipping leading space of current node.
+        For example:
+
+        ```
+        > - item 1
+        0123456789
+        ```
+
+        When a bockquote rule opened, skip space to
+        position 2.
+        When a list item rule opened, skip space to
+        position 5.
+        So the indent is not actaully whitespace indentation.
+        It might be more properly described as the 
+        column position of first non-space character of a node.
+        """
+        newpos = self.pos
+
+        while newpos < self.length and self.src[newpos] in self._SPACE_TAB:
+            newpos += 1
+
+        self._indent = newpos - self._line_start
+        self._pos = newpos
+
+    # === Locate line ===
 
     def peek_line(self, previous: LineContext) -> LineContext | None:
         if previous.end_offset >= self.length:
@@ -265,52 +303,30 @@ class InputText:
     def find_previous_newline(self, pos: int) -> int:
         return self.src.rfind('\n', 0, pos) # -1 is valid.
 
-    def new_span(self, start: int, end: int) -> Range:
-        return Range(
-            start=min(start, self.maxoffset),
-            end=min(end, self.maxoffset)
-        )
-
-    def skip_frame_space(self):
-        """
-        This is not what is usually considered as skipping leading spaces.
-        It is actually skipping leading space of current node.
-        For example:
-
-        ```
-        > - item 1
-        0123456789
-        ```
-
-        When a bockquote rule opened, skip space to
-        position 2.
-        When a list item rule opened, skip space to
-        position 5.
-        So the indent is not actaully whitespace indentation.
-        It might be more properly described as the 
-        column position of first non-space character of a node.
-        """
-        newpos = self.pos
-
-        while newpos < self.length and self.src[newpos] in self._SPACE_TAB:
-            newpos += 1
-
-        self._indent = newpos - self._line_start
-        self._pos = newpos
-
-    def is_left_brace(self, pos: int) -> bool:
-            return self.src[pos] == '{'
-    
-    def is_right_brace(self, pos: int) -> bool:
-        return self.src[pos] == '}'
+    # === Newline char ===
 
     def is_newline(self, pos: int) -> bool:
+        if pos >= self.length:
+            return False
+        
         return self.src[pos] == '\n'
 
+    def is_before_eol(self, pos: int) -> bool:
+        if pos >= self.length:
+            return False
+        
+        return pos < self.line_end
+
+
+    # === Whitespace ===
+
     def is_space(self, pos: int) -> bool:
+        if pos >= self.length:
+            return False
+        
         return self.src[pos] == ' '
 
-    def peek_is_blank(self, start: int) -> bool:
+    def is_ahead_blank(self, start: int) -> bool:
         """
         Find out if a line is blank from start to next newline.
         It deals with two cases:
@@ -328,20 +344,82 @@ class InputText:
 
         return False # EOF without newline.
 
+    def is_trailing_blank(self, start: int, end: int) -> bool:
+        # Replace re.compile(r'[ \t]*\r?\n') in djot.js
+        if end >= self.length or self.src[end] != '\n':
+            return False
+
+        # not "" == True
+        return not self.src[start:end].strip(' \t')
+
     def is_blank_span(self, start: int, end: int) -> bool:
         if self.src[end] == '\n':
             return all(c in self._SPACE_TAB for c in self.src[start:end])
 
         return all(c in self._SPACE_TAB for c in self.src[start:end+1])
 
-    def is_word(self, pos: int) -> bool:
-        return find(self.src, self._PATT_WORD, pos) is not None
-
     def is_whitespace(self, pos: int) -> bool:
         if pos < 0 or pos >= self.length:
             return True
         return self.src[pos] in self._WHITESPACE
 
+    def is_not_whitespace(self, pos: int) -> bool:
+        """
+        Minics the regex "[^ \t\r\n]".
+        JS versions uses new RegExp(patt, 'yd') to build a regex,
+        and then use patt.lastIndex to set search start position.
+        lastIndex is a non-negative integer, 
+        and should be less than the length of the string,
+        otherwise no match will be found.
+        Therefore for out of range pos, we return false.
+        """
+        if pos < 0 or pos >= self.length:
+            return False
+
+        return self.src[pos] not in self._WHITESPACE
+
+    def find_non_whitespace(self) -> Optional[MatchedRange]:
+        return find(self.src, self._PATT_NON_WHITESPACE, self.pos)
+
+    def right_find_space_tab(self, span: Range) -> int:
+        """Find out trailing space starting position
+        
+        Returns:
+            int: the position of first non-space char from backward
+        """
+        start = span.start
+        end = span.end
+
+        while end >= start and self.src[end] in self._SPACE_TAB:
+            end = end - 1
+
+        return end
+    
+    def right_find_space_char(self, span: Range) -> int:
+        start = span.start
+        end = span.end
+        while end >= start and self.src[end] == ' ':
+            end = end - 1
+
+        return end
+
+    def skip_space_tab(self, pos: int) -> int:
+        newpos = pos
+        while pos < self.length and self.src[pos] in self._SPACE_TAB:
+            pos += 1
+
+        return newpos
+
+    def get_adjusted_text_start(self, indent: Optional[int]) -> int:
+        if indent is None:
+            return self.pos
+        if self.indent <= indent:
+            return self.pos
+
+        return self.pos - (self.indent - indent) # does this amount to indent itself?
+    
+
+    # === Repeated delimiters
 
     # Replace these regex:
     # re.compile(r'`*')
@@ -387,27 +465,13 @@ class InputText:
 
         return None
 
-    def right_find_space_tab(self, span: Range) -> int:
-        """Find out trailing space starting position
-        
-        Returns:
-            int: the position of first non-space char from backward
-        """
-        start = span.start
-        end = span.end
+    def find(self, patt: re.Pattern) -> Optional[MatchedRange]:
+        return find(self.src, patt, self.pos)
 
-        while end >= start and self.src[end] in self._SPACE_TAB:
-            end = end - 1
+    # === Char predicates ===
 
-        return end
-
-    def right_find_space_char(self, span: Range) -> int:
-        start = span.start
-        end = span.end
-        while end >= start and self.src[end] == ' ':
-            end = end - 1
-
-        return end
+    def is_word(self, pos: int) -> bool:
+        return find(self.src, self._PATT_WORD, pos) is not None
 
     # re.compile(r'[>][ \t\r\n]')
     def is_blockquote(self, pos: int) -> bool:
@@ -416,92 +480,11 @@ class InputText:
 
         return self.src[self.pos] == '>' and self.src[self.pos+1] in self._WHITESPACE
 
-    @property
-    def maxoffset(self) -> int:
-        return self.length - 1
-
-    @property
-    def is_eof(self) -> bool:
-        return self.pos >= self.length
-
+    def is_left_brace(self, pos: int) -> bool:
+        return self.src[pos] == '{'
     
-
-    @property
-    def is_current_before_eol(self) -> bool:
-        return self.pos < self.line_end
-
-    def start_newline(self):
-        """
-        Reset Line Context
-        """
-        self.next_line()
-
-    
-
-    def skip_space_from(self, start: int) -> int:
-        newpos = start
-        while newpos < self.length and self.src[newpos] in self._SPACE_TAB:
-            newpos += 1
-
-        return newpos
-
-    def is_eol_at(self, i: int) -> bool:
-        """
-        Check if char at i is newline or return char.
-        """
-        if i >= self.length:
-            return False
-
-        return self.src[i] == '\n'
-
-    
-
-    def is_rest_of_line_blank(self, start: int) -> bool:
-        while start < self.length:
-            c = self.src[start]
-            if c in self._SPACE_TAB:
-                start += 1
-            elif c == '\n':
-                return True
-            else:
-                return False # non-space
-
-        return False # EOF without newline.
-        
-    # re.compile(r'[ \t]*\r?\n')
-    def find_blank_end(self, pos: int, endpos: int) -> Optional[int]:
-        """
-        Scan from pos to the end of line, if there's only space in between,
-        return the EOL index; otherwise returns None.
-        """
-        curr = pos
-        # 计算实际扫描的上限
-        limit = min(self.length, endpos + 1)
-        
-        while curr < limit:
-            c = self.src[curr]
-            if c in self._SPACE_TAB:
-                curr += 1
-            elif c == '\n':
-                return curr  # match \n，return position
-            else:
-                return None  # Non-space char (like '\a'), not Hard Break
-                
-        return None
-
-    def get_adjusted_text_start(self, indent: Optional[int]) -> int:
-        if indent is None:
-            return self.pos
-        if self.indent <= indent:
-            return self.pos
-
-        return self.pos - (self.indent - indent) # does this amount to indent itself?
-
-    def peek_char_is(self, ch: str) -> bool:
-        if self.pos >= self.length or self.pos < 0:
-            return False
-        
-        return self.src[self.pos] == ch
+    def is_right_brace(self, pos: int) -> bool:
+        return self.src[pos] == '}'
 
     # re.compile(r'''['!"#%&\\'()*+,\-./:;<=>?@\[\]^`{|}~']''')
     def is_ascii_punct(self, pos: int) -> bool:
@@ -545,39 +528,6 @@ class InputText:
             return False
 
         return self.src[pos] in self._DELIMITERS
-    
-
-    def is_not_whitespace(self, pos: int) -> bool:
-        """
-        Minics the regex "[^ \t\r\n]".
-        JS versions uses new RegExp(patt, 'yd') to build a regex,
-        and then use patt.lastIndex to set search start position.
-        lastIndex is a non-negative integer, 
-        and should be less than the length of the string,
-        otherwise no match will be found.
-        Therefore for out of range pos, we return false.
-        """
-        if pos < 0 or pos >= self.length:
-            return False
-
-        return self.src[pos] not in self._WHITESPACE
-
-    def find_non_whitespace(self) -> Optional[MatchedRange]:
-        return find(self.src, self._PATT_NON_WHITESPACE, self.pos)
-
-    def is_crlf(self, i: int):
-        """
-        Check if the char at i is \r and the next is \n.
-        """
-        if i+1 >= self.length:
-            return False
-        return self.src[i] == '\r' and self.src[i+1] == '\n'
-
-    def is_cr_or_lf(self, i: int) -> bool:
-        if i >= self.length:
-            return False
-
-        return self.src[i] in self._CR_LF
 
     def is_bang(self, i: int) -> bool:
         return self.src[i] == '!'
@@ -588,8 +538,6 @@ class InputText:
     def is_left_paren(self, i: int) -> bool:
         return self.src[i] == '('
 
-    
-
     def is_hat(self, i: int) -> bool:
         return self.src[i] == '^'
 
@@ -598,9 +546,6 @@ class InputText:
 
     def is_pipe(self, i: int) -> bool:
         return self.src[i] == '|'
-
-    def find(self, patt: re.Pattern) -> Optional[MatchedRange]:
-        return find(self.src, patt, self.pos)
 
     
 
