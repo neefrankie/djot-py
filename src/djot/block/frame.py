@@ -6,7 +6,6 @@ from typing import Any, Generic, List, Optional, TypeVar
 
 from djot.input import InputText
 from djot.inline import InlineParser
-from djot.attributes import AttributeParser
 from djot.event import (
     Event,
 )

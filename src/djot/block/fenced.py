@@ -9,7 +9,7 @@ from ..event import (
 )
 from ..logger import logger
 
-from .container import (
+from .frame import (
     ContainerCap,
     BlockFrame,
     FencedDivData,

@@ -15,7 +15,7 @@ from djot.common.list_style import (
     intersect_list_styles
 )
 
-from .container import (
+from .frame import (
     ContainerCap,
     BlockFrame,
     ListData,

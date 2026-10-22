@@ -6,7 +6,7 @@ from ..event import (
     Event,
 )
 from ..inline import InlineParser
-from .container import (
+from .frame import (
     BlockFrame,
     ContainerCap,
     ParsingContext,

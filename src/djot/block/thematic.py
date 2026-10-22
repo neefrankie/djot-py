@@ -7,7 +7,7 @@ from ..event import (
     Event,
 )
 
-from .container import (
+from .frame import (
     ContainerCap,
     BlockFrame,
     OpenStatus,

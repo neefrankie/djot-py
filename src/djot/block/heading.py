@@ -8,7 +8,7 @@ from ..event import (
 )
 from ..common import Range
 
-from .container import (
+from .frame import (
     ContainerCap,
     BlockFrame,
     HeadingData,

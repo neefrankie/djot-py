@@ -11,7 +11,7 @@ from djot.event import (
     BlockContainer,
 )
 
-from .container import (
+from .frame import (
     ContainerCap,
     BlockFrame,
     OpenStatus,
