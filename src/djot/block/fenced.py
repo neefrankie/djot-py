@@ -1,3 +1,4 @@
+import copy
 from dataclasses import dataclass
 from typing import List
 
@@ -48,47 +49,35 @@ class FencedDivRule(BlockRule):
     def try_open(self, cursor: Cursor) -> OpenResult:
 
         # Find at least 3 colons, following by optional space.
-        m = cursor.find_div_fence_start()
-        if not m:
+        token = cursor.find_div_start(cursor.pos)
+
+        if token is None:
             return OpenResult.not_matched()
-
-        colons = m.captures[0]
-
-        # After space, try to find any optional word (captured),
-        # followed by optinal space, followed by newline.
-        m2 = cursor.find_div_fence_end(m.end+1)
-        if not m2:
-            return OpenResult.not_matched()
-
-        clsp = m2.start # class name start position
-        lang = m2.captures[0]
 
         container = BlockFrame(
             rule=self,
             data=FencedDivData(
-                colons=len(colons),
+                colons=token.colon_num
             ),
             start_pos=cursor.pos,
         )
 
         events: List[Event] = [
             Event.enter(
-                cursor.new_span(m.start, m.end),
+                copy.copy(token.colon_span),
                 kind=BlockContainer.DIV
             ) # :::
         ]
-        if len(lang) > 0:
+
+        if token.lang_span is not None:
             events.append(
                 Event.attr(
                     kind=AttrKind.CLASS,
-                    span=cursor.new_span(
-                        clsp,
-                        clsp + len(lang) - 1, 
-                    )
+                    span=copy.copy(token.lang_span)
                 )
             )
 
-        cursor.advance_pos(m2.end + 1) # after \n
+        cursor.advance_pos(cursor.line_end) # after \n
 
         return OpenResult(
             status=OpenStatus.MATCH_AND_CONSUMED,
@@ -148,8 +137,7 @@ class FencedDivRule(BlockRule):
             ) # see #109
 
         # Now you do not have code block as innner node.
-        # Go ahead as usuall.
-        m = ctx.cursor.find_div_fence()
+        # Go ahead as usual.
 
         # If ending ::: is not found, go to deeper nodes.
         # This is contray to elements without closing syntax,
@@ -157,11 +145,16 @@ class FencedDivRule(BlockRule):
         # Here, it the match failed, it means we havn't found
         # any closing markup for current fenced div.
         # So we should yield to inner nodes.
-        if not m:
+
+        start_pos = ctx.cursor.pos
+        n_colons = ctx.cursor.find_div_end(start_pos)
+        
+        if n_colons is None:
             return ContinueResult(
                 action=ContinueAction.CONTINUE,
             )
 
+        
         # If data attached is not FencedDivData.
         # This should not happen but typing needs the guard.
         if not isinstance(frame.data, FencedDivData):
@@ -169,21 +162,32 @@ class FencedDivRule(BlockRule):
                 action=ContinueAction.CONTINUE,
             )
 
-        colons = m.captures[0]
+        # colons = m.captures[0]
         # Why do we save the ending symbol span?
         # Because here we should actually signal that the fence div is closed!
         # However, in original djot.js implementation, it always delegate
         # to the close method for cleanup.
-        if len(colons) >= frame.data.colons:
+        # if len(colons) >= frame.data.colons:
+        if n_colons >= frame.data.colons:
             frame.update_closing_boundary(
-                m.start,
-                m.start + len(colons) - 1
+                start_pos,
+                start_pos + n_colons - 1
             )
             
-            ctx.cursor.advance_pos(m.end) # \n
+            ctx.cursor.advance_pos(ctx.cursor.line_end) # \n
             return ContinueResult(
                 action=ContinueAction.STOP,
                 line_action=LineAction.CONSUMED,
+                # events=[
+                #     Event.exit(
+                #         ctx.cursor.new_span(
+                #             start_pos,
+                #             start_pos + n_colons - 1
+                #         ),
+                #         BlockContainer.DIV,
+                #     )
+                # ]
+                # TODO: can we emit events here?
             )
 
         return ContinueResult(
