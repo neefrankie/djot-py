@@ -13,16 +13,8 @@ from djot.common import Range
 
 from djot.common.list_style import ListStyle
 
+from .container import ContainerCap
 
-# In djot.js, this is called ContentType.
-class ContainerCap(Enum):
-    NONE = auto()
-    INLINE = auto()
-    BLOCK = auto()
-    TEXT = auto()
-    CELLS = auto()
-    ATTRIBUTES = auto()
-    LIST_ITEM = auto()
 
 @dataclass(slots=True)
 class HeadingData:

@@ -9,8 +9,8 @@ from ..event import (
 )
 from ..common import Range
 
+from .container import ContainerCap
 from .frame import (
-    ContainerCap,
     BlockFrame,
     FootnoteData,
     OpenStatus,

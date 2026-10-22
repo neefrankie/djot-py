@@ -9,8 +9,8 @@ from ..event import (
 )
 from ..logger import logger
 
+from .container import ContainerCap
 from .frame import (
-    ContainerCap,
     BlockFrame,
     FencedDivData,
     OpenStatus,
@@ -180,11 +180,10 @@ class FencedDivRule(BlockRule):
                 m.start + len(colons) - 1
             )
             
-            next_pos = m.end # \n
+            ctx.cursor.advance_pos(m.end) # \n
             return ContinueResult(
                 action=ContinueAction.STOP,
                 line_action=LineAction.CONSUMED,
-                next_pos=next_pos,
             )
 
         return ContinueResult(

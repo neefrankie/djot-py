@@ -10,8 +10,8 @@ from ..event import (
 )
 from ..logger import logger
 
+from .container import ContainerCap
 from .frame import (
-    ContainerCap,
     BlockFrame,
     CodeBlockData,
     OpenStatus,

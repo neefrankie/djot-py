@@ -14,8 +14,8 @@ from djot.common import (
     Range
 )
 
+from .container import ContainerCap
 from .frame import (
-    ContainerCap,
     BlockFrame,
     TableData,
     OpenStatus,

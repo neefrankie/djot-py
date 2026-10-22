@@ -8,8 +8,8 @@ from ..event import (
 )
 from ..common import Range
 
+from .container import ContainerCap
 from .frame import (
-    ContainerCap,
     BlockFrame,
     OpenStatus,
     BlockRule,
@@ -66,9 +66,9 @@ class BlockquoteRule(BlockRule):
             ctx.cursor.line_end
         )
         next_pos = ctx.cursor.pos + 1 # Eat starting >
+        ctx.cursor.advance_pos(next_pos)
         return ContinueResult(
             action=ContinueAction.CONTINUE,
-            next_pos=next_pos,
         )
         
         
