@@ -42,7 +42,6 @@ class ParaRule(BlockRule):
                 )
             ],
             frame=container,
-            next_pos=pos,
         )
 
     def on_continue(

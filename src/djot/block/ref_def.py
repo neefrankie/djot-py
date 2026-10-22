@@ -82,12 +82,12 @@ class ReferenceDefinitionRule(BlockRule):
                 )
             )
         
-        next_pos = cursor.line_end - 1 # move to EOL
+        next_pos = cursor.line_end - 1 
+        cursor.advance_pos(next_pos) # move to EOL
         return OpenResult(
             status=OpenStatus.MATCHED,
             frame=container,
             events=events,
-            next_pos=next_pos,
         )
 
     def on_continue(

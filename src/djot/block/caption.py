@@ -49,11 +49,12 @@ class CaptionRule(BlockRule):
             kind=BlockContainer.CAPTION,
             span=cursor.new_span(next_pos, next_pos), # ^ is ignored. Start from first non-space char.
         ) 
+
+        cursor.advance_pos(next_pos)
         return OpenResult(
             status=OpenStatus.MATCHED,
             frame=container,
             events=[event],
-            next_pos=next_pos,
         )
 
     def on_continue(

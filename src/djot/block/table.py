@@ -365,10 +365,9 @@ class TableRule(BlockRule):
         cursor.advance_pos(cursor.line_end)
 
         return OpenResult(
-            status=OpenStatus.MATCH_AND_CONSUMED,
+            status=OpenStatus.MATCH_AND_CONSUMED, # if we successfully parsed a row, the whole line is gobbled.
             frame=container,
             events=events,
-            finished_line=True, # if we successfully parsed a row, the whole line is gobbled.
         )
 
     def on_continue(
