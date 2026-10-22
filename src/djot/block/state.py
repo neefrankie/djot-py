@@ -1,7 +1,7 @@
 from typing import Any, List, Optional
 
 from ..logger import logger
-from ..input import InputText
+from ..cursor import Cursor
 from ..event import (
     Event,
 )
@@ -14,7 +14,7 @@ from .frame import (
 )
 
 class BlockState:
-    def __init__(self, cursor: InputText):
+    def __init__(self, cursor: Cursor):
         self.cursor = cursor
 
         # A container stack describes a path in a tree from root to a leaf.

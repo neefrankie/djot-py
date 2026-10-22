@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Iterator, List, Optional, Tuple
 
-from ..input import InputText
+from ..cursor import Cursor
 from ..event import (
     Event,
     BlockLeaf,
@@ -48,7 +48,7 @@ class LineStepFrame:
 class EventParser:
     def __init__(self, src: str) -> None:
 
-        self.state = BlockState(InputText(src))
+        self.state = BlockState(Cursor(src))
 
         self.para_rule = ParaRule()
         self.block_rules: List[BlockRule] = [
@@ -72,7 +72,6 @@ class EventParser:
     
     def process_line(self) -> List[Event]:
         
-        logger.debug(f'▶ Start a newline: {self.state.cursor} ===')
         events: List[Event] = []
 
         logger.debug(f'--- Stage: check continuation ---')
@@ -351,8 +350,10 @@ class EventParser:
             and not new_starts_created # If we created a new container, and the container has trailing content, do not trigger lazy continuation
             and last_matched_idx < len(self.state.frame_stack) - 1 # not last one
             and tip is not None
-            and tip.rule.accepts_inline_only() # paraggraph, heading, caption
+            and tip.rule.accepts_inline_only() # paragraph, heading, caption
         )
+
+        logger.debug(f'{self.state.cursor.pos}. Is lazy content? {is_lazy}. is_eol: {is_eol}, new_starts_created: {new_starts_created}')
 
         if not is_lazy:
             logger.debug(f'{self.state.cursor.pos}. Not lazy content. Close frames to {last_matched_idx}.')
@@ -462,6 +463,8 @@ class EventParser:
             )
             line_end = self.state.cursor.line_end
             tip.update_closing_boundary(line_end, line_end) # TODO: a temporary solution for lazy content
+        else:
+            logger.debug(f'{self.state.cursor.pos}. No inline parser.')
 
     def _parse_text(self, tip: BlockFrame) -> Event:
         """Code block"""
@@ -475,13 +478,11 @@ class EventParser:
 
         return event
 
-    
-        
-
-    
 
     def parse(self) -> Iterator[Event]:
         while self.state.cursor.next_line():
+            logger.debug(f'▶ Start a newline: {self.state.cursor} ===')
+
             line_events = self.process_line()
 
             for event in line_events:

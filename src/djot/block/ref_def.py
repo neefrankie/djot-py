@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List
 
-from ..input import InputText
+from ..cursor import Cursor
 from ..event import (
     BlockContainer,
     Event,
@@ -40,7 +40,7 @@ class ReferenceDefinitionRule(BlockRule):
     # [ followed by anything not ], \r or \n, followed by ], followed by :, followed by space,
     # followed by optional non-space, with newline at end.
 
-    def try_open(self, cursor: InputText) -> OpenResult:
+    def try_open(self, cursor: Cursor) -> OpenResult:
         m = cursor.find_reference_definition()
         if m is None:
             return OpenResult.not_matched()

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List
 
-from djot.input import InputText
+from djot.cursor import Cursor
 from djot.attributes import (
     AttributeParser,
     AttrStatus
@@ -30,7 +30,7 @@ class AttributeRule(BlockRule):
     kind: ContainerCap = ContainerCap.BLOCK
     accepts_content: ContainerCap = ContainerCap.ATTRIBUTES
 
-    def try_open(self, cursor: InputText) -> OpenResult:      
+    def try_open(self, cursor: Cursor) -> OpenResult:      
         if not cursor.is_left_brace(cursor.pos):
             return OpenResult(
                 status=OpenStatus.NOT_MATCHED,

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List
 
-from ..input import InputText
+from ..cursor import Cursor
 from ..event import (
     BlockContainer,
     Event,
@@ -62,7 +62,7 @@ class HeadingRule(BlockRule):
     kind: ContainerCap = ContainerCap.BLOCK
     accepts_content: ContainerCap = ContainerCap.INLINE
 
-    def try_open(self, cursor: InputText) -> OpenResult:
+    def try_open(self, cursor: Cursor) -> OpenResult:
         level = cursor.count_char('#')
         if level == 0:
             return OpenResult.not_matched()

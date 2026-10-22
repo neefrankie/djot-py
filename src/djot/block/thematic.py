@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List
 
-from ..input import InputText
+from ..cursor import Cursor
 from ..event import (
     BlockLeaf,
     Event,
@@ -24,7 +24,7 @@ class ThematicBreakRule(BlockRule):
     kind: ContainerCap = ContainerCap.BLOCK
     accepts_content: ContainerCap = ContainerCap.NONE
 
-    def try_open(self, cursor: InputText) -> OpenResult:
+    def try_open(self, cursor: Cursor) -> OpenResult:
         """
         A line containing thre oor more * or - characters, and nothing else
         (except spaces or tabs) is treated as a thematic break. (<hr> in HTML)

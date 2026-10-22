@@ -6,7 +6,7 @@ from ..event import (
     InlineContainer,
     InlineLeaf
 )
-from ..input import InputText
+from ..cursor import Cursor
 from .state import InlineState
 from .between import BetweenMatcher
 
@@ -19,7 +19,7 @@ class HyphenMatcher(BetweenMatcher):
             fallback_leaf=InlineLeaf.STR,
         )
 
-    def can_open(self, cursor: InputText, pos: int) -> bool:
+    def can_open(self, cursor: Cursor, pos: int) -> bool:
         return cursor.has_brace(pos)
 
     def __call__(self, state: InlineState, pos: int, endpos: int) -> int | None:

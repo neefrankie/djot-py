@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List, NamedTuple, Optional
 
-from djot.input import InputText, MatchedRange
+from djot.cursor import Cursor, MatchedRange
 from djot.inline import InlineParser
 from djot.event import (
     BlockContainer,
@@ -65,7 +65,7 @@ class SepInfo(NamedTuple):
         )
 
 def parse_separator_row(
-    cursor: InputText,
+    cursor: Cursor,
     span: Range, # | :---:  | :---: |
 ) -> Optional[List[Event]]:
     """
@@ -135,7 +135,7 @@ def parse_separator_row(
     
     return events
 
-def scan_table_pipe(cursor: InputText, startpos: int, endpos: int) -> Optional[int]:
+def scan_table_pipe(cursor: Cursor, startpos: int, endpos: int) -> Optional[int]:
     i = startpos
     in_verbatim = False
     verbatim_ticks = 0
@@ -193,7 +193,7 @@ def parse_data_cell(inline_parser: InlineParser, pipe_start: int, limit: int) ->
     return nextbar
 
 def parse_data_row(
-    cursor: InputText,
+    cursor: Cursor,
     span: Range, # | fruit  | price |
 ) -> Optional[List[Event]]:
     """
@@ -269,7 +269,7 @@ def parse_data_row(
 
 
 def parse_row(
-    cursor: InputText, 
+    cursor: Cursor, 
     row_span: Range,
 ) -> List[Event] | None:
     """
@@ -314,7 +314,7 @@ class TableRule(BlockRule):
     kind: ContainerCap = ContainerCap.BLOCK
     accepts_content: ContainerCap = ContainerCap.CELLS
 
-    def try_open(self, cursor: InputText) -> OpenResult:
+    def try_open(self, cursor: Cursor) -> OpenResult:
         # Try to find a row.
         # m.start points to starting `|`, m.end points to EOL `\n`
         # From cursor.pos, search pattern: r'(\|[^\r\n]*\|)[ \t]*\r?\n'

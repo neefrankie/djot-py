@@ -1,6 +1,6 @@
 from typing import Dict, Iterator, Optional
 
-from ..input import InputText
+from ..cursor import Cursor
 from ..event import (
     Event,
     VerbatimKind,
@@ -71,7 +71,7 @@ MATCHERS: Dict[str, Matcher] = {
 }
 
 class InlineParser:
-    def __init__(self, cursor: InputText):
+    def __init__(self, cursor: Cursor):
         self.state = InlineState(cursor)
 
         self.matchers = MATCHERS

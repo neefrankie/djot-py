@@ -4,7 +4,7 @@ from enum import Enum, auto
 import re
 from typing import Any, Generic, List, Optional, TypeVar
 
-from djot.input import InputText
+from djot.cursor import Cursor
 from djot.inline import InlineParser
 from djot.event import (
     Event,
@@ -61,7 +61,7 @@ class ParsingContext:
         For example, if a fenced div wraps code block, 
         the code block should claim the owership of any line starting with ::: rather than letting the containing fenced div to take it as ending markup.
     """
-    cursor: InputText
+    cursor: Cursor
     is_covered: bool = False
 
 T = TypeVar('T')
@@ -216,7 +216,7 @@ class BlockRule(ABC):
         return self.accepts_content == ContainerCap.TEXT
 
     @abstractmethod
-    def try_open(self, cursor: InputText) -> OpenResult:
+    def try_open(self, cursor: Cursor) -> OpenResult:
         pass
 
     @abstractmethod

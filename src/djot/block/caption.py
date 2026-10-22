@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List
 
-from ..input import InputText
+from ..cursor import Cursor
 from ..event import (
     BlockContainer,
     Event,
@@ -32,7 +32,7 @@ class CaptionRule(BlockRule):
     kind: ContainerCap = ContainerCap.BLOCK
     accepts_content: ContainerCap = ContainerCap.INLINE
 
-    def try_open(self, cursor: InputText) -> OpenResult:
+    def try_open(self, cursor: Cursor) -> OpenResult:
         m = cursor.find_caption_start()
         if not m:
             return OpenResult.not_matched()

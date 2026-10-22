@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List
 
-from ..input import InputText
+from ..cursor import Cursor
 from ..event import (
     BlockContainer,
     Event,
@@ -45,7 +45,7 @@ class FootnoteRule(BlockRule):
     kind: ContainerCap = ContainerCap.BLOCK
     accepts_content: ContainerCap = ContainerCap.BLOCK
 
-    def try_open(self, cursor: InputText) -> OpenResult:
+    def try_open(self, cursor: Cursor) -> OpenResult:
         m = cursor.find_footnote_definition()
         if m is None:
             return OpenResult.not_matched()

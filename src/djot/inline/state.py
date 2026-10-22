@@ -3,7 +3,7 @@ from enum import Enum, auto
 from typing import Dict, List, NamedTuple, Optional
 
 from ..common import Range
-from ..input import InputText
+from ..cursor import Cursor
 from ..event import (
     Event,
     VerbatimKind,
@@ -204,7 +204,7 @@ class PendingSpan:
     close_event_idx: int # Event index for ]
 
 class InlineState:
-    def __init__(self, cursor: InputText,):
+    def __init__(self, cursor: Cursor,):
         self.cursor = cursor
 
         self.events: List[Event] = []

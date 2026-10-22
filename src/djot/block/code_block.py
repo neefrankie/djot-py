@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import re
 from typing import List
 
-from ..input import InputText
+from ..cursor import Cursor
 from ..event import (
     BlockContainer,
     Event,
@@ -54,7 +54,7 @@ class CodeBlockRule(BlockRule):
     kind: ContainerCap = ContainerCap.BLOCK
     accepts_content: ContainerCap = ContainerCap.TEXT
 
-    def try_open(self, cursor: InputText) -> OpenResult:
+    def try_open(self, cursor: Cursor) -> OpenResult:
         # Find at least three ~ or ` (capture 0), 
         # followed by optional space (capture 1), followed by
         # anything but whitespace or ` (capture 2),

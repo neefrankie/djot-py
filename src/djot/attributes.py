@@ -32,7 +32,7 @@ from enum import Enum
 from typing import List
 
 from .event import Event, AttrKind
-from .input import InputText
+from .cursor import Cursor
 from .common import Range, is_name_char
 
 # states
@@ -144,7 +144,7 @@ class AttributeParser:
 
     _SPACE_TAB = ' \t'
 
-    def __init__(self, cursor: InputText):
+    def __init__(self, cursor: Cursor):
         self.cursor = cursor
         self.state = State.START
         self.begin: int | None = None # the begin position of a token

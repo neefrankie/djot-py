@@ -2,7 +2,7 @@ from typing import List
 from dataclasses import dataclass
 from typing import List
 
-from djot.input import InputText
+from djot.cursor import Cursor
 from djot.event import (
     BlockContainer,
     Event,
@@ -36,7 +36,7 @@ class ListRule(BlockRule):
     kind: ContainerCap = ContainerCap.BLOCK
     accepts_content: ContainerCap = ContainerCap.LIST_ITEM
 
-    def try_open(self, cursor: InputText) -> OpenResult:
+    def try_open(self, cursor: Cursor) -> OpenResult:
         m = cursor.find_list_marker() # matches the marker followed by a whitespace.
         if not m:
             return OpenResult.not_matched()
@@ -184,7 +184,7 @@ class ListItemRule(BlockRule):
     kind: ContainerCap = ContainerCap.LIST_ITEM
     accepts_content: ContainerCap = ContainerCap.BLOCK
 
-    def try_open(self, cursor: InputText) -> OpenResult:
+    def try_open(self, cursor: Cursor) -> OpenResult:
         """
         A list item consists of a list marker, followed by a space (or a newline)
         followed by one or more lines, indented relative to the list marker.

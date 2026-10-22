@@ -10,7 +10,7 @@ from ..event import (
     InlineContainer,
     InlineLeaf,
 )
-from ..input import InputText
+from ..cursor import Cursor
 from .matcher import Matcher
 from .state import InlineState, Opener
 
@@ -58,7 +58,7 @@ class MatchContext:
         return self.marker_style == MarkerStyle.CLOSE
 
 def determine_brace_context(
-    cursor: InputText,
+    cursor: Cursor,
     current_pos: int,
     endpos: int,
     last_event: Optional[Event], # to determine opening brace.
@@ -87,7 +87,7 @@ def determine_brace_context(
     return None
 
 def determine_bare_context(
-    cursor: InputText,
+    cursor: Cursor,
     current_pos: int,
     can_open: bool,
 ) -> MatchContext:
@@ -231,7 +231,7 @@ class BetweenMatcher(Matcher):
         return pos+1
 
 
-    def can_open(self, cursor: InputText, pos: int) -> bool:
+    def can_open(self, cursor: Cursor, pos: int) -> bool:
         return True
 
     def _match_context(
@@ -297,7 +297,7 @@ class InsertMatcher(BetweenMatcher):
             fallback_leaf=InlineLeaf.STR,
         )
 
-    def can_open(self, cursor: InputText, pos: int) -> bool:
+    def can_open(self, cursor: Cursor, pos: int) -> bool:
         return cursor.has_brace(pos)
 
 class MarkMatcher(BetweenMatcher):
@@ -325,7 +325,7 @@ class SingleQuoteMatcher(BetweenMatcher):
 
         return self.fallback_leaf
 
-    def can_open(self, cursor: InputText, pos: int) -> bool:
+    def can_open(self, cursor: Cursor, pos: int) -> bool:
         return cursor.can_open_single_quote(pos-1)
 
 class DoubleQuoteMatcher(BetweenMatcher):
