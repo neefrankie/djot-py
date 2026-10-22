@@ -137,8 +137,11 @@ class HeadingRule(BlockRule):
         ctx: ParsingContext,
     ) -> List[Event]:
         assert frame.closing_boundary is not None
+        assert frame.inline_parser is not None
 
-        return [
+        events = list(frame.inline_parser.iter_merged_events())
+
+        events.append(
             Event.exit(
                 span=ctx.cursor.new_span(
                     frame.closing_boundary.start,
@@ -146,4 +149,6 @@ class HeadingRule(BlockRule):
                 ),
                 kind=BlockContainer.HEADING
             )
-        ]
+        )
+
+        return events
