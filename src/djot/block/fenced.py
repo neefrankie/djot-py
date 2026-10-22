@@ -90,38 +90,6 @@ class FencedDivRule(BlockRule):
         frame: BlockFrame,
         ctx: ParsingContext
     ) -> ContinueResult:
-        """The lifecycle of state-driven vs syntax-drive elements
-        
-        Fenced div (or code block) is syntactically difference from other elements.
-
-        Containers likes table, list, paragraph do not have explicit closure symbol. 
-        You don't know they are terminated until you see a new element. 
-        That is, they don't know they are dead until new element is born.
-        That's why then are closed mostly in `on_close` method: you have
-        no way to figure out whether a container reached its end of life
-        until you are ready to push a new sibling container.
-        It's similar to how UI view works on iOS (or Android): a view does
-        not know it might be destroyed until a new view is pushed on stack,
-        hence `viewWillDisappear` triggered.
-        For such elmenents, `try_continue` (or `continue`) of the container 
-        could only tell whether it should yield to inner element or
-        stop immediately.
-        They could never tell whether they reached the end of life because
-        there are no such markup for such hints.
-
-        However, fenced div and code block are one of few exceptions with
-        a clear physical border declaring itself "I find myself reaching the end of life". `try_continue` could detect whether it should
-        close itself in addition to yielding to inner element or stopping immediately:
-
-        - CONTINUE means go ahead to search for inner containers
-        - FAIL means you cannot go deeper
-        - CLOSE means a clear ending markup is found
-
-        However, the FAIL state could actually never happen based on
-        the fenced div syntax: once a fenced div opens, it could reach
-        the EOF if no explicit close markup is found.
-        This is why the `on_close` method is still needed.
-        """
         # If ::: is inside a clode block.
         # isinstance(container.rule, CodeBlockRule) is not the corret way
         # if you follow the djot.js implementation.
