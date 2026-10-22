@@ -376,29 +376,18 @@ class EventParser:
         events = []
         is_eol = self.state.cursor.is_eol_reached
 
-        # Not top level container but we have contents remaining.
-        if frame is None:
-            # If it is simply a 
-            if is_eol: # top-level blankline
-                logger.debug(f'{self.state.cursor.pos}.Top level blankline.')
-                return [self._parse_blankline(frame)]
+        if (frame is None or frame.rule.accepts_block_only()) and is_eol:
+            # If it is blankline and there is no parent container, or parent could only hold other blocks.
+            logger.debug(f'{self.state.cursor.pos}. Blankline.')
+            return [self._parse_blankline(frame)]
 
-            # At top level but no container. Default to paragraph.
-            logger.debug(f'{self.state.cursor.pos}. No frame. Create root para.')
-            frame, events = self._create_root_para()
-            last_matched_idx = self.state.last_frame_index
-
-        # Case 1: top stack is block container.
-        if frame.rule.accepts_block_only():
-            if is_eol:
-                # Blankline inside block-only container
-                logger.debug(f'{self.state.cursor.pos}.Blankline in block container.')
-                return [self._parse_blankline(frame)]
-            else:
-                # Non-blank content inside block-only container
-                logger.debug(f'{self.state.cursor.pos}. Top frame accepts block-only. Create para.')
-                frame, para_events = self._open_para(last_matched_idx)
-                events.extend(para_events)
+        if frame is None or frame.rule.accepts_block_only():
+            # Not top level container but we have contents remaining,
+            # or non-blank content inside block-only container,
+            # default to paragraph.
+            logger.debug(f'{self.state.cursor.pos}. Top frame accepts block-only. Create para.')
+            frame, para_events = self._open_para(last_matched_idx)
+            events.extend(para_events)
 
         # Top container is text leaf.
         if frame.rule.accepts_text_only():
@@ -410,21 +399,6 @@ class EventParser:
             self._parse_inline(frame)
 
         return events
-
-    def _create_root_para(self) -> Tuple[BlockFrame, List[Event]]:
-        # djot.js used a complicated logic by mixing two conditions:
-        # `if (!tip || tip.content === ContentType.Block)`
-        # I think tip is null simply means there is no top container,
-        # indicating we are at the root level of a document.
-        # So create a fallback paragraph.
-        # Root level blankline is useless. 
-        # Simply ignore the original `if (isBlank)` case.
-        result = self.para_rule.try_open(self.state.cursor)
-        assert result.frame is not None
-
-        frame = self.state.push_frame(result.frame)
-
-        return frame, result.events
 
     def _parse_blankline(self, tip: BlockFrame | None) -> Event:
         logger.debug(f'{self.state.cursor.pos}. ✅ Parse blankline')
@@ -503,5 +477,6 @@ class EventParser:
 
         logger.debug(f'{self.state.cursor.pos}. Cleanup.')
         for event in self.state.close_frame_to_depth(-1):
+            logger.debug(f'{self.state.cursor.pos}. ✅Close frame event: {event}')
             yield event
 
