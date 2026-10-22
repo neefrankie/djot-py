@@ -144,20 +144,28 @@ class InputText:
 
         # Current line context
         self._pos = -1
-        self.indent = 0
-        self.line_start = -1
-        self.line_end = -1
+        self._indent = 0
+        self._line_start = -1
+        self._line_end = -1
 
     def __repr__(self) -> str:
-        return f'Cursor(line_start={self.line_start}, indent={self.indent}, line_end={self.line_end})'
+        return f'Cursor(line_start={self._line_start}, indent={self.indent}, line_end={self.line_end})'
 
     @property
     def current_line(self) -> LineContext:
         return LineContext(
-            start_offset=self.line_start,
+            start_offset=self._line_start,
             end_offset=self.line_end,
             pos=self.pos
         )
+
+    @property
+    def line_end(self) -> int:
+        return self.line_end
+
+    @property
+    def indent(self) -> int:
+        return self.indent
 
     @property
     def is_eol_reached(self) -> bool:
@@ -178,9 +186,9 @@ class InputText:
             return False
 
         self._pos = self.line_end + 1
-        self.line_start = self.pos + 1
-        self.line_end = self.find_next_newline(self.line_start)
-        self.indent = 0
+        self._line_start = self.pos + 1
+        self._line_end = self.find_next_newline(self._line_start)
+        self._indent = 0
 
         return True
     def advance_line(self, target: LineContext) -> bool:
@@ -191,9 +199,9 @@ class InputText:
             return False
 
         self._pos = target.pos
-        self.line_start = target.start_offset
-        self.line_end = target.end_offset
-        self.indent = 0
+        self._line_start = target.start_offset
+        self._line_end = target.end_offset
+        self._indent = 0
         return True
 
     def advance_pos(self, newpos: int):
@@ -207,7 +215,7 @@ class InputText:
         if newpos == self.pos:
             return
 
-        if self.line_start <= newpos <= self.line_end: # same line
+        if self._line_start <= newpos <= self.line_end: # same line
             self._pos = newpos
 
         new_line = self.locate_line(newpos)
@@ -287,7 +295,7 @@ class InputText:
         while newpos < self.length and self.src[newpos] in self._SPACE_TAB:
             newpos += 1
 
-        self.indent = newpos - self.line_start
+        self._indent = newpos - self._line_start
         self._pos = newpos
 
     def is_left_brace(self, pos: int) -> bool:
