@@ -177,7 +177,7 @@ def parse_data_cell(inline_parser: InlineParser, pipe_start: int, limit: int) ->
 
     search_start = pipe_start + 1 # after pipe
 
-    search_start = inline_parser.state.cursor.skip_space_from(search_start)
+    search_start = inline_parser.state.cursor.skip_space_tab(search_start)
 
     nextbar = scan_table_pipe(
         inline_parser.state.cursor,
