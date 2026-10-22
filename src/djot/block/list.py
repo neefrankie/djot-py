@@ -111,7 +111,7 @@ class ListRule(BlockRule):
                 action=ContinueAction.CONTINUE,
             )
 
-        if ctx.cursor.is_eol_at(ctx.cursor.pos):
+        if ctx.cursor.is_newline(ctx.cursor.pos):
             logger.debug(f'{ctx.cursor.pos}. ListRule.on_continue due to blankline')
             frame.update_closing_boundary(
                 ctx.cursor.line_end,
@@ -276,7 +276,7 @@ class ListItemRule(BlockRule):
         # A line indented should be taken as a continuation of previous list item.
         # - one
         #   - dash is plain text.
-        if ctx.cursor.indent > frame.data.indent or ctx.cursor.is_eol_at(ctx.cursor.pos):
+        if ctx.cursor.indent > frame.data.indent or ctx.cursor.is_newline(ctx.cursor.pos):
             logger.debug(f"{ctx.cursor.pos}. ListItem.on_continue due to indent or blankline")
             frame.update_closing_boundary(
                 ctx.cursor.line_end,
