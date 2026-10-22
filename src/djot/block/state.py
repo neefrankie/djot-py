@@ -137,14 +137,16 @@ class BlockState:
 
 
     def _close_container(self, container: BlockFrame) -> List[Event]:
-        events: List[Event] = []
-        if container.inline_parser:
-            events.extend(container.inline_parser.iter_merged_events())
+        # events: List[Event] = []
+        # if container.inline_parser:
+        #     events.extend(container.inline_parser.iter_merged_events())
+        #     logger.debug(f'{self.cursor.pos}. Transferred inline events {len(events)}')
 
+        # TODO: this method could be removed.
         logger.debug(f'🚪{self.cursor.pos}. Close {container}')
-        result = container.on_close(ParsingContext(
+        close_events = container.on_close(ParsingContext(
             cursor=self.cursor,
         ))
-        events.extend(result)
+        # events.extend(close_events)
         
-        return result
+        return close_events
