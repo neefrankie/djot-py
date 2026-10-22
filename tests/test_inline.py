@@ -9,7 +9,7 @@ from djot.event import (
     VerbatimKind
 )
 from djot.common import Range
-from djot.input import InputText
+from djot.cursor import Cursor
 from djot.inline.parser import InlineParser
 
 
@@ -19,7 +19,7 @@ class TestInlineParser(unittest.TestCase):
         text = 'hello there'
 
         parser = InlineParser(
-            cursor=InputText(text),
+            cursor=Cursor(text),
         )
 
         parser.feed(0, 6)
@@ -36,7 +36,7 @@ class TestInlineParser(unittest.TestCase):
         text = "x ``` hello ``there ``` x"
         #       0123456789012345678901234
         parser = InlineParser(
-            cursor=InputText(text),
+            cursor=Cursor(text),
         )
 
         parser.feed(0, 24)
@@ -57,7 +57,7 @@ class TestInlineParser(unittest.TestCase):
         text = '\\"\\*\\ \\a \\\n'
         #        01 23 45 678 90
         parser = InlineParser(
-            cursor=InputText(text),
+            cursor=Cursor(text),
             
         )
         parser.feed(0, 10)
@@ -79,7 +79,7 @@ class TestInlineParser(unittest.TestCase):
 
     def test_parse_autolinks(self):
         parser = InlineParser(
-            cursor=InputText('<http://example.com?foo=bar&baz=&amp;x2>'),
+            cursor=Cursor('<http://example.com?foo=bar&baz=&amp;x2>'),
             
         )
 
@@ -95,7 +95,7 @@ class TestInlineParser(unittest.TestCase):
 
     def test_parse_email_autolinks(self):
             parser = InlineParser(
-                cursor=InputText('<me@example.com>'),
+                cursor=Cursor('<me@example.com>'),
                 
             )
     
@@ -111,7 +111,7 @@ class TestInlineParser(unittest.TestCase):
 
     def test_super_subscript(self):
         parser = InlineParser(
-            cursor=InputText('H~2~O e=mc^2^ test{^two words^}'),
+            cursor=Cursor('H~2~O e=mc^2^ test{^two words^}'),
             
         )
 
@@ -139,7 +139,7 @@ class TestInlineParser(unittest.TestCase):
 
     def test_emphasis(self):
         parser = InlineParser(
-            cursor=InputText('_hello *there*_ world'),
+            cursor=Cursor('_hello *there*_ world'),
             
         )
 
@@ -159,7 +159,7 @@ class TestInlineParser(unittest.TestCase):
 
     def test_mark(self):
         parser = InlineParser(
-            cursor=InputText('{=hello=}'),
+            cursor=Cursor('{=hello=}'),
             
         )
         parser.feed(0, 8)
@@ -177,7 +177,7 @@ class TestInlineParser(unittest.TestCase):
 
     def test_inserted(self):
         parser = InlineParser(
-            cursor=InputText('{+hello+}'),
+            cursor=Cursor('{+hello+}'),
             
         )
         parser.feed(0, 8)
@@ -195,7 +195,7 @@ class TestInlineParser(unittest.TestCase):
 
     def test_quoted(self):
         parser = InlineParser(
-            cursor=InputText('"dog\'s breakfast"'),
+            cursor=Cursor('"dog\'s breakfast"'),
             #                 0123 4567890123456
         )
 
@@ -213,7 +213,7 @@ class TestInlineParser(unittest.TestCase):
 
     def test_parse_attributes(self):
         parser = InlineParser(
-            cursor=InputText('{#foo .bar baz="bim"}'),
+            cursor=Cursor('{#foo .bar baz="bim"}'),
             
         )
 
@@ -239,7 +239,7 @@ class TestInlineParser(unittest.TestCase):
 
     def test_spans(self):
         parser = InlineParser(
-            cursor=InputText('[hi]{#foo .bar baz="bim"}'),
+            cursor=Cursor('[hi]{#foo .bar baz="bim"}'),
             
         )
 
@@ -286,7 +286,7 @@ class TestInlineParser(unittest.TestCase):
 
     def test_inline_links(self):
         parser = InlineParser(
-            cursor=InputText('[foobar](url)'),
+            cursor=Cursor('[foobar](url)'),
             
         )
 
@@ -317,7 +317,7 @@ class TestInlineParser(unittest.TestCase):
 
     def test_refrence_links(self):
         parser = InlineParser(
-            cursor=InputText('[foobar][1]'),
+            cursor=Cursor('[foobar][1]'),
             #                 01234567890
         )
 
@@ -336,7 +336,7 @@ class TestInlineParser(unittest.TestCase):
 
     def test_inline_image(self):
         parser = InlineParser(
-            cursor=InputText('![foobar](url)'),
+            cursor=Cursor('![foobar](url)'),
             #                 01234567890123
         )
         parser.feed(0, 13)
@@ -354,7 +354,7 @@ class TestInlineParser(unittest.TestCase):
 
     def test_symbs(self):
         parser = InlineParser(
-            cursor=InputText(':+1:'),
+            cursor=Cursor(':+1:'),
             
         )
 
@@ -368,7 +368,7 @@ class TestInlineParser(unittest.TestCase):
 
     def test_ellipses(self):
         parser = InlineParser(
-            cursor=InputText('...'),
+            cursor=Cursor('...'),
             
         )
 
@@ -382,7 +382,7 @@ class TestInlineParser(unittest.TestCase):
 
     def test_dashes(self):
         parser = InlineParser(
-            cursor=InputText('a---b--c'),
+            cursor=Cursor('a---b--c'),
             
         )
         parser.feed(0, 7)
@@ -399,7 +399,7 @@ class TestInlineParser(unittest.TestCase):
 
     def test_note_reference(self):
         parser = InlineParser(
-            cursor=InputText('[^ref]'),
+            cursor=Cursor('[^ref]'),
             
         )
 

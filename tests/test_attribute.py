@@ -7,7 +7,7 @@ from djot.attributes import (
     AttrKind,
     AttrParseResult,
 )
-from djot.input import InputText
+from djot.cursor import Cursor
 from djot.event import Event, AttrKind
 from djot.common import Range
 
@@ -20,7 +20,7 @@ class TestAttributeState(unittest.TestCase):
 
         for text, expected in cases:
             with self.subTest():
-                parser = AttributeParser(InputText(text))
+                parser = AttributeParser(Cursor(text))
                 actual = parser._start(0)
                 self.assertEqual(actual, expected)
 
@@ -37,7 +37,7 @@ class TestAttributeState(unittest.TestCase):
 
         for text, expected in cases:
             with self.subTest():
-                parser = AttributeParser(InputText(text))
+                parser = AttributeParser(Cursor(text))
                 actual = parser._scanning(0)
                 self.assertEqual(actual, expected)
 
@@ -51,7 +51,7 @@ class TestAttributeState(unittest.TestCase):
         ]
         for text, expected in cases:
             with self.subTest(text):
-                parser = AttributeParser(InputText(text))
+                parser = AttributeParser(Cursor(text))
                 actual = parser._scanning_id(0)
                 self.assertEqual(actual, expected)
 
@@ -65,7 +65,7 @@ class TestAttributeState(unittest.TestCase):
         ]
         for text, expected in cases:
             with self.subTest(text):
-                parser = AttributeParser(InputText(text))
+                parser = AttributeParser(Cursor(text))
                 actual = parser._scanning_class(0)
                 self.assertEqual(actual, expected)
 
@@ -79,7 +79,7 @@ class TestAttributeState(unittest.TestCase):
         ]
         for text, expected in cases:
             with self.subTest(text):
-                parser = AttributeParser(InputText(text))
+                parser = AttributeParser(Cursor(text))
                 parser.begin = 1
                 parser.lastpos = 2
                 actual = parser._scanning_key(0)
@@ -94,7 +94,7 @@ class TestAttributeState(unittest.TestCase):
         ]
         for text, expected in cases:
             with self.subTest(text):
-                parser = AttributeParser(InputText(text))
+                parser = AttributeParser(Cursor(text))
                 actual = parser._scanning_value(0)
                 self.assertEqual(actual, expected)
 
@@ -107,7 +107,7 @@ class TestAttributeState(unittest.TestCase):
         ]
         for text, expected in cases:
             with self.subTest(text):
-                parser = AttributeParser(InputText(text))
+                parser = AttributeParser(Cursor(text))
                 parser.begin = 1
                 parser.lastpos = 2
                 actual = parser._scanning_bare_value(0)
@@ -122,7 +122,7 @@ class TestAttributeState(unittest.TestCase):
         ]
         for text, expected in cases:
             with self.subTest(text):
-                parser = AttributeParser(InputText(text))
+                parser = AttributeParser(Cursor(text))
                 parser.begin = 1
                 parser.lastpos = 2
                 actual = parser._scanning_quoted_value(0)
@@ -192,7 +192,7 @@ class TestAttributeParser(unittest.TestCase):
 
         for text, states in cases:
             with self.subTest(text):
-                parser = AttributeParser(InputText(text))
+                parser = AttributeParser(Cursor(text))
 
                 actual = parser.state
                 for i, expected in enumerate(states):
@@ -225,7 +225,7 @@ class TestAttributeParser(unittest.TestCase):
 
         for text, expected_events, expected_result in cases:
             with self.subTest(text):
-                parser = AttributeParser(InputText(text))
+                parser = AttributeParser(Cursor(text))
                 actual_result = parser.feed(0, len(text)-1)
                 self.assertEqual(len(parser.events), len(expected_events))
                 self.assertEqual(actual_result, expected_result)
@@ -243,7 +243,7 @@ class TestAttributeParser(unittest.TestCase):
 
         for text, expected in cases:
             with self.subTest(text):
-                parser = AttributeParser(InputText(text))
+                parser = AttributeParser(Cursor(text))
                 actual = parser.feed(0, len(text)-1)
                 self.assertEqual(actual, expected)
 
