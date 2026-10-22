@@ -142,11 +142,8 @@ class OpenResult:
     status: OpenStatus
     events: List[Event] = field(default_factory=list)
     frame: Optional[BlockFrame[Any]] = None
-    finished_line: bool = False
-    next_pos: Optional[int] = None
-
     def __repr__(self) -> str:
-        return f'RuleResult(status={self.status.name}, new events: {len(self.events)}, new container: {self.frame}, finished_line={self.finished_line})'
+        return f'RuleResult(status={self.status.name}, new events: {len(self.events)}, new container: {self.frame})'
 
     @classmethod
     def not_matched(cls) -> 'OpenResult':
@@ -175,7 +172,6 @@ class ContinueResult:
     # There are two exceptions: reference definition and table.
     events: List[Event] = field(default_factory=list)
     line_action: LineAction = LineAction.PROCEED
-    next_pos: Optional[int] = None
 
 # In djot.js it is called BlockSpec.
 @dataclass
