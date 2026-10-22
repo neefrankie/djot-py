@@ -83,12 +83,16 @@ class ParaRule(BlockRule):
         # 3. query last event's endpos
         # 4. emit exit para event.
         assert frame.closing_boundary is not None
-        return [
-            Event.exit(
-                kind=BlockContainer.PARA,
-                span=ctx.cursor.new_span(
-                    frame.closing_boundary.start,
-                    frame.closing_boundary.end,
-                )
+        assert frame.inline_parser is not None
+
+        events= list(frame.inline_parser.iter_merged_events())
+
+        events.append(Event.exit(
+            kind=BlockContainer.PARA,
+            span=ctx.cursor.new_span(
+                frame.closing_boundary.start,
+                frame.closing_boundary.end,
             )
-        ]
+        ))
+
+        return events
