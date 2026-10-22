@@ -74,7 +74,7 @@ class LineContext:
 
         return replace(self, pos=indent)
 
-class InputText:
+class Cursor:
     
     _PATT_NON_WHITESPACE = re.compile(r'[^ \t\r\n]+')
     _PATT_CAPTION_START = re.compile(r'\^[ \t]+')
@@ -175,23 +175,6 @@ class InputText:
     def pos(self) -> int:
         return self._pos
 
-    def next_line(self) -> bool:
-        """
-        Move to next line
-        """
-        if self.length == 0:
-            return False
-        
-        if self.line_end >= self.length - 1:
-            return False
-
-        self._pos = self.line_end + 1
-        self._line_start = self.pos + 1
-        self._line_end = self.find_next_newline(self._line_start)
-        self._indent = 0
-
-        return True
-
     def new_span(self, start: int, end: int) -> Range:
         return Range(
             start=min(start, self.length-1),
@@ -199,6 +182,27 @@ class InputText:
         )
 
     # === Cursor movement ===
+
+    def next_line(self) -> bool:
+        """
+        Move to next line
+        """
+        if self.length == 0:
+            return False
+
+        # last char should not have next line
+        if self.line_end >= self.length - 1:
+            return False
+
+        next_start = self._line_end + 1
+        next_end = self.find_next_newline(next_start)
+
+        self._pos = next_start
+        self._line_start = next_start
+        self._line_end = next_end
+        self._indent = 0
+
+        return True
 
     def advance_line(self, target: LineContext) -> bool:
         if target.end_offset >= self.length:
@@ -290,8 +294,6 @@ class InputText:
             end_offset=end_offset,
             pos=start_offset
         )
-
-    
 
     def find_next_newline(self, pos: int) -> int:
         i = self.src.find('\n', pos)
