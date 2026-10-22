@@ -110,7 +110,7 @@ class ReferenceDefinitionRule(BlockRule):
         
         # Current position should not exceed the end of the line,
         # and content should be ended with a newline.
-        if not ctx.cursor.is_current_before_eol:
+        if not ctx.cursor.is_before_eol(ctx.cursor.pos):
             return ContinueResult(
                 action=ContinueAction.STOP,
             )
