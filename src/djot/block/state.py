@@ -103,30 +103,33 @@ class BlockState:
             if not top:
                 break
 
-            close_result = self._close_container(top)
-            events.extend(close_result)
+            close_events = top.on_close(ParsingContext(
+                cursor=self.cursor,
+            ))
+            events.extend(close_events)
 
         return events
 
     def close_frame_to_parent(
         self,
-        new_container: BlockFrame
+        new_frame: BlockFrame
     ) -> List[Event]:
         """Close sibling nodes when pushing a new container"""
-        logger.debug(f'close siblings of {new_container}. current stack: {len(self.frame_stack)}')
+        logger.debug(f'close siblings of {new_frame}. current stack: {len(self.frame_stack)}')
         events: List[Event] = []
 
         while self.frame_stack:
-            if self.frame_stack[-1].can_cantain(new_container):
+            if self.frame_stack[-1].can_cantain(new_frame):
                 break
 
             top = self.pop_frame()
             if not top:
                 break
 
-            close_result = self._close_container(top)
-            events.extend(close_result)
-
+            close_events = top.on_close(ParsingContext(
+                cursor=self.cursor,
+            ))
+            events.extend(close_events)
 
         return events
 
@@ -134,19 +137,3 @@ class BlockState:
         unmatched = self.close_frame_to_depth(last_matched_idx)
         siblings = self.close_frame_to_parent(new_container)
         return unmatched + siblings
-
-
-    def _close_container(self, container: BlockFrame) -> List[Event]:
-        # events: List[Event] = []
-        # if container.inline_parser:
-        #     events.extend(container.inline_parser.iter_merged_events())
-        #     logger.debug(f'{self.cursor.pos}. Transferred inline events {len(events)}')
-
-        # TODO: this method could be removed.
-        logger.debug(f'🚪{self.cursor.pos}. Close {container}')
-        close_events = container.on_close(ParsingContext(
-            cursor=self.cursor,
-        ))
-        # events.extend(close_events)
-        
-        return close_events
