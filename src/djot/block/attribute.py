@@ -48,7 +48,7 @@ class AttributeRule(BlockRule):
 
             case AttrStatus.DONE:
                 # Attributes should stand alone on a line.
-                if not cursor.is_rest_of_line_blank(res.position + 1):
+                if not cursor.is_ahead_blank(res.position + 1):
                     return OpenResult(
                         status=OpenStatus.FALLBACK,
                     )
