@@ -113,21 +113,6 @@ class OpenStatus(Enum):
     FALLBACK = auto() # Syntax error, fallback to paragraph rule.
     MATCH_AND_CONSUMED = auto() # A rule applied successfully and consumed the whole line, so stop trying any rules and jump to next line directly.
 
-    CLOSE = auto() # a container should be closed.
-    
-class ContinueAction(Enum):
-    """
-    Determine the lifecycle of a frame.
-    
-    CONTINUE: continue to inner frames.
-    STOP: stop searcing for inner frames and all frames from here
-    to the end should be closed.
-    """
-    CONTINUE = auto()
-    STOP = auto()
-    CLOSE = auto()
-
-
 
 @dataclass
 class OpenResult:
@@ -150,6 +135,17 @@ class OpenResult:
     def not_matched(cls) -> 'OpenResult':
         return cls(status=OpenStatus.NOT_MATCHED)
 
+class ContinueAction(Enum):
+    """
+    Determine the lifecycle of a frame.
+    
+    CONTINUE: continue to inner frames.
+    STOP: stop searcing for inner frames and all frames from here
+    to the end should be closed.
+    """
+    CONTINUE = auto()
+    STOP = auto()
+    CLOSE = auto()
 
 class LineAction(Enum):
     """
