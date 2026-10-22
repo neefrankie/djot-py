@@ -161,10 +161,6 @@ class EventParser:
 
             logger.debug(f'{self.state.cursor.pos}. {frame} continue result: {cont_res}')
 
-            if cont_res.next_pos is not None:
-                logger.debug(f'Cursor is moving from {self.state.cursor.pos} to {cont_res.next_pos}')
-                self.state.cursor.advance_pos(cont_res.next_pos)
-
             if cont_res.line_action == LineAction.CONSUMED:
                 line_is_finished = True
 
