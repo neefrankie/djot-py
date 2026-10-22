@@ -2,30 +2,22 @@ import unittest
 
 from typing import List
 
-from djot.experimental.cursor import (
+from djot.cursor import (
     Cursor,
     LineContext,
 )
-from djot.experimental.block.attribute import (
-    AttributeRule,
-)
-from djot.experimental.block.context import (
-    ParsingContext,
-)
-        
 
 class TestCursor(unittest.TestCase):
-    def test_start_newline(self):
+    def test_new_line(self):
         text = "hello\nworld\n  foo\n\nbar"
         #       012345 678901 234567 8 901
 
         actual: List[LineContext] = []
 
         cursor = Cursor(text)
-        line = cursor.next_line(LineContext())
-        while line is not None:
-            actual.append(line)
-            line = cursor.next_line(line)
+
+        while cursor.next_line():
+            actual.append(cursor.current_line)
 
         expected = [
             LineContext(0, 5, 0),
@@ -35,46 +27,91 @@ class TestCursor(unittest.TestCase):
             LineContext(19, 22, 19),
         ]
 
-        self.assertEqual(expected, actual)
+        self.assertEqual(actual, expected)
 
-    def test_skip_space(self):
-        text = '>  - item one'
-        #       012345678901
+
+    def test_advance_line(self):
+        text = "hello\nworld\n  foo\n\nbar"
+        #       012345 678901 234567 8 901
 
         cursor = Cursor(text)
+        cursor.next_line()
+        self.assertFalse(cursor.advance_line(LineContext()))
 
-        next_ctx = cursor.skip_frame_space(
-            LineContext(0, 10, 1)
-        )
+        self.assertTrue(cursor.advance_line(LineContext(
+            start_offset=6,
+            end_offset=11,
+            pos=6,
+        )))
 
-        self.assertEqual(
-            next_ctx,
-            LineContext(0, 10, 3),
-        )
+    def test_advance_pos(self):
+        text = "hello\nworld\n  foo\n\nbar"
+        #       012345 678901 234567 8 901
 
-        next_ctx = cursor.skip_frame_space(
-            LineContext(0, 10, 4)
-        )
+        cursor = Cursor(text)
+        cursor.next_line()
 
-        self.assertEqual(
-            next_ctx,
-            LineContext(0, 10, 5),
-        )
+        cursor.advance_pos(3)
+
+        self.assertEqual(cursor.current_line, LineContext(
+            start_offset=0,
+            end_offset=5,
+            pos=3,
+        ))
+
+        self.assertEqual(cursor.current_line, LineContext(
+            start_offset=0,
+            end_offset=5,
+            pos=3,
+        ))
+
+    def test_skip_frame_space(self):
+        text = "hello\nworld\n  foo\n\nbar"
+        #       012345 678901 234567 8 901
+
+        cursor = Cursor(text)
+        cursor.next_line()
+        cursor.next_line()
+        cursor.next_line()
+
+        cursor.skip_frame_space()
+
+        self.assertEqual(cursor.current_line, LineContext(
+            start_offset=12,
+            end_offset=17,
+            pos=14,
+        ))
+        self.assertEqual(cursor.indent, 2)
 
     def test_peek_line(self):
-        text = '{.foo\n#bar\nkey=val key2="val1\nval2"}'
-        #       012345 67890 12345678
+        text = "hello\nworld\n  foo\n\nbar"
+        #       012345 678901 234567 8 901
 
         cursor = Cursor(text)
-        line = cursor.next_line(LineContext())
+        cursor.next_line()
 
-        assert line is not None
+        self.assertEqual(cursor.peek_line(cursor.current_line), LineContext(
+            start_offset=6,
+            end_offset=11,
+            pos=6,
+        ))
 
-        rule = AttributeRule()
-        result = rule.try_open(ParsingContext(cursor, line))
+    def test_locate_line(self):
+        text = "hello\nworld\n  foo\n\nbar"
+        #       012345 678901 234567 8 901
 
-        for e in result.events:
-            print(e)
+        cursor = Cursor(text)
+        cursor.next_line()
+
+        actual = cursor.locate_line(8)
+        expected = LineContext(
+            start_offset=6,
+            end_offset=11,
+            pos=6,
+        )
+
+        self.assertEqual(actual, expected)
+
 
 
 if __name__ == '__main__':
