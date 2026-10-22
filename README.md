@@ -70,16 +70,47 @@ Markup languages like djot/markdown fall into neither of them. Each parsing step
 or several lines. I call it chunk-based advancement. This idea might be already discussed in compiler theory.
 I'm not sure since I haven't read enough theoretical books.
 
-## Explicitly closed element vs implicitly closed element
+## The lifecycle of state-driven vs syntax-drive elements
 
 Most block elements in djot (and also Markdown) are impplicitly closed elements.
-They are not closed until a new element is visible.
+They cannot be closed until a new element is visible.
 That's the purpose of the `close` callback method,
 passively closing previous elements.
-There are a few exceptoions, however, like fenced div and code block.
+There are a few exceptoions, however, like fenced div and code block, 
+which are syntactically difference from other elements.
+
+Containers likes table, list, paragraph do not have explicit closure symbol. 
+You don't know they are terminated until you see a new element. 
+That is, they don't know they are dead until new element is born.
+That's why then are closed mostly in `on_close` method: you have
+no way to figure out whether a container reached its end of life
+until you are ready to push a new sibling container.
+It's similar to how UI view works on iOS (or Android): a view does
+not know it might be destroyed until a new view is pushed on stack,
+hence `viewWillDisappear` triggered.
+For such elmenents, `continue` method of the container 
+could only tell whether it should yield to inner element or
+stop immediately.
+They could never tell whether they reached the end of life because
+there are no such markup for such hints.
+
 Those elements are expclitly close with closing markup.
 Their presence interrupted the meaning of `open`, `continue` and `close` workflow.
 Those elements deserve special treatment.
+
+However, fenced div and code block are one of few exceptions with
+a clear physical border declaring itself "I find myself reaching the end of life". `continue` could detect whether it should
+close itself in addition to yielding to inner element or stopping immediately.
+
+So a simple boolean value returned from `continue` 
+could hardly expression those state. 
+Those syntax-driven should at least return 3 states:
+
+- `CONTINUE`: yield to inner element
+- `STOP`: I cannot continue on the new element. But we should delay closing myself until we are sure there are no lazy content.
+- `CLOSE`: Find closing markup so I could be closed immediately.
+
+### Extra blankline in fenced div
 
 In the test file block.spec.ts, there is an extra event `{ startpos: 24, endpos: 24, annot: "blankline" }` on line 246.
 It is the position of newline char after ending colon:
