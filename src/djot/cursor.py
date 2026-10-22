@@ -4,6 +4,7 @@ import string
 from typing import List, Optional
 
 from .common import Range
+from .token import FencedDivToken
 
 @dataclass(slots=True, frozen=True)
 class MatchedRange:
@@ -406,11 +407,10 @@ class Cursor:
         return end
 
     def skip_space_tab(self, pos: int) -> int:
-        newpos = pos
         while pos < self.length and self.src[pos] in self._SPACE_TAB:
             pos += 1
 
-        return newpos
+        return pos
 
     def get_adjusted_text_start(self, indent: Optional[int]) -> int:
         if indent is None:
@@ -593,14 +593,73 @@ class Cursor:
     def find_next_bar_or_tick(self):
         return find(self.src, self._PATT_NEXT_BAR_OR_TICK, self.pos)
 
+    
     def find_div_fence_start(self) -> Optional[MatchedRange]:
         return find(self.src, self._PATT_DIV_FENCE_START, self.pos)
 
-    def find_div_fence_end(self, start: int) -> Optional[MatchedRange]:
-        return find(self.src, self._PATT_DIV_FENCE_END, start)
+    def find_div_start(self, pos: int) -> FencedDivToken | None:
+        if pos < 0 or pos >= self.length:
+            return None
+
+        if self.src[pos] != ':':
+            return None
+
+        # re.compile(r'(::::*)[ \t]*')
+        n_colons = self.count_char(':', pos)
+        if n_colons < 3:
+            return None
+
+        # After '::: '
+        non_space_pos = self.skip_space_tab(pos + n_colons)
+
+        # re.compile(r'([\w_-]*)[ \t]*\r?\n', flags=re.ASCII)
+        m = find(self.src, self._PATT_DIV_FENCE_END, non_space_pos)
+
+        if not m:
+            return None
+
+        clsp = m.start
+        lang = m.captures[0]
+
+        if len(lang) > 0:
+            lang_span = Range(
+                start=clsp,
+                end=clsp + len(lang) - 1,
+            )
+        else:
+            lang_span = None
+
+        return FencedDivToken(
+            colon_span=Range(
+                start=pos,
+                end=non_space_pos-1
+            ),
+            colon_num=n_colons,
+            lang_span=lang_span,
+        )
 
     def find_div_fence(self):
+        
         return find(self.src, self._PATT_DIV_FENCE, self.pos)
+
+    def find_div_end(self, pos: int):
+        # (::::*)[ \t]*\r?\n
+        if pos < 0 or pos >= self.length:
+            return None
+
+        if self.src[pos] != ':':
+            return None
+
+        n_colons = self.count_char(':', pos)
+        if n_colons < 3:
+            return None
+
+        if not self.is_ahead_blank(pos + n_colons):
+            return None
+
+        return n_colons
+
+        
 
     def find_code_fence(self):
         return find(self.src, self._PATT_CODE_FENCE, self.pos)
