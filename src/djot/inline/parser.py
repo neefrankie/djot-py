@@ -234,16 +234,7 @@ class InlineParser:
         
     def _feed_newline(self, pos: int, endpos: int) -> Optional[int]:
 
-        if self.state.cursor.is_cr_or_lf(pos):
-            if self.state.cursor.is_crlf(pos) and pos+1 <= endpos:
-                self.state.events.append(
-                    Event.leaf(
-                        span=Range(pos, pos+1),
-                        kind=InlineLeaf.SOFT_BREAK,
-                    )
-                )
-                return pos + 2
-            
+        if self.state.cursor.is_newline(pos):
             self.state.events.append(
                 Event.leaf(
                     span=Range(pos, pos),
