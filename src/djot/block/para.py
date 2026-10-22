@@ -47,7 +47,7 @@ class ParaRule(BlockRule):
 
     def on_continue(
         self,
-        container: BlockFrame,
+        frame: BlockFrame,
         ctx: ParsingContext
     ) -> ContinueResult:
         # TODO This won't handle all cases.
@@ -57,7 +57,7 @@ class ParaRule(BlockRule):
                 action=ContinueAction.STOP,
             )
         
-        container.update_closing_boundary(
+        frame.update_closing_boundary(
             ctx.cursor.line_end,
             ctx.cursor.line_end
         )
@@ -69,7 +69,7 @@ class ParaRule(BlockRule):
 
     def on_close(
         self, 
-        container: BlockFrame, 
+        frame: BlockFrame, 
         ctx: ParsingContext,
     ) -> List[Event]:
         # Actions performed in djot.js
@@ -77,13 +77,13 @@ class ParaRule(BlockRule):
         # 2. pop container
         # 3. query last event's endpos
         # 4. emit exit para event.
-        assert container.closing_boundary is not None
+        assert frame.closing_boundary is not None
         return [
             Event.exit(
                 kind=BlockContainer.PARA,
                 span=ctx.cursor.new_span(
-                    container.closing_boundary.start,
-                    container.closing_boundary.end,
+                    frame.closing_boundary.start,
+                    frame.closing_boundary.end,
                 )
             )
         ]

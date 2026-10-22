@@ -98,7 +98,7 @@ class FencedDivRule(BlockRule):
 
     def on_continue(
         self,
-        container: BlockFrame,
+        frame: BlockFrame,
         ctx: ParsingContext
     ) -> ContinueResult:
         """The lifecycle of state-driven vs syntax-drive elements
@@ -164,7 +164,7 @@ class FencedDivRule(BlockRule):
 
         # If data attached is not FencedDivData.
         # This should not happen but typing needs the guard.
-        if not isinstance(container.data, FencedDivData):
+        if not isinstance(frame.data, FencedDivData):
             return ContinueResult(
                 action=ContinueAction.CONTINUE,
             )
@@ -174,8 +174,8 @@ class FencedDivRule(BlockRule):
         # Because here we should actually signal that the fence div is closed!
         # However, in original djot.js implementation, it always delegate
         # to the close method for cleanup.
-        if len(colons) >= container.data.colons:
-            container.update_closing_boundary(
+        if len(colons) >= frame.data.colons:
+            frame.update_closing_boundary(
                 m.start,
                 m.start + len(colons) - 1
             )
@@ -193,15 +193,15 @@ class FencedDivRule(BlockRule):
 
     def on_close(
         self,
-        container: BlockFrame, 
+        frame: BlockFrame, 
         ctx: ParsingContext,
     ) -> List[Event]:
         sp = ctx.cursor.pos
         ep = ctx.cursor.pos
 
-        if container.closing_boundary:
-            sp = container.closing_boundary.start
-            ep = container.closing_boundary.end
+        if frame.closing_boundary:
+            sp = frame.closing_boundary.start
+            ep = frame.closing_boundary.end
 
         event = Event.exit(
             kind=BlockContainer.DIV,

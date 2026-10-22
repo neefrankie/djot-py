@@ -232,9 +232,9 @@ class BlockRule(ABC):
         pass
 
     @abstractmethod
-    def on_continue(self, container: BlockFrame, ctx: ParsingContext) -> ContinueResult:
+    def on_continue(self, frame: BlockFrame, ctx: ParsingContext) -> ContinueResult:
         pass
 
     @abstractmethod
-    def on_close(self, container: BlockFrame, ctx: ParsingContext) -> List[Event]:
+    def on_close(self, frame: BlockFrame, ctx: ParsingContext) -> List[Event]:
         pass

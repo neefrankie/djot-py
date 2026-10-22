@@ -90,7 +90,7 @@ class AttributeRule(BlockRule):
 
     def on_continue(
         self,
-        container: BlockFrame,
+        frame: BlockFrame,
         ctx: ParsingContext
     ) -> ContinueResult:
         # Since I don't permit newline inside attribute block,
@@ -102,7 +102,7 @@ class AttributeRule(BlockRule):
 
     def on_close(
         self, 
-        container: BlockFrame, 
+        frame: BlockFrame, 
         ctx: ParsingContext,
     ) -> List[Event]:
         return []

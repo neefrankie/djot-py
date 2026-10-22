@@ -124,24 +124,24 @@ class CodeBlockRule(BlockRule):
 
     def on_continue(
         self,
-        container: BlockFrame,
+        frame: BlockFrame,
         ctx: ParsingContext
     ) -> ContinueResult:
-        if not isinstance(container.data, CodeBlockData):
+        if not isinstance(frame.data, CodeBlockData):
             return ContinueResult(
                 action=ContinueAction.STOP,
             )
 
         # Similar to fenced div, if we didn't find ending markup,
         # yield to inner nodes.
-        m = ctx.cursor.find(container.data.close_pattern)
+        m = ctx.cursor.find(frame.data.close_pattern)
         if not m:
             return ContinueResult(
                 action=ContinueAction.CONTINUE,
             )
 
         # If we find ending token, it should stop at this container.
-        container.update_closing_boundary(m.start, m.start + len(m.captures[0]) - 1)
+        frame.update_closing_boundary(m.start, m.start + len(m.captures[0]) - 1)
 
         ctx.cursor.advance_pos(m.end)
 
@@ -152,15 +152,15 @@ class CodeBlockRule(BlockRule):
 
     def on_close(
         self, 
-        container: BlockFrame, 
+        frame: BlockFrame, 
         ctx: ParsingContext,
     ) -> List[Event]:
         sp = ctx.cursor.pos
         ep = ctx.cursor.pos
 
-        if container.closing_boundary:
-            sp = container.closing_boundary.start
-            ep = container.closing_boundary.end
+        if frame.closing_boundary:
+            sp = frame.closing_boundary.start
+            ep = frame.closing_boundary.end
 
         event = Event.exit(
             span=ctx.cursor.new_span(sp, ep),

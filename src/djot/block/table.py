@@ -362,20 +362,18 @@ class TableRule(BlockRule):
         events.extend(row_parsed)
         print(f'Row events: {len(events)}')
 
-        # cursor.advance_to_eol()
-        next_pos = cursor.line_end
-        
+        cursor.advance_pos(cursor.line_end)
+
         return OpenResult(
             status=OpenStatus.MATCH_AND_CONSUMED,
             frame=container,
             events=events,
             finished_line=True, # if we successfully parsed a row, the whole line is gobbled.
-            next_pos=next_pos
         )
 
     def on_continue(
         self,
-        container: BlockFrame,
+        frame: BlockFrame,
         ctx: ParsingContext
     ) -> ContinueResult:
         m = ctx.cursor.find_table_row()
@@ -395,25 +393,25 @@ class TableRule(BlockRule):
                 action=ContinueAction.STOP,
             )
 
-        container.update_closing_boundary(ctx.cursor.line_end, ctx.cursor.line_end)
+        frame.update_closing_boundary(ctx.cursor.line_end, ctx.cursor.line_end)
 
+        ctx.cursor.advance_pos(ctx.cursor.line_end)
         return ContinueResult(
             action=ContinueAction.CONTINUE,
             line_action=LineAction.CONSUMED,
             events=parsed_row,
-            next_pos=ctx.cursor.line_end,
         )
 
     def on_close(
         self, 
-        container: BlockFrame, 
+        frame: BlockFrame, 
         ctx: ParsingContext,
     ) -> List[Event]:
-        assert container.closing_boundary is not None
+        assert frame.closing_boundary is not None
         return [Event.exit(
             kind=BlockContainer.TABLE,
             span=ctx.cursor.new_span(
-                container.closing_boundary.start,
-                container.closing_boundary.end,
+                frame.closing_boundary.start,
+                frame.closing_boundary.end,
             )
         )]

@@ -50,18 +50,17 @@ class ThematicBreakRule(BlockRule):
             )
         )
 
-        next_pos = m.end
+        cursor.advance_pos(m.end)
         
         return OpenResult(
             status=OpenStatus.MATCH_AND_CONSUMED,
             frame=None,
             events=[event],
-            next_pos=next_pos,
         )
 
     def on_continue(
         self,
-        container: BlockFrame,
+        frame: BlockFrame,
         ctx: ParsingContext
     ) -> ContinueResult:
         return ContinueResult(
@@ -70,7 +69,7 @@ class ThematicBreakRule(BlockRule):
 
     def on_close(
         self, 
-        container: BlockFrame, 
+        frame: BlockFrame, 
         ctx: ParsingContext,
     ) -> List[Event]:
         return []

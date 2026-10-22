@@ -73,7 +73,7 @@ class HeadingRule(BlockRule):
         start = cursor.pos
         endchar = start + level - 1
 
-        next_pos = endchar + 1 # move to after ending #
+        cursor.advance_pos(endchar + 1) # after ending #
         
         return OpenResult(
             status=OpenStatus.MATCHED,
@@ -89,12 +89,11 @@ class HeadingRule(BlockRule):
                     span=cursor.new_span(start, endchar),
                 )
             ],
-            next_pos=next_pos,
         )
 
     def on_continue(
         self,
-        container: BlockFrame,
+        frame: BlockFrame,
         ctx: ParsingContext
     ) -> ContinueResult:
         level = ctx.cursor.count_char('#')
@@ -103,7 +102,7 @@ class HeadingRule(BlockRule):
                 action=ContinueAction.STOP,
             )
         
-        if not isinstance(container.data, HeadingData):
+        if not isinstance(frame.data, HeadingData):
             return ContinueResult(
                 action=ContinueAction.STOP,
             )
@@ -112,7 +111,7 @@ class HeadingRule(BlockRule):
         # you can split heading over multiple lines. 
         # The following lines do not need to have starting #.
         # In my opinion, the multi-line heading should not be allowed in the first place.
-        if container.data.level != level: 
+        if frame.data.level != level: 
             return ContinueResult(
                 action=ContinueAction.STOP,
             )
@@ -122,27 +121,28 @@ class HeadingRule(BlockRule):
                 action=ContinueAction.STOP,
             )
 
-        container.update_closing_boundary(ctx.cursor.line_end, ctx.cursor.line_end)
+        frame.update_closing_boundary(ctx.cursor.line_end, ctx.cursor.line_end)
         next_pos = ctx.cursor.pos + level # eat the leading #s
+
+        ctx.cursor.advance_pos(next_pos)
 
         return ContinueResult(
             action=ContinueAction.CONTINUE,
-            next_pos=next_pos,
         )
     
 
     def on_close(
         self, 
-        container: BlockFrame, 
+        frame: BlockFrame, 
         ctx: ParsingContext,
     ) -> List[Event]:
-        assert container.closing_boundary is not None
+        assert frame.closing_boundary is not None
 
         return [
             Event.exit(
                 span=ctx.cursor.new_span(
-                    container.closing_boundary.start,
-                    container.closing_boundary.end,
+                    frame.closing_boundary.start,
+                    frame.closing_boundary.end,
                 ),
                 kind=BlockContainer.HEADING
             )

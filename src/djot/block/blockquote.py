@@ -53,7 +53,7 @@ class BlockquoteRule(BlockRule):
 
     def on_continue(
         self,
-        container: BlockFrame,
+        frame: BlockFrame,
         ctx: ParsingContext
     ) -> ContinueResult:
         if not ctx.cursor.is_blockquote(ctx.cursor.pos):
@@ -61,7 +61,7 @@ class BlockquoteRule(BlockRule):
                 action=ContinueAction.STOP,
             )
 
-        container.update_closing_boundary(
+        frame.update_closing_boundary(
             ctx.cursor.line_end,
             ctx.cursor.line_end
         )
@@ -75,16 +75,16 @@ class BlockquoteRule(BlockRule):
 
     def on_close(
         self, 
-        container: BlockFrame, 
+        frame: BlockFrame, 
         ctx: ParsingContext,
     ) -> List[Event]:
-        assert container.closing_boundary is not None
+        assert frame.closing_boundary is not None
         return [
             Event.exit(
                 kind=BlockContainer.BLOCK_QUOTE,
                 span=ctx.cursor.new_span(
-                    container.closing_boundary.start,
-                    container.closing_boundary.end,
+                    frame.closing_boundary.start,
+                    frame.closing_boundary.end,
                 )
             )
         ]

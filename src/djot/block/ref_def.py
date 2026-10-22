@@ -92,15 +92,15 @@ class ReferenceDefinitionRule(BlockRule):
 
     def on_continue(
         self,
-        container: BlockFrame,
+        frame: BlockFrame,
         ctx: ParsingContext
     ) -> ContinueResult:
-        if not isinstance(container.data, RefDefData):
+        if not isinstance(frame.data, RefDefData):
             return ContinueResult(
                 action=ContinueAction.STOP,
             )
 
-        if container.data.indent >= ctx.cursor.indent: # previous line was indented more than this line
+        if frame.data.indent >= ctx.cursor.indent: # previous line was indented more than this line
             return ContinueResult(
                 action=ContinueAction.STOP,
             )
@@ -131,27 +131,26 @@ class ReferenceDefinitionRule(BlockRule):
             )
         )
 
-        container.update_closing_boundary(ctx.cursor.line_end, ctx.cursor.line_end)
+        frame.update_closing_boundary(ctx.cursor.line_end, ctx.cursor.line_end)
 
-        next_pos = ctx.cursor.line_end # \n
+        ctx.cursor.advance_pos(ctx.cursor.line_end) # \n
         
         return ContinueResult(
             action=ContinueAction.CONTINUE,
             events=[event],
-            next_pos=next_pos,
         )
 
     def on_close(
         self, 
-        container: BlockFrame, 
+        frame: BlockFrame, 
         ctx: ParsingContext,
     ) -> List[Event]:
-        assert container.closing_boundary is not None
+        assert frame.closing_boundary is not None
         return [Event.exit(
                 kind=BlockContainer.REFERENCE_DEFINITION,
                 span=ctx.cursor.new_span(
-                    container.closing_boundary.start,
-                    container.closing_boundary.end,
+                    frame.closing_boundary.start,
+                    frame.closing_boundary.end,
                 )
             )
         ]

@@ -85,15 +85,14 @@ class ListRule(BlockRule):
             status=OpenStatus.MATCHED,
             frame=container,
             events=[event],
-            next_pos=cursor.pos,
         )
 
     def on_continue(
         self,
-        container: BlockFrame,
+        frame: BlockFrame,
         ctx: ParsingContext
     ) -> ContinueResult:
-        if not isinstance(container.data, ListData):
+        if not isinstance(frame.data, ListData):
             return ContinueResult(
                 action=ContinueAction.STOP,
             )
@@ -102,9 +101,9 @@ class ListRule(BlockRule):
         # keep the container.
         # - one
         #   two
-        if ctx.cursor.indent > container.data.indent:
-            logger.debug(f'{ctx.cursor.pos}. ListRule.on_continue due to indentation: current indent: {ctx.cursor.indent}, previous indent: {container.data.indent}')
-            container.update_closing_boundary(
+        if ctx.cursor.indent > frame.data.indent:
+            logger.debug(f'{ctx.cursor.pos}. ListRule.on_continue due to indentation: current indent: {ctx.cursor.indent}, previous indent: {frame.data.indent}')
+            frame.update_closing_boundary(
                 ctx.cursor.line_end,
                 ctx.cursor.line_end,
             )
@@ -114,7 +113,7 @@ class ListRule(BlockRule):
 
         if ctx.cursor.is_eol_at(ctx.cursor.pos):
             logger.debug(f'{ctx.cursor.pos}. ListRule.on_continue due to blankline')
-            container.update_closing_boundary(
+            frame.update_closing_boundary(
                 ctx.cursor.line_end,
                 ctx.cursor.line_end,
             )
@@ -139,7 +138,7 @@ class ListRule(BlockRule):
         # 2. stop a list if styles changed.
         incoming_styles = parse_list_styles(marker)
         newstyles = intersect_list_styles(
-            container.data.styles,
+            frame.data.styles,
             incoming_styles
         )
 
@@ -148,9 +147,9 @@ class ListRule(BlockRule):
                 action=ContinueAction.STOP,
             )
 
-        container.data.styles = newstyles
+        frame.data.styles = newstyles
         
-        container.update_closing_boundary(
+        frame.update_closing_boundary(
             ctx.cursor.line_end,
             ctx.cursor.line_end,
         )
@@ -160,10 +159,10 @@ class ListRule(BlockRule):
 
     def on_close(
         self, 
-        container: BlockFrame, 
+        frame: BlockFrame, 
         ctx: ParsingContext,
     ) -> List[Event]:
-        assert container.closing_boundary is not None
+        assert frame.closing_boundary is not None
 
         return [
             Event.exit(
@@ -173,8 +172,8 @@ class ListRule(BlockRule):
                 # However, at EOF, it ends at EOF.
                 # A more reasonable position should always be the end of line of last list item.
                 span=ctx.cursor.new_span(
-                    container.closing_boundary.start,
-                    container.closing_boundary.end
+                    frame.closing_boundary.start,
+                    frame.closing_boundary.end
                 )
             )
         ]
@@ -256,19 +255,20 @@ class ListItemRule(BlockRule):
             # cursor.advance_to(sp+5)
             next_pos = sp+5
 
+        cursor.advance_pos(next_pos)
+
         return OpenResult(
             status=OpenStatus.MATCHED,
             frame=container,
             events=events,
-            next_pos=next_pos
         )
 
     def on_continue(
         self,
-        container: BlockFrame,
+        frame: BlockFrame,
         ctx: ParsingContext
     ) -> ContinueResult:
-        if not isinstance(container.data, ListData):
+        if not isinstance(frame.data, ListData):
             return ContinueResult(
                 action=ContinueAction.STOP,
             )
@@ -276,9 +276,9 @@ class ListItemRule(BlockRule):
         # A line indented should be taken as a continuation of previous list item.
         # - one
         #   - dash is plain text.
-        if ctx.cursor.indent > container.data.indent or ctx.cursor.is_eol_at(ctx.cursor.pos):
+        if ctx.cursor.indent > frame.data.indent or ctx.cursor.is_eol_at(ctx.cursor.pos):
             logger.debug(f"{ctx.cursor.pos}. ListItem.on_continue due to indent or blankline")
-            container.update_closing_boundary(
+            frame.update_closing_boundary(
                 ctx.cursor.line_end,
                 ctx.cursor.line_end,
             )
@@ -292,17 +292,17 @@ class ListItemRule(BlockRule):
 
     def on_close(
         self, 
-        container: BlockFrame, 
+        frame: BlockFrame, 
         ctx: ParsingContext,
     ) -> List[Event]:
-        assert container.closing_boundary is not None
+        assert frame.closing_boundary is not None
 
         return [
             Event.exit(
                 kind=BlockContainer.LIST_ITEM,
                 span=ctx.cursor.new_span(
-                    start=container.closing_boundary.start,
-                    end=container.closing_boundary.end,
+                    start=frame.closing_boundary.start,
+                    end=frame.closing_boundary.end,
                 )
             )
         ]
