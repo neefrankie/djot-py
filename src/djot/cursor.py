@@ -4,7 +4,12 @@ import string
 from typing import Final, List, Optional
 
 from .common import Range
-from .token import DivFenceToken, CodeFenceToken, RefDefToken
+from .token import (
+    DivFenceToken,
+    CodeFenceToken,
+    RefDefToken,
+    FootnoteDefToken,
+)
 
 @dataclass(slots=True, frozen=True)
 class MatchedRange:
@@ -78,7 +83,6 @@ class LineContext:
 class Cursor:
     
     _PATT_NON_WHITESPACE = re.compile(r'[^ \t\r\n]+')
-    _PATT_FOOTNOTE_START = re.compile(r'\[\^([^\]]+)\]:[ \t\r\n]')
     _PATT_THEMATIC_BREAK = re.compile(r'[-*][ \t]*[-*][ \t]*[-*][-* \t]*\r?\n')
     _PATT_LIST_MARKER = re.compile(
         r'(:?[-*+:]' # - or * or + or :, this group includes possible task list.
@@ -570,39 +574,58 @@ class Cursor:
 
         return nsp
 
-    def find_footnote_definition(self):
+    def find_footnote_def(self, start: int, endpos: int) -> FootnoteDefToken | None:
         # \[\^([^\]]+)\]:[ \t\r\n]
         # '[^foo]: '
-        if self.src[self.pos] != '[':
+        if start < 0 or endpos >= self.length or start >= endpos:
             return None
-        if self.pos + 1 >= self.length - 1:
-            return None
-        if self.src[self.pos+1] != '^':
+
+        # After [, there should be at least a ^, and a label char.
+        if start + 2 > endpos:
             return None
         
-        return find(self.src, self._PATT_FOOTNOTE_START, self.pos)
-
-    def find_footnote_def(self, pos: int, endpos: int):
-        # \[\^([^\]]+)\]:[ \t\r\n]
-        # '[^foo]: '
-        if self.src[self.pos] != '[':
-            return None
-        if self.pos + 1 >= self.length - 1:
-            return None
-        if self.src[self.pos+1] != '^':
+        if self.src[start] != '[':
             return None
 
-    def find_ref_def(self, pos: int, endpos: int):
+        if self.src[start+1] != '^':
+            return None
+
+        label_start = start + 2 # after ^
+        label_end = label_start # find right bracket.
+
+        while self.src[label_end] != ']' and label_end < endpos:
+            label_end += 1
+
+        if self.src[label_end] != ']':
+            return None
+
+        # Extra position for ': '
+        if label_end + 2 > endpos:
+            return None
+
+        if self.src[label_end+1] != ':':
+            return None
+
+        if self.src[label_end+2] not in self._WHITESPACE:
+            return None
+
+        return FootnoteDefToken(
+            label_span=Range(label_start, label_end-1), # foo
+            label=self.src[label_start:label_end], # foo
+            end_pos=label_end+2 # space aftr :
+        )
+
+    def find_ref_def(self, start: int, endpos: int):
         # \[([^\]\r\n]*)\]:([ \t]+[^ \t\r\n]*|)[\r\n]
         # The pipe in [ \t]+[^ \t\r\n]*| means the first part is optional.
         # [google]: https://google.com
-        if pos < 0 or endpos >= self.length or pos >= endpos:
+        if start < 0 or endpos >= self.length or start >= endpos:
             return None
 
-        if self.src[pos] != '[':
+        if self.src[start] != '[':
             return None
 
-        label_end = pos+1 # ]
+        label_end = start+1 # ]
 
         while self.src[label_end] not in ']\r\n' and label_end < endpos:
             label_end += 1
@@ -617,8 +640,8 @@ class Cursor:
         if self.src[label_end+1] != ':':
             return None
 
-        label_span = Range(pos, label_end) # includs the []
-        label = self.src[pos+1:label_end]
+        label_span = Range(start, label_end) # includs the []
+        label = self.src[start+1:label_end]
 
         # URL could go to next line
         if self.src[label_end+2] == '\n':
