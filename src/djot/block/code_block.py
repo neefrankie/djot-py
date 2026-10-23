@@ -1,19 +1,18 @@
+import copy
 from dataclasses import dataclass
-import re
 from typing import List
 
-from ..cursor import Cursor
-from ..event import (
+from djot.cursor import Cursor
+from djot.event import (
     BlockContainer,
     Event,
     InlineLeaf,
 )
-from ..logger import logger
+from djot.logger import logger
 
 from .container import ContainerCap
 from .frame import (
     BlockFrame,
-    CodeBlockData,
     OpenStatus,
     BlockRule,
     OpenResult,
@@ -59,23 +58,16 @@ class CodeBlockRule(BlockRule):
         # followed by optional space (capture 1), followed by
         # anything but whitespace or ` (capture 2),
         # followed by optional space, followed by newline.
-        m = cursor.find_code_fence()
-        if not m:
+        pos = cursor.pos
+        token = cursor.find_code_start(pos)
+        if not token:
             return OpenResult.not_matched()
-
-        border = m.captures[0] # ~~~ or ```
-        ws = m.captures[1] # whitespace after fence
-        lang = m.captures[2] # anything but whitespace
-        is_raw = lang.startswith('=') # =FORMAT
-        close_pattern = re.compile(r'(' + border + border[0:1] + r'*)' + r'[ \t]*[\r\n]')
 
         container = BlockFrame(
             rule=self,
+            start_pos=pos,
             indent=cursor.indent,
-            data=CodeBlockData(
-                close_pattern=close_pattern,
-            ),
-            start_pos=cursor.pos,
+            code_fence=token.borders,
             # For element with explicit closing markup,
             # we cannot record its closing boudnary here.
         )
@@ -83,38 +75,27 @@ class CodeBlockRule(BlockRule):
         events: List[Event] = [
             Event.enter( # ~~~ or ```
                 kind=BlockContainer.CODE_BLOCK,
-                span=cursor.new_span(
-                    m.start,
-                    m.start + len(border) - 1, 
-                )
+                span=copy.copy(token.border_span)
             )
         ]
 
-        if len(lang) > 0:
-            langstart = m.start + len(border) + len(ws)
-
-            if is_raw:
+        if token.lang_span:
+            if token.is_raw:
                 events.append( # =FORMAT
                     Event.leaf(
                         kind=InlineLeaf.RAW_FORMAT,
-                        span=cursor.new_span(
-                            langstart,
-                            langstart + len(lang) -1,
-                        )
+                        span=copy.copy(token.lang_span)
                     )
                 )
             else:
                 events.append(
                     Event.leaf(
                         kind=InlineLeaf.CODE_LANGUAGE,
-                        span=cursor.new_span(
-                            langstart,
-                            langstart + len(lang) - 1,
-                        )
+                        span=copy.copy(token.lang_span)
                     )
                 )
 
-        cursor.advance_pos(m.end)
+        cursor.advance_pos(cursor.line_end)
 
         return OpenResult(
             status=OpenStatus.MATCH_AND_CONSUMED,
@@ -127,24 +108,28 @@ class CodeBlockRule(BlockRule):
         frame: BlockFrame,
         ctx: ParsingContext
     ) -> ContinueResult:
-        if not isinstance(frame.data, CodeBlockData):
+        if frame.code_fence is None:
             return ContinueResult(
                 action=ContinueAction.STOP,
             )
 
         # Similar to fenced div, if we didn't find ending markup,
         # yield to inner nodes.
-        m = ctx.cursor.find(frame.data.close_pattern)
-        if not m:
+        pos = ctx.cursor.pos
+        span = ctx.cursor.find_code_end(pos, frame.code_fence)
+        if span is None:
             return ContinueResult(
                 action=ContinueAction.CONTINUE,
             )
+        
+        frame.update_closing_boundary(
+            span.start, 
+            span.end
+        )
+
+        ctx.cursor.advance_pos(ctx.cursor.line_end)
 
         # If we find ending token, it should stop at this container.
-        frame.update_closing_boundary(m.start, m.start + len(m.captures[0]) - 1)
-
-        ctx.cursor.advance_pos(m.end)
-
         return ContinueResult(
             action=ContinueAction.STOP,
             line_action=LineAction.CONSUMED,
