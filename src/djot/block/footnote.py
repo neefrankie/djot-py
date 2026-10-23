@@ -1,3 +1,4 @@
+import copy
 from dataclasses import dataclass
 from typing import List
 
@@ -46,41 +47,36 @@ class FootnoteRule(BlockRule):
     accepts_content: ContainerCap = ContainerCap.BLOCK
 
     def try_open(self, cursor: Cursor) -> OpenResult:
-        m = cursor.find_footnote_definition()
-        if m is None:
+
+        start = cursor.pos
+        token = cursor.find_footnote_def(start, cursor.line_end)
+        if token is None:
             return OpenResult.not_matched()
 
-        # '[^foo]: '
-        start_pos = m.start # [
-        end_pos = m.end # space aftr :
-        label = m.captures[0] # foo
         container = BlockFrame(
             rule=self,
             data=FootnoteData(
-                label=label,
+                label=token.label,
                 indent=cursor.indent,
             ),
-            start_pos=cursor.pos,
-            closing_boundary=Range(cursor.pos, cursor.line_end)
+            start_pos=start,
+            closing_boundary=Range(start, cursor.line_end)
         )
         events = [
             Event.enter( # [
                 kind=BlockContainer.FOOTNOTE,
                 span=cursor.new_span(
-                    start=start_pos,
-                    end=start_pos,
+                    start=start,
+                    end=start,
                 ),
             ), 
             Event.leaf( # foo
                 kind=InlineLeaf.NOTE_LABEL,
-                span=cursor.new_span(
-                    start=start_pos+2, # skip [^
-                    end=end_pos-3, # skip the last ]:\s
-                )
+                span=copy.copy(token.label_span)
             ) 
         ]
 
-        cursor.advance_pos(end_pos) # move to first space
+        cursor.advance_pos(token.end_pos) # move to first space
         return OpenResult(
             status=OpenStatus.MATCHED,
             frame=container,
