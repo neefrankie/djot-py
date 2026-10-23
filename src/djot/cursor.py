@@ -302,24 +302,10 @@ class Cursor:
     def find_previous_newline(self, pos: int) -> int:
         return self.src.rfind('\n', 0, pos) # -1 is valid.
 
-    # === Newline char ===
-
-    def is_newline(self, pos: int) -> bool:
-        if pos >= self.length:
-            return False
-        
-        return self.src[pos] == '\n'
-
-    def is_before_eol(self, pos: int) -> bool:
-        if pos >= self.length:
-            return False
-        
-        return pos < self.line_end
-
 
     # === Whitespace ===
 
-    def is_space(self, pos: int) -> bool:
+    def is_space_char(self, pos: int) -> bool:
         if pos >= self.length:
             return False
         
@@ -377,8 +363,19 @@ class Cursor:
 
         return self.src[pos] not in self._WHITESPACE
 
-    def find_non_whitespace(self) -> Optional[MatchedRange]:
-        return find(self.src, self._PATT_NON_WHITESPACE, self.pos)
+    def find_non_whitespace(self, start: int) -> Optional[MatchedRange]:
+        # [^ \t\r\n]+
+        return find(self.src, self._PATT_NON_WHITESPACE, start)
+
+    def has_space(self, start: int, line_end: int) -> bool:
+        line_slice = self.src[start:line_end]
+        if not line_slice:
+            return True
+        
+        if ' ' in line_slice or '\t' in line_slice:
+            return True
+
+        return False
 
     def right_find_space_tab(self, span: Range) -> int:
         """Find out trailing space starting position
@@ -467,6 +464,12 @@ class Cursor:
         return find(self.src, patt, self.pos)
 
     # === Char predicates ===
+
+    def is_newline(self, pos: int) -> bool:
+        if pos >= self.length:
+            return False
+        
+        return self.src[pos] == '\n'
 
     def is_word(self, pos: int) -> bool:
         return find(self.src, self._PATT_WORD, pos) is not None
