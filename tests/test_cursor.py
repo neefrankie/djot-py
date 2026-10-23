@@ -8,7 +8,8 @@ from djot.cursor import (
     LineContext,
 )
 from djot.token import (
-    FencedDivToken
+    DivFenceToken,
+    CodeFenceToken,
 )
 class TestCursor(unittest.TestCase):
     def test_new_line(self):
@@ -123,7 +124,7 @@ class TestCursor(unittest.TestCase):
 
         actual = cursor.find_div_start(0)
 
-        expected = FencedDivToken(
+        expected = DivFenceToken(
             colon_span=Range(
                 start=0,
                 end=4,
@@ -136,6 +137,86 @@ class TestCursor(unittest.TestCase):
         )
 
         self.assertEqual(actual, expected)
+
+    def test_code_start(self):
+        cases = [
+            (
+            #    012345678901
+                "```` python\n",
+                CodeFenceToken(
+                    border_span=Range(
+                        start=0,
+                        end=3,
+                    ),
+                    borders='````',
+                    lang_span=Range(
+                        start=5,
+                        end=10
+                    )
+                )
+            ),
+            (
+            #    01234
+                "````\n",
+                CodeFenceToken(
+                    border_span=Range(
+                        start=0,
+                        end=3,
+                    ),
+                    borders='````',
+                    lang_span=None
+                )
+            ),
+            (
+            #    012345678901
+                "```` =html\n",
+                CodeFenceToken(
+                    border_span=Range(
+                        start=0,
+                        end=3,
+                    ),
+                    borders='````',
+                    lang_span=Range(
+                        start=5,
+                        end=9
+                    ),
+                    is_raw=True
+                )
+            ),
+        ]
+
+        for text, expected in cases:
+            with self.subTest(text):
+                cursor = Cursor(text)
+                actual = cursor.find_code_start(0)
+                self.assertEqual(actual, expected)
+
+    def test_code_end(self):
+        cases = [
+            (
+            #    0123
+                "```\n",
+                "```",
+                Range(0, 2)
+            ),
+            (
+            #    01234
+                "```` \n",
+                "````",
+                Range(0, 3)
+            ),
+            (
+            #    01234
+                "```` \n",
+                "```",
+                None
+            ),
+        ]
+
+        for text, borders, expected in cases:
+            cursor = Cursor(text)
+            actual = cursor.find_code_end(0, borders)
+            self.assertEqual(actual, expected)
 
         
         
