@@ -20,3 +20,9 @@ class RefDefToken:
     label_span: Range
     label: str
     value_span: Range | None = None
+
+@dataclass(slots=True, frozen=True)
+class FootnoteDefToken:
+    label_span: Range
+    label: str
+    end_pos: int
