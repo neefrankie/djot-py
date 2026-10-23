@@ -113,14 +113,13 @@ class Cursor:
         r'''[\r\n"'()*+.:<=\[\\\]^_`${}~-]'''
     )
     # {=FORMAT}
-    _PATT_RAW_ATTRIBUTE = re.compile(r'\{=[^\s{}`]+\}', flags=re.ASCII)
+    _FORMAT_EXCLUDES = ' \t\r\n\v\f{}`'
     
     # <https://pandoc.org/lua-filters>
     # <me@example.com>
     _PATT_AUTOLINK = re.compile(r'<([^<>\s]+)>')
     
-    _PATT_SYMBOL = re.compile(r':[\w_+-]+:', flags=re.ASCII)
-    _SYMBOL_CHARS = string.ascii_letters + string.digits + "_+-"
+    _SYMBOL_CHARS: Final = frozenset(string.ascii_letters + string.digits + "_+-")
 
     _DELIMITERS = '_*~^+=\'"-'
     
@@ -805,21 +804,38 @@ class Cursor:
             end=end_pos,
         )
 
-    def find_raw_attribute(self, pos: int, endpos: int) -> Optional[MatchedRange]:
-        # re.compile(r'\{=[^\s{}`]+\}')
-        if pos < 0 or endpos >= self.length or pos > endpos:
+    def find_raw_attribute(self, start: int, limit: int) -> Optional[Range]:
+        # re.compile(r'\{=[^\s{}`]+\}', flags=re.ASCII)
+        # {=FORMAT}
+        if start < 0 or limit >= self.length or start >= limit:
             return None
 
-        if self.src[pos] != '{':
+        if self.src[start] != '{':
+            return None
+
+        if start + 3 > limit:
+            return None
+
+        if self.src[start+1] != '=':
+            return None
+
+        fmt_start = start + 2 # after '{='
+        fmt_end = fmt_start
+        while self.src[fmt_end] not in self._FORMAT_EXCLUDES:
+            if fmt_end >= limit:
+                return None
+            fmt_end += 1
+
+        if fmt_end == fmt_start:# not moved.
             return None
         
-        if pos + 1 >= endpos:
+        if self.src[fmt_end] != '}':
             return None
 
-        if self.src[pos+1] != '=':
-            return None
-
-        return find(self.src, self._PATT_RAW_ATTRIBUTE, pos, endpos)
+        return Range(
+            start=start,
+            end=fmt_end,
+        )
 
     def find_autolink(self, pos: int, endpos: int) -> Optional[MatchedRange]:
         # <([^<>\s]+)>
@@ -834,14 +850,23 @@ class Cursor:
         return find(self.src, self._PATT_AUTOLINK, pos, endpos)
 
 
-    def find_symbol(self, pos: int, endpos: int) -> Optional[MatchedRange]:
-        if self.src[pos] != ':':
+    def find_symbol(self, start: int, limit: int) -> Range | None:
+        # :smiley:
+        # re.compile(r':[\w_+-]+:', flags=re.ASCII)
+        if start < 0 or limit >= self.length or start > limit:
+            return None
+        
+        if self.src[start] != ':':
             return None
 
-        if pos + 1 > endpos or self.src[pos+1] not in self._SYMBOL_CHARS:
+        end = start + 1
+        while self.src[end] in self._SYMBOL_CHARS and end < limit:
+            end += 1
+
+        if self.src[end] != ':':
             return None
-        # re.compile(r':[\w_+-]+:', flags=re.ASCII)
-        return find(self.src, self._PATT_SYMBOL, pos, endpos)
+
+        return Range(start, end)
 
     def can_open_single_quote(self, pos: int) -> bool:
         """Checks if char at pos can be followed by single quote.
