@@ -4,7 +4,7 @@ import string
 from typing import Final, List, Optional
 
 from .common import Range
-from .token import DivFenceToken, CodeFenceToken
+from .token import DivFenceToken, CodeFenceToken, RefDefToken
 
 @dataclass(slots=True, frozen=True)
 class MatchedRange:
@@ -78,9 +78,7 @@ class LineContext:
 class Cursor:
     
     _PATT_NON_WHITESPACE = re.compile(r'[^ \t\r\n]+')
-    _PATT_CAPTION_START = re.compile(r'\^[ \t]+')
     _PATT_FOOTNOTE_START = re.compile(r'\[\^([^\]]+)\]:[ \t\r\n]')
-    _PATT_REFERENCE_DEFINITION = re.compile(r'\[([^\]\r\n]*)\]:([ \t]+[^ \t\r\n]*|)[\r\n]')
     _PATT_THEMATIC_BREAK = re.compile(r'[-*][ \t]*[-*][ \t]*[-*][-* \t]*\r?\n')
     _PATT_LIST_MARKER = re.compile(
         r'(:?[-*+:]' # - or * or + or :, this group includes possible task list.
@@ -105,18 +103,13 @@ class Cursor:
     _PATT_ROW_SEP = re.compile(r'(:?)--*(:?)([ \t]*\|[ \t]*)')
     _PATT_NEXT_BAR_OR_TICK = re.compile(r'[^`|\r\n]*(?:[|]|`+)')
     _PATT_WORD = re.compile(r'\w+\s')
-    
-    _PATT_DIV_FENCE_START = re.compile(r'(::::*)[ \t]*')
-    _PATT_DIV_FENCE_END = re.compile(r'([\w_-]*)[ \t]*\r?\n', flags=re.ASCII)
-    _PATT_DIV_FENCE = re.compile(r'(::::*)[ \t]*\r?\n')
-    _PATT_CODE_FENCE = re.compile(r'(~~~~*|````*)([ \t]*)([^ \t\r\n`]*)[ \t]*\r?\n')
 
     # Inline
     _RE_SPECIAL = re.compile(
         r'''[\r\n"'()*+.:<=\[\\\]^_`${}~-]'''
     )
     # {=FORMAT}
-    _PATT_RAW_ATTRIBUTE = re.compile(r'\{=[^\s{}`]+\}')
+    _PATT_RAW_ATTRIBUTE = re.compile(r'\{=[^\s{}`]+\}', flags=re.ASCII)
     
     # <https://pandoc.org/lua-filters>
     # <me@example.com>
@@ -132,7 +125,6 @@ class Cursor:
     # use short plain str is always optimal in Python.
     _WHITESPACE = ' \t\r\n'
     _SPACE_TAB = ' \t'
-    _CR_LF = '\r\n'
     _DIV_LANG_CHARS: Final = frozenset(string.ascii_letters + string.digits + "-")
     
     def __init__(self, src: str) -> None:
@@ -579,6 +571,7 @@ class Cursor:
         return nsp
 
     def find_footnote_definition(self):
+        # \[\^([^\]]+)\]:[ \t\r\n]
         # '[^foo]: '
         if self.src[self.pos] != '[':
             return None
@@ -589,8 +582,68 @@ class Cursor:
         
         return find(self.src, self._PATT_FOOTNOTE_START, self.pos)
 
-    def find_reference_definition(self):
-        return find(self.src, self._PATT_REFERENCE_DEFINITION, self.pos)
+    def find_footnote_def(self, pos: int, endpos: int):
+        # \[\^([^\]]+)\]:[ \t\r\n]
+        # '[^foo]: '
+        if self.src[self.pos] != '[':
+            return None
+        if self.pos + 1 >= self.length - 1:
+            return None
+        if self.src[self.pos+1] != '^':
+            return None
+
+    def find_ref_def(self, pos: int, endpos: int):
+        # \[([^\]\r\n]*)\]:([ \t]+[^ \t\r\n]*|)[\r\n]
+        # The pipe in [ \t]+[^ \t\r\n]*| means the first part is optional.
+        # [google]: https://google.com
+        if pos < 0 or endpos >= self.length or pos >= endpos:
+            return None
+
+        if self.src[pos] != '[':
+            return None
+
+        label_end = pos+1 # ]
+
+        while self.src[label_end] not in ']\r\n' and label_end < endpos:
+            label_end += 1
+
+        if self.src[label_end] != ']':
+            return None
+
+        # If label_end points to ], there should be at least ':\n' left.
+        if label_end+2 > endpos:
+            return None
+
+        if self.src[label_end+1] != ':':
+            return None
+
+        label_span = Range(pos, label_end) # includs the []
+        label = self.src[pos+1:label_end]
+
+        # URL could go to next line
+        if self.src[label_end+2] == '\n':
+            return RefDefToken(label_span, label, None)
+
+        # Should have a space after colon.
+        if self.src[label_end+2] not in self._SPACE_TAB:
+            return None
+
+        # Value should start after ': '.
+        val_start = label_end + 3
+
+        # Skip any leading space.
+        val_start = self.skip_space_tab(val_start)
+        val_end = val_start
+
+        while self.src[val_end] not in self._WHITESPACE and val_end < self.length:
+            val_end += 1
+
+        if self.src[val_end] != '\n':
+            return None
+
+        val_span = Range(val_start, val_end-1) if val_end > val_start else None
+
+        return RefDefToken(label_span, label, val_span)
 
     def find_thematic_break(self):
         return find(self.src, self._PATT_THEMATIC_BREAK, self.pos)
@@ -687,7 +740,7 @@ class Cursor:
         lang_start = self.skip_space_tab(pos + border_len)
         lang_end = lang_start
 
-        while self.src[lang_end] not in ' \t\r\n':
+        while self.src[lang_end] not in self._WHITESPACE:
             lang_end += 1
 
         if not self.is_ahead_blank(lang_end):
@@ -730,12 +783,31 @@ class Cursor:
         )
 
     def find_raw_attribute(self, pos: int, endpos: int) -> Optional[MatchedRange]:
+        # re.compile(r'\{=[^\s{}`]+\}')
+        if pos < 0 or endpos >= self.length or pos > endpos:
+            return None
+
+        if self.src[pos] != '{':
+            return None
+        
+        if pos + 1 >= endpos:
+            return None
+
+        if self.src[pos+1] != '=':
+            return None
+
         return find(self.src, self._PATT_RAW_ATTRIBUTE, pos, endpos)
 
     def find_autolink(self, pos: int, endpos: int) -> Optional[MatchedRange]:
         # <([^<>\s]+)>
         # <https://pandoc.org/lua-filters>
         # <me@example.com>
+        if pos < 0 or endpos >= self.length or pos > endpos:
+            return None
+
+        if self.src[pos] != '<':
+            return None
+        
         return find(self.src, self._PATT_AUTOLINK, pos, endpos)
 
 
@@ -745,10 +817,8 @@ class Cursor:
 
         if pos + 1 > endpos or self.src[pos+1] not in self._SYMBOL_CHARS:
             return None
-        
+        # re.compile(r':[\w_+-]+:', flags=re.ASCII)
         return find(self.src, self._PATT_SYMBOL, pos, endpos)
-
-    
 
     def can_open_single_quote(self, pos: int) -> bool:
         """Checks if char at pos can be followed by single quote.
