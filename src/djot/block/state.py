@@ -95,7 +95,7 @@ class BlockState:
         Retursn:
             List[Event]: The events collected in close step.
         """
-        logger.debug(f'Close container to depth {last_matched_idx}, current stack: {len(self.frame_stack)}')
+        
         events: List[Event] = []
 
         while self.frame_stack and last_matched_idx < len(self.frame_stack)-1:
@@ -115,7 +115,7 @@ class BlockState:
         new_frame: BlockFrame
     ) -> List[Event]:
         """Close sibling nodes when pushing a new container"""
-        logger.debug(f'close siblings of {new_frame}. current stack: {len(self.frame_stack)}')
+        
         events: List[Event] = []
 
         while self.frame_stack:
