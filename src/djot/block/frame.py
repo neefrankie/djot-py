@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum, auto
-import re
 from typing import Any, Generic, List, Optional, TypeVar
 
 from djot.cursor import Cursor
@@ -39,10 +38,6 @@ class ListData:
 class TableData:
     columns: int
 
-@dataclass(slots=True)
-class FencedDivData:
-    colons: int
-
 
 @dataclass(frozen=True)
 class ParsingContext:
@@ -73,6 +68,7 @@ class BlockFrame(Generic[T]):
     inline_parser: Optional[InlineParser] = None
 
     code_fence: str | None = None
+    div_colon: str | None = None
 
     def update_closing_boundary(self, start: int, end: int):
         self.closing_boundary = Range(start, end)
