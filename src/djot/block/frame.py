@@ -153,7 +153,10 @@ class LineAction(Enum):
     For CONSUMED, circirt-break and to to next line directly.
     """
     PROCEED = auto()
-    CONSUMED = auto()
+    # Use CONSUMED only when you actually consume the whole line in a continue method.
+    # Otherwise you might risk swallowing a new line.
+    # For example, if you do nothing in continue method, do not use it.
+    CONSUMED = auto() 
 
 @dataclass(slots=True, frozen=True)
 class ContinueResult:
@@ -169,6 +172,10 @@ class ContinueResult:
     # There are two exceptions: reference definition and table.
     events: List[Event] = field(default_factory=list)
     line_action: LineAction = LineAction.PROCEED
+
+    @classmethod
+    def stop(cls) -> 'ContinueResult':
+        return cls(action=ContinueAction.STOP)
 
 # In djot.js it is called BlockSpec.
 @dataclass
