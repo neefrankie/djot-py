@@ -1,3 +1,4 @@
+import copy
 from dataclasses import dataclass
 from typing import List
 
@@ -41,23 +42,27 @@ class ReferenceDefinitionRule(BlockRule):
     # followed by optional non-space, with newline at end.
 
     def try_open(self, cursor: Cursor) -> OpenResult:
-        m = cursor.find_reference_definition()
-        if m is None:
+        pos = cursor.pos
+        token = cursor.find_ref_def(pos, cursor.line_end)
+        if token is None:
             return OpenResult.not_matched()
+        
+        # m = cursor.find_reference_definition(pos)
+        # if m is None:
+        #     return OpenResult.not_matched()
 
-        label = m.captures[0] # anything inside []
-        value = m.captures[1].lstrip() # anything after :
+        # label = m.captures[0] # anything inside []
+        # value = m.captures[1].lstrip() # anything after :
         container = BlockFrame(
             rule=self,
             data=RefDefData(
-                key=label,
+                key=token.label,
                 indent=cursor.indent,
             ),
             start_pos=cursor.pos,
             closing_boundary=Range(cursor.pos, cursor.line_end),
         )
 
-        pos = cursor.pos
         events = [
             Event.enter( # [
                 kind=BlockContainer.REFERENCE_DEFINITION,
@@ -65,25 +70,35 @@ class ReferenceDefinitionRule(BlockRule):
             ),
             Event.leaf( # [foo]
                 kind=InlineLeaf.REFERENCE_KEY,
-                span=cursor.new_span(
-                    start=m.start,
-                    end=m.start + len(label) + 1
-                )
+                # span=cursor.new_span(
+                #     start=m.start,
+                #     end=m.start + len(label) + 1
+                # )
+                span=copy.copy(token.label_span)
             )
         ]
 
-        if len(value) > 0:
-            val_start = cursor.line_end - len(value)
-            val_end = cursor.line_end - 1
+        # if len(value) > 0:
+        #     val_start = cursor.line_end - len(value)
+        #     val_end = cursor.line_end - 1
+        #     events.append(
+        #         Event.leaf(
+        #             kind=InlineLeaf.REFERENCE_VALUE,
+        #             span=cursor.new_span(val_start, val_end)
+        #         )
+        #     )
+
+        if token.value_span:
             events.append(
                 Event.leaf(
                     kind=InlineLeaf.REFERENCE_VALUE,
-                    span=cursor.new_span(val_start, val_end)
+                    span=copy.copy(token.value_span)
                 )
             )
         
-        next_pos = cursor.line_end - 1 
+        next_pos = cursor.line_end 
         cursor.advance_pos(next_pos) # move to EOL
+        
         return OpenResult(
             status=OpenStatus.MATCHED,
             frame=container,
