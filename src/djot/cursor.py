@@ -628,21 +628,20 @@ class Cursor:
             return None
 
         # After '::: '
-        non_space_pos = self.skip_space_tab(pos + n_colons)
+        lang_start = self.skip_space_tab(pos + n_colons)
 
         # re.compile(r'([\w_-]*)[ \t]*\r?\n', flags=re.ASCII)
-        m = find(self.src, self._PATT_DIV_FENCE_END, non_space_pos)
+        m = find(self.src, self._PATT_DIV_FENCE_END, lang_start)
 
         if not m:
             return None
 
-        clsp = m.start
         lang = m.captures[0]
 
         if len(lang) > 0:
             lang_span = Range(
-                start=clsp,
-                end=clsp + len(lang) - 1,
+                start=lang_start,
+                end=lang_start + len(lang) - 1,
             )
         else:
             lang_span = None
@@ -650,30 +649,32 @@ class Cursor:
         return DivFenceToken(
             colon_span=Range(
                 start=pos,
-                end=non_space_pos-1
+                end=lang_start-1
             ),
-            colon_num=n_colons,
+            colons=self.src[pos:pos+n_colons],
             lang_span=lang_span,
         )
 
-    def find_div_end(self, pos: int) -> int | None:
+    def find_div_end(self, pos: int, borders: str) -> Range | None:
         # (::::*)[ \t]*\r?\n
         if pos < 0 or pos >= self.length:
             return None
 
-        if self.src[pos] != ':':
+        if not self.src.startswith(borders, pos):
             return None
 
-        n_colons = self.count_char(':', pos)
-        if n_colons < 3:
+        end_pos = pos + len(borders) - 1
+
+        if not self.is_ahead_blank(end_pos + 1):
             return None
 
-        if not self.is_ahead_blank(pos + n_colons):
-            return None
-
-        return n_colons
+        return Range(
+            start=pos,
+            end=end_pos
+        )
 
     def find_code_start(self, pos: int) -> CodeFenceToken | None:
+        # (~~~~*|````*)([ \t]*)([^ \t\r\n`]*)[ \t]*\r?\n
         if self.src[pos] != '`' and self.src[pos] != '~':
             return None
 
@@ -728,10 +729,6 @@ class Cursor:
             start=pos,
             end=end_pos,
         )
-
-    def find_code_fence(self, pos: int) -> MatchedRange | None:
-        # (~~~~*|````*)([ \t]*)([^ \t\r\n`]*)[ \t]*\r?\n
-        return find(self.src, self._PATT_CODE_FENCE, pos)
 
     def find_raw_attribute(self, pos: int, endpos: int) -> Optional[MatchedRange]:
         return find(self.src, self._PATT_RAW_ATTRIBUTE, pos, endpos)
