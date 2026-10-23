@@ -5,7 +5,7 @@ from djot.common import Range
 @dataclass(slots=True, frozen=True)
 class DivFenceToken:
     colon_span: Range
-    colon_num: int
+    colons: str
     lang_span: Range | None = None
 
 @dataclass(slots=True, frozen=True)
