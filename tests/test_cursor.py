@@ -129,7 +129,7 @@ class TestCursor(unittest.TestCase):
                 start=0,
                 end=4,
             ),
-            colon_num=4,
+            colons='::::',
             lang_span=Range(
                 start=5,
                 end=7
@@ -137,6 +137,34 @@ class TestCursor(unittest.TestCase):
         )
 
         self.assertEqual(actual, expected)
+
+    def test_div_end(self):
+        cases = [
+            (
+            #    0123
+                ":::\n",
+                ":::",
+                Range(0, 2)
+            ),
+            (
+            #    01234
+                ":::: \n",
+                "::::",
+                Range(0, 3)
+            ),
+            (
+            #    01234
+                "::: \n",
+                "::",
+                None
+            ),
+        ]
+
+        for text, borders, expected in cases:
+            with self.subTest(text):
+                cursor = Cursor(text)
+                actual = cursor.find_div_end(0, borders)
+                self.assertEqual(actual, expected)
 
     def test_code_start(self):
         cases = [
