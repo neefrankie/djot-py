@@ -10,6 +10,7 @@ from djot.cursor import (
 from djot.token import (
     DivFenceToken,
     CodeFenceToken,
+    RefDefToken,
 )
 class TestCursor(unittest.TestCase):
     def test_new_line(self):
@@ -245,6 +246,47 @@ class TestCursor(unittest.TestCase):
             cursor = Cursor(text)
             actual = cursor.find_code_end(0, borders)
             self.assertEqual(actual, expected)
+
+    def test_ref_def(self):
+        cases = [
+            (
+                #01234567890 12345
+                "[foo]: bar\n baz\n",
+                10,
+                RefDefToken(
+                    label_span=Range(
+                        start=0,
+                        end=4,
+                    ),
+                    label="foo",
+                    value_span=Range(
+                        start=7,
+                        end=9
+                    )
+                ),
+            ),
+            (
+                #0123456 7890
+                "[foo]:\n bar",
+                6,
+                RefDefToken(
+                    label_span=Range(
+                        start=0,
+                        end=4
+                    ),
+                    label="foo",
+                    value_span=None,
+                ),
+            ),
+        ]
+
+        for text, endpos, expected in cases:
+            with self.subTest(text):
+                cursor = Cursor(text)
+                actual = cursor.find_ref_def(0, endpos)
+                self.assertEqual(actual, expected)
+
+
 
         
         
