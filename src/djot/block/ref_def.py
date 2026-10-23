@@ -120,20 +120,16 @@ class ReferenceDefinitionRule(BlockRule):
                 action=ContinueAction.STOP,
             )
 
-        # Find URL split over multiple lines.
-        nws = ctx.cursor.find_non_whitespace()
         
         # Current position should not exceed the end of the line,
         # and content should be ended with a newline.
-        if not ctx.cursor.is_before_eol(ctx.cursor.pos):
+        if ctx.cursor.is_eol_reached:
             return ContinueResult(
                 action=ContinueAction.STOP,
             )
-        if not nws:
-            return ContinueResult(
-                action=ContinueAction.STOP,
-            )
-        if nws.end != ctx.cursor.line_end - 1: # non-whitespace extends to EOL.
+
+        start = ctx.cursor.pos # first non space char
+        if ctx.cursor.has_space(start, ctx.cursor.line_end):
             return ContinueResult(
                 action=ContinueAction.STOP,
             )
@@ -141,12 +137,15 @@ class ReferenceDefinitionRule(BlockRule):
         event = Event.leaf(
             kind=InlineLeaf.REFERENCE_VALUE,
             span=ctx.cursor.new_span(
-                start=ctx.cursor.pos,
+                start=start,
                 end=ctx.cursor.line_end - 1,
             )
         )
 
-        frame.update_closing_boundary(ctx.cursor.line_end, ctx.cursor.line_end)
+        frame.update_closing_boundary(
+            ctx.cursor.line_end,
+            ctx.cursor.line_end
+        )
 
         ctx.cursor.advance_pos(ctx.cursor.line_end) # \n
         
