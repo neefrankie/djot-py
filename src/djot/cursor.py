@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field, replace
 import re
 import string
-from typing import List, Optional
+from typing import Final, List, Optional
 
 from .common import Range
 from .token import DivFenceToken, CodeFenceToken
@@ -133,6 +133,7 @@ class Cursor:
     _WHITESPACE = ' \t\r\n'
     _SPACE_TAB = ' \t'
     _CR_LF = '\r\n'
+    _DIV_LANG_CHARS: Final = frozenset(string.ascii_letters + string.digits + "-")
     
     def __init__(self, src: str) -> None:
         src = src.replace('\r\n', '\n')
@@ -629,30 +630,28 @@ class Cursor:
 
         # After '::: '
         lang_start = self.skip_space_tab(pos + n_colons)
+        lang_end = lang_start
 
         # re.compile(r'([\w_-]*)[ \t]*\r?\n', flags=re.ASCII)
-        m = find(self.src, self._PATT_DIV_FENCE_END, lang_start)
+        # [\w_-] is equivalent to [a-zA-Z0-9_] plus -.
+        while self.src[lang_end] in self._DIV_LANG_CHARS:
+            lang_end += 1
 
-        if not m:
+        if not self.is_ahead_blank(lang_end):
             return None
 
-        lang = m.captures[0]
-
-        if len(lang) > 0:
-            lang_span = Range(
-                start=lang_start,
-                end=lang_start + len(lang) - 1,
-            )
-        else:
-            lang_span = None
+        colon_span = Range(
+            start=pos,
+            end=lang_start-1
+        )
 
         return DivFenceToken(
-            colon_span=Range(
-                start=pos,
-                end=lang_start-1
-            ),
+            colon_span=colon_span,
             colons=self.src[pos:pos+n_colons],
-            lang_span=lang_span,
+            lang_span=Range(
+                start=lang_start,
+                end=lang_end - 1,
+            ) if lang_end > lang_start else None,
         )
 
     def find_div_end(self, pos: int, borders: str) -> Range | None:
