@@ -69,7 +69,7 @@ class BackslashMatcher(Matcher):
             return next_pos + 1
 
         # non-breaking space
-        if pos + 1 <= endpos and state.cursor.is_space(pos+1):
+        if pos + 1 <= endpos and state.cursor.is_space_char(pos+1):
             state.events.append(
                 Event.leaf(
                     Range(pos, pos),

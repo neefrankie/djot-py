@@ -431,7 +431,7 @@ class InlineState:
         if not last_event.is_str:
             return
         
-        if not self.cursor.is_space(last_event.span.end):
+        if not self.cursor.is_space_char(last_event.span.end):
             return
 
         ep = self.cursor.right_find_space_char(last_event.span)
