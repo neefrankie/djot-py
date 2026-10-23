@@ -43,9 +43,6 @@ class TableData:
 class FencedDivData:
     colons: int
 
-@dataclass(slots=True)
-class CodeBlockData:
-    close_pattern: re.Pattern
 
 @dataclass(frozen=True)
 class ParsingContext:
@@ -74,6 +71,8 @@ class BlockFrame(Generic[T]):
     indent: Optional[int] = None
     data: Optional[T] = None
     inline_parser: Optional[InlineParser] = None
+
+    code_fence: str | None = None
 
     def update_closing_boundary(self, start: int, end: int):
         self.closing_boundary = Range(start, end)
