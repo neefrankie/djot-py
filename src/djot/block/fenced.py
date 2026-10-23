@@ -13,7 +13,6 @@ from ..logger import logger
 from .container import ContainerCap
 from .frame import (
     BlockFrame,
-    FencedDivData,
     OpenStatus,
     BlockRule,
     OpenResult,
@@ -56,10 +55,8 @@ class FencedDivRule(BlockRule):
 
         container = BlockFrame(
             rule=self,
-            data=FencedDivData(
-                colons=token.colon_num
-            ),
             start_pos=cursor.pos,
+            div_colon=token.colons
         )
 
         events: List[Event] = [
@@ -114,53 +111,36 @@ class FencedDivRule(BlockRule):
         # any closing markup for current fenced div.
         # So we should yield to inner nodes.
 
+        if not frame.div_colon:
+            return ContinueResult(
+                action=ContinueAction.CONTINUE,
+            )
+        
         start_pos = ctx.cursor.pos
-        n_colons = ctx.cursor.find_div_end(start_pos)
+        span = ctx.cursor.find_div_end(start_pos, frame.div_colon)
         
-        if n_colons is None:
+        if span is None:
             return ContinueResult(
                 action=ContinueAction.CONTINUE,
             )
 
-        
-        # If data attached is not FencedDivData.
-        # This should not happen but typing needs the guard.
-        if not isinstance(frame.data, FencedDivData):
-            return ContinueResult(
-                action=ContinueAction.CONTINUE,
-            )
 
-        # colons = m.captures[0]
         # Why do we save the ending symbol span?
         # Because here we should actually signal that the fence div is closed!
         # However, in original djot.js implementation, it always delegate
         # to the close method for cleanup.
-        # if len(colons) >= frame.data.colons:
-        if n_colons >= frame.data.colons:
-            frame.update_closing_boundary(
-                start_pos,
-                start_pos + n_colons - 1
-            )
-            
-            ctx.cursor.advance_pos(ctx.cursor.line_end) # \n
-            return ContinueResult(
-                action=ContinueAction.STOP,
-                line_action=LineAction.CONSUMED,
-                # events=[
-                #     Event.exit(
-                #         ctx.cursor.new_span(
-                #             start_pos,
-                #             start_pos + n_colons - 1
-                #         ),
-                #         BlockContainer.DIV,
-                #     )
-                # ]
-                # TODO: can we emit events here?
-            )
-
-        return ContinueResult(
-            action=ContinueAction.CONTINUE,
+        frame.update_closing_boundary(
+            span.start,
+            span.end
         )
+        
+        ctx.cursor.advance_pos(ctx.cursor.line_end) # \n
+        return ContinueResult(
+            action=ContinueAction.STOP,
+            line_action=LineAction.CONSUMED,
+            # TODO: can we emit events here?
+        )
+
 
     def on_close(
         self,
