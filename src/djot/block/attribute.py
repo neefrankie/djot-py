@@ -93,11 +93,23 @@ class AttributeRule(BlockRule):
         frame: BlockFrame,
         ctx: ParsingContext
     ) -> ContinueResult:
-        # Since I don't permit newline inside attribute block,
-        # we don've even have to check this.
+        """
+        There's a potential problem in a special case:
+
+        {.bar}
+        {#foo}
+
+        In the first line, you created a frame and pushed it on stack.
+        Then in continue method, you set action to CLOSE and line_action to CONSUMED.
+        When it comes to the second line, it will try this frame's continue mmethod.
+        It find out it should close so it stops and pop all frame from this one.
+        And then it find out line_action is consumed, so it will jump directly to the next line.
+        No open is even tried for the second line.
+
+        The solution is never creating a frame if you are sure you have finished a block in open stage.
+        """
         return ContinueResult(
-            action=ContinueAction.CLOSE,
-            line_action=LineAction.CONSUMED,
+            action=ContinueAction.STOP,
         )
 
     def on_close(
