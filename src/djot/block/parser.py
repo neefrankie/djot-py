@@ -74,7 +74,6 @@ class EventParser:
         
         events: List[Event] = []
 
-        logger.debug(f'--- Stage: check continuation ---')
         # 1. Check container continuation (Step 1)
         frame = self._check_continuations()
         logger.debug(f'Frame after continuation: {frame}')
@@ -86,7 +85,7 @@ class EventParser:
             logger.debug(f'--- Finished a line due to continuation')
             return events
 
-        logger.debug(f'--- Stage: try open ----')
+        logger.debug(f'=== Stage: try open ===\n')
         # Check for new container
         frame = self._try_open_new_frame(
             frame.last_matched_idx
@@ -97,10 +96,10 @@ class EventParser:
         
         # Stop if the whole line is eaten.
         if frame.finished_line:
-            logger.debug(f'--- Finished a line due to open')
+            logger.debug(f'=== Cosumed a line due to open ===\n')
             return events
 
-        logger.debug(f'--- Stage: handle lazy content ---')
+        logger.debug(f'=== Stage: handle lazy content ===\n')
         close_events = self._close_unmatched_if_not_lazy(
             last_matched_idx=frame.last_matched_idx,
             new_starts_created=frame.new_starts_created
@@ -108,14 +107,14 @@ class EventParser:
 
         events.extend(close_events)
 
-        logger.debug(f'--- Stage: consume rest line ---')
+        logger.debug(f'=== Stage: consume rest line ===\n')
         # add paragraph by default if there's text
         text_events = self._consume_line_text(
             last_matched_idx=frame.last_matched_idx,
         )
         events.extend(text_events)
 
-        logger.debug('--- Finished processing a line ---')
+        logger.debug('=== Finished processing a line ===\n')
         return events
 
     def _check_continuations(self) -> LineStepFrame:
@@ -131,7 +130,7 @@ class EventParser:
         djot.js makes implicit assumption that any continue method will
         either move the cursor to EOL, or does not move it any all.
         """
-        logger.debug(f'{self.state.cursor.pos}. Start checking continuation stack {len(self.state.frame_stack)}')
+        logger.debug(f'## {self.state.cursor.pos}: Check continuation stack {len(self.state.frame_stack)}\n')
 
         last_matched_idx = -1
         line_is_finished = False
@@ -142,7 +141,8 @@ class EventParser:
         has_raw_barrierr = (self.state.raw_barrier_idx != -1)
 
         for idx, frame in enumerate(self.state.frame_stack):
-            
+
+            logger.debug(f'@ {self.state.cursor.pos}: try continue on {frame}')
             # 1. Prepare cursor for rule
             self.state.cursor.skip_frame_space()
 
@@ -156,7 +156,7 @@ class EventParser:
                 is_covered=is_covered,
             ))
 
-            logger.debug(f'{self.state.cursor.pos}. {frame} continue result: {cont_res}')
+            logger.debug(f'Continue result: {cont_res}')
 
             if cont_res.line_action == LineAction.CONSUMED:
                 line_is_finished = True
@@ -165,17 +165,21 @@ class EventParser:
 
             match cont_res.action:
                 case ContinueAction.STOP:
+                    logger.debug(f'{frame} at {idx} stops continuation')
                     break
 
                 case ContinueAction.CLOSE:
                     is_explicit_close = True
+                    logger.debug(f'{frame} at {idx} requires explicit close')
                     break
 
                 case ContinueAction.CONTINUE:
+                    logger.debug(f'@ {self.state.cursor.pos}: continue to next frame')
                     last_matched_idx = idx
 
 
         if is_explicit_close:
+            logger.debug(f'Explicit close stack to {last_matched_idx}')
             close_events = self.state.close_frame_to_depth(last_matched_idx)
             # Ensure proper order since continued events
             # should not come before previous elements' closed events.
@@ -188,14 +192,14 @@ class EventParser:
         )
 
     def _try_open_new_frame(self, last_matched_idx: int) -> LineStepFrame:
-        logger.debug(f'{self.state.cursor.pos} --- Try open new containers')
+        logger.debug(f'## {self.state.cursor.pos}: Try open new containers\n')
         self.state.cursor.skip_frame_space()
 
         # In djot.js, it uses let isBlank = (self.pos === self.starteol);
         # However, the logic here is not actually ask if the line is blank.
         # It is asking if the rest of line is blank, or Residual Blank Line
         if self.state.cursor.is_eol_reached:
-            logger.debug(f'{self.state.cursor.pos}. Current cursor has moved to EOL after skipping leading space. Stop trying to open any container.')
+            logger.debug(f'Current cursor has moved to EOL after skipping leading space. Stop trying to open any container.')
             return LineStepFrame(last_matched_idx=last_matched_idx)
 
         # If found last matched container, but the container does not allow
@@ -207,6 +211,7 @@ class EventParser:
 
         # Why finding words stops?
         if self.state.cursor.is_word(self.state.cursor.pos):
+            logger.debug(f'Found a word. Stop trying to open any container.')
             return LineStepFrame(last_matched_idx=last_matched_idx)
 
         # Cascade Open
@@ -231,10 +236,10 @@ class EventParser:
         while True:
             more_frames_required = False
 
-            logger.debug(f'{self.state.cursor.pos} --- Start trying rule')
+            logger.debug(f'### {self.state.cursor.pos}: Start trying rule\n')
 
             for rule in self.block_rules:
-                logger.debug(f'{self.state.cursor.pos}. 📣 Try new rule {rule.__class__.__name__}')
+                logger.debug(f'@ {self.state.cursor.pos}: Try new rule {rule.__class__.__name__}')
                 # Check relationship to parent element.
                 is_type_matched = (
                     rule.can_be_root()
@@ -248,11 +253,11 @@ class EventParser:
 
                 match result.status:
                     case OpenStatus.NOT_MATCHED:
-                        logger.debug(f'{self.state.cursor.pos}. {rule.__class__.__name__} cannot open')
+                        logger.debug(f'XX {rule.__class__.__name__} cannot open')
                         continue
 
                     case OpenStatus.FALLBACK:
-                        logger.debug(f'{self.state.cursor.pos}. {rule.__class__.__name__} fallback.')
+                        logger.debug(f'?? {rule.__class__.__name__} fallback.')
                         _, para_events = self._open_para(last_matched_idx)
 
                         last_matched_idx = self.state.last_frame_index
@@ -264,7 +269,7 @@ class EventParser:
                         )
 
                     case OpenStatus.MATCHED:
-                        logger.debug(f'{self.state.cursor.pos}. {rule.__class__.__name__} matched.')
+                        logger.debug(f'OK {rule.__class__.__name__} matched.')
 
                         events.extend(self._handle_matched(last_matched_idx, result))
                         if result.frame is not None:
@@ -284,10 +289,12 @@ class EventParser:
                             )
 
                     case OpenStatus.MATCH_AND_CONSUMED:
+                        logger.debug(f'OK. {rule.__class__.__name__} matched and consumed the whole line.')
                         events.extend(self._handle_matched(last_matched_idx, result))
 
                         if result.frame is not None:
                             last_matched_idx = self.state.last_frame_index
+                        
                         return LineStepFrame(
                             last_matched_idx=last_matched_idx,
                             finished_line=True,
@@ -295,10 +302,9 @@ class EventParser:
                             events=events,
                         )
 
-            logger.debug(f'{self.state.cursor.pos}. Exhausted all rules.')
+            logger.debug(f'--- Finihsed a round of trying all rules. Needs more try: {more_frames_required}')
 
             if not more_frames_required:
-                logger.debug(f'{self.state.cursor.pos}. No rule applicable. Fallthrough.')
                 break
         
         return LineStepFrame(
@@ -311,17 +317,20 @@ class EventParser:
         self, 
         last_matched_idx: int,
         result: OpenResult
-    ):
+    ): 
+        logger.debug(f'!! Close frame to depth {last_matched_idx}. Current stack: {len(self.state.frame_stack)}')
         events = self.state.close_frame_to_depth(
             last_matched_idx,
         )
 
         if result.frame is not None:
+            logger.debug(f'!! Close siblings of {result.frame}. Current stack: {len(self.state.frame_stack)}')
             sibling_events = self.state.close_frame_to_parent(
                 result.frame,
             )
             events.extend(sibling_events)
             self.state.push_frame(result.frame)
+            logger.debug(f'$$ Pushed {result.frame} to stack. Current stack: {len(self.state.frame_stack)}')
 
         events.extend(result.events)
 
@@ -353,10 +362,10 @@ class EventParser:
             and tip.rule.accepts_inline_only() # paragraph, heading, caption
         )
 
-        logger.debug(f'{self.state.cursor.pos}. Is lazy content? {is_lazy}.')
+        logger.debug(f'## {self.state.cursor.pos}: Is lazy content? {is_lazy}.\n')
 
         if not is_lazy:
-            logger.debug(f'{self.state.cursor.pos}. Not lazy content. Close frames to {last_matched_idx}.')
+            logger.debug(f'Not lazy content. Close frames to {last_matched_idx}.')
             
             events = self.state.close_frame_to_depth(last_matched_idx)
 
@@ -468,7 +477,7 @@ class EventParser:
 
     def parse(self) -> Iterator[Event]:
         while self.state.cursor.next_line():
-            logger.debug(f'▶ Start a newline: {self.state.cursor} ===')
+            logger.debug(f'>>> Started a newline: {self.state.cursor}')
 
             line_events = self.process_line()
 
@@ -477,6 +486,6 @@ class EventParser:
 
         logger.debug(f'{self.state.cursor.pos}. Cleanup.')
         for event in self.state.close_frame_to_depth(-1):
-            logger.debug(f'{self.state.cursor.pos}. ✅Close frame event: {event}')
+            logger.debug(f'{self.state.cursor.pos}. Close frame event: {event}')
             yield event
 
