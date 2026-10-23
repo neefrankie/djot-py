@@ -304,6 +304,19 @@ class TestCursor(unittest.TestCase):
             end_pos=8,
         ))
 
+    def test_symbol(self):
+        text = ":symbol:"
+        #       01234567
+
+        cursor = Cursor(text)
+
+        actual = cursor.find_symbol(0, len(text))
+
+        self.assertEqual(actual, Range(
+            start=0,
+            end=7
+        ))
+
 
         
         
