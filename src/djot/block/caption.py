@@ -33,17 +33,17 @@ class CaptionRule(BlockRule):
     accepts_content: ContainerCap = ContainerCap.INLINE
 
     def try_open(self, cursor: Cursor) -> OpenResult:
-        m = cursor.find_caption_start()
-        if not m:
+        start_pos = cursor.pos
+
+        next_pos = cursor.find_caption_start(start_pos)
+        if not next_pos:
             return OpenResult.not_matched()
 
         container = BlockFrame(
             rule=self,
-            start_pos=m.start,
+            start_pos=cursor.pos,
             closing_boundary=Range(cursor.pos, cursor.line_end)
         )
-
-        next_pos = m.end + 1 # the first char after space
         
         event = Event.enter(
             kind=BlockContainer.CAPTION,

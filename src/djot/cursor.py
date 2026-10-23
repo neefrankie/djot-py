@@ -484,10 +484,20 @@ class Cursor:
 
     def is_left_brace(self, pos: int) -> bool:
         return self.src[pos] == '{'
-    
+
     def is_right_brace(self, pos: int) -> bool:
         return self.src[pos] == '}'
 
+    def has_brace(self, i: int) -> bool:
+        if 1 <= i < self.length and self.src[i-1] == '{':
+            return True
+
+        if 0 <= i < self.length - 1 and self.src[i+1] == '}':
+            return True
+
+        return False
+    
+    
     # re.compile(r'''['!"#%&\\'()*+,\-./:;<=>?@\[\]^`{|}~']''')
     def is_ascii_punct(self, pos: int) -> bool:
         if pos >= self.length:
@@ -549,11 +559,23 @@ class Cursor:
     def is_pipe(self, i: int) -> bool:
         return self.src[i] == '|'
 
-    
+    def find_caption_start(self, pos: int) -> int | None:
+        """
+        '^ ' starts a caption. However, the token is dropped.
+        Caption starts after this token.
+        """
+        if self.src[pos] != '^':
+            return None
 
-    def find_caption_start(self) -> Optional[MatchedRange]:
-        """Matches ^ followed by any number of space or tab"""
-        return find(self.src, self._PATT_CAPTION_START, self.pos)
+        if pos + 1 >= self.length:
+            return None
+
+        if self.src[pos+1] not in self._SPACE_TAB:
+            return None
+
+        nsp = self.skip_space_tab(pos+1)
+
+        return nsp
 
     def find_footnote_definition(self):
         # '[^foo]: '
@@ -593,10 +615,6 @@ class Cursor:
     def find_next_bar_or_tick(self):
         return find(self.src, self._PATT_NEXT_BAR_OR_TICK, self.pos)
 
-    
-    def find_div_fence_start(self) -> Optional[MatchedRange]:
-        return find(self.src, self._PATT_DIV_FENCE_START, self.pos)
-
     def find_div_start(self, pos: int) -> FencedDivToken | None:
         if pos < 0 or pos >= self.length:
             return None
@@ -604,7 +622,7 @@ class Cursor:
         if self.src[pos] != ':':
             return None
 
-        # re.compile(r'(::::*)[ \t]*')
+        # Equivalent to original regex (::::*)[ \t]*
         n_colons = self.count_char(':', pos)
         if n_colons < 3:
             return None
@@ -637,10 +655,6 @@ class Cursor:
             colon_num=n_colons,
             lang_span=lang_span,
         )
-
-    def find_div_fence(self):
-        
-        return find(self.src, self._PATT_DIV_FENCE, self.pos)
 
     def find_div_end(self, pos: int):
         # (::::*)[ \t]*\r?\n
@@ -683,15 +697,7 @@ class Cursor:
         
         return find(self.src, self._PATT_SYMBOL, pos, endpos)
 
-    def has_brace(self, i: int) -> bool:
-
-        if 1 <= i < self.length and self.src[i-1] == '{':
-            return True
-
-        if 0 <= i < self.length - 1 and self.src[i+1] == '}':
-            return True
-
-        return False
+    
 
     def can_open_single_quote(self, pos: int) -> bool:
         """Checks if char at pos can be followed by single quote.
