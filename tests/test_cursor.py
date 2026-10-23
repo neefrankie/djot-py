@@ -11,6 +11,7 @@ from djot.token import (
     DivFenceToken,
     CodeFenceToken,
     RefDefToken,
+    FootnoteDefToken,
 )
 class TestCursor(unittest.TestCase):
     def test_new_line(self):
@@ -286,6 +287,22 @@ class TestCursor(unittest.TestCase):
                 actual = cursor.find_ref_def(0, endpos)
                 self.assertEqual(actual, expected)
 
+    def test_fn_def(self):
+        text = "[^note]: This is a"
+        #       0123456789
+
+        cursor = Cursor(text)
+
+        actual = cursor.find_footnote_def(0, 8)
+
+        self.assertEqual(actual, FootnoteDefToken(
+            label_span=Range(
+                start=2,
+                end=5
+            ),
+            label="note",
+            end_pos=8,
+        ))
 
 
         
