@@ -4,7 +4,7 @@ import string
 from typing import List, Optional
 
 from .common import Range
-from .token import FencedDivToken
+from .token import DivFenceToken, CodeFenceToken
 
 @dataclass(slots=True, frozen=True)
 class MatchedRange:
@@ -615,7 +615,7 @@ class Cursor:
     def find_next_bar_or_tick(self):
         return find(self.src, self._PATT_NEXT_BAR_OR_TICK, self.pos)
 
-    def find_div_start(self, pos: int) -> FencedDivToken | None:
+    def find_div_start(self, pos: int) -> DivFenceToken | None:
         if pos < 0 or pos >= self.length:
             return None
 
@@ -647,7 +647,7 @@ class Cursor:
         else:
             lang_span = None
 
-        return FencedDivToken(
+        return DivFenceToken(
             colon_span=Range(
                 start=pos,
                 end=non_space_pos-1
@@ -656,7 +656,7 @@ class Cursor:
             lang_span=lang_span,
         )
 
-    def find_div_end(self, pos: int):
+    def find_div_end(self, pos: int) -> int | None:
         # (::::*)[ \t]*\r?\n
         if pos < 0 or pos >= self.length:
             return None
@@ -673,10 +673,65 @@ class Cursor:
 
         return n_colons
 
-        
+    def find_code_start(self, pos: int) -> CodeFenceToken | None:
+        if self.src[pos] != '`' and self.src[pos] != '~':
+            return None
 
-    def find_code_fence(self):
-        return find(self.src, self._PATT_CODE_FENCE, self.pos)
+        border_char = self.src[pos]
+
+        border_len = self.count_char(border_char, pos)
+
+        if border_len < 3:
+            return None
+
+        lang_start = self.skip_space_tab(pos + border_len)
+        lang_end = lang_start
+
+        while self.src[lang_end] not in ' \t\r\n':
+            lang_end += 1
+
+        if not self.is_ahead_blank(lang_end):
+            return None
+
+        border_span = Range(
+            start=pos,
+            end=pos + border_len - 1,
+        )
+        is_raw = self.src[lang_start] == '='
+
+        token = CodeFenceToken(
+            border_span=border_span,
+            borders=self.src[pos:pos+border_len],
+            lang_span=Range(
+                start=lang_start,
+                end=lang_end - 1
+            ) if lang_end > lang_start else None,
+            is_raw=is_raw,
+        )
+
+        return token
+
+    def find_code_end(self, pos: int, borders: str) -> Range | None:
+        # (~~~~*|````*)[ \t]*\r?\n
+        if pos < 0 or pos >= self.length:
+            return None
+
+        if not self.src.startswith(borders, pos):
+            return None
+
+        end_pos = pos + len(borders) - 1
+
+        if not self.is_ahead_blank(end_pos + 1):
+            return None
+
+        return Range(
+            start=pos,
+            end=end_pos,
+        )
+
+    def find_code_fence(self, pos: int) -> MatchedRange | None:
+        # (~~~~*|````*)([ \t]*)([^ \t\r\n`]*)[ \t]*\r?\n
+        return find(self.src, self._PATT_CODE_FENCE, pos)
 
     def find_raw_attribute(self, pos: int, endpos: int) -> Optional[MatchedRange]:
         return find(self.src, self._PATT_RAW_ATTRIBUTE, pos, endpos)
