@@ -14,3 +14,9 @@ class CodeFenceToken:
     borders: str
     lang_span: Range | None = None
     is_raw: bool = False
+
+@dataclass(slots=True, frozen=True)
+class RefDefToken:
+    label_span: Range
+    label: str
+    value_span: Range | None = None
