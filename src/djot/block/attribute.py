@@ -4,7 +4,8 @@ from typing import List
 from djot.cursor import Cursor
 from djot.attributes import (
     AttributeParser,
-    AttrStatus
+    AttrStatus,
+    AttrParseResult,
 )
 from djot.event import (
     Event,
@@ -23,6 +24,38 @@ from .frame import (
     ParsingContext,
 )
 
+def parse_attributes(
+    cursor: Cursor,
+    parser: AttributeParser,
+) -> AttrParseResult:
+    
+    current_line = cursor.current_line
+
+    initial_indented_column = current_line.current_column
+
+    res = parser.feed(current_line.pos, current_line.end_offset)
+
+    while res.status == AttrStatus.CONTINUE:
+        next_line = cursor.peek_line(current_line)
+        if next_line is None: # no more lines
+            return AttrParseResult(
+                status=AttrStatus.FAIL,
+                position=res.position,
+            )
+
+        next_line = cursor.skip_space(next_line)
+        # Multiple lines attributes should be indented.
+        if next_line.current_column <= initial_indented_column:
+            return AttrParseResult(
+                status=AttrStatus.FAIL,
+                position=res.position,
+            )
+        
+        # res.DONE and res.FAIL should break the loop
+        res = parser.feed(next_line.pos, next_line.end_offset)
+        current_line = next_line
+
+    return res
 
 @dataclass
 class AttributeRule(BlockRule):
@@ -42,6 +75,9 @@ class AttributeRule(BlockRule):
         res = attribute_parser.feed(start, cursor.line_end)
 
         match res.status:
+            case AttrStatus.CONTINUE:
+                raise Exception('Unexpected continue status for attributes parsing')
+            
             case AttrStatus.FAIL:
                 return OpenResult(
                     status=OpenStatus.FALLBACK,
