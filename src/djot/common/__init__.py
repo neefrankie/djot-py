@@ -21,6 +21,6 @@ from .list_style import (
     TaskStyle,
     ListKind,
     ListStyle,
-    parse_list_styles,
     intersect_list_styles,
+    classify_ordinal,
 )

@@ -1,9 +1,9 @@
 from enum import Enum, StrEnum, auto
 from dataclasses import dataclass
-import re
 from typing import List, NamedTuple
 
-# --- 1. Enumerations ---
+_LOWER_ROMAN = "ivxlcdm"
+_UPPER_ROMAN = "IVXLCDM"
 
 class OrdinalKind(StrEnum):
     DECIMAL = '1'    # 1, 2, 3
@@ -72,7 +72,6 @@ class ListKind(Enum):
     DEFINITION = auto()
     ORDERED = auto()
 
-# --- 2. Target Specifications ---
 
 @dataclass(frozen=True, slots=True)
 class ListStyle:
@@ -80,6 +79,36 @@ class ListStyle:
     bullet: BulletKind | None = None
     task: TaskStyle | None = None
     ordered: OrderedStyle | None = None
+
+    @classmethod
+    def new_defition(cls) -> 'ListStyle':
+        return ListStyle(
+            list_type=ListKind.DEFINITION,
+        )
+
+    @classmethod
+    def new_bullet(cls, marker: str) -> 'ListStyle':
+        return cls(
+            list_type=ListKind.BULLET,
+            bullet=BulletKind(marker),
+        )
+
+    @classmethod
+    def new_task(cls, marker: str, checker: str) -> 'ListStyle':
+        return cls(
+            list_type=ListKind.TASK,
+            task=TaskStyle(
+                bullet=BulletKind(marker),
+                checkbox=CheckboxKind(checker),
+            ),
+        )
+
+    @classmethod
+    def new_ordered(cls, ordinal: OrdinalKind, delimiter: str) -> 'ListStyle':
+        return cls(
+            list_type=ListKind.ORDERED,
+            ordered=OrderedStyle(ordinal, DelimiterKind(delimiter)),
+        )
 
     @property
     def is_task(self) -> bool:
@@ -110,182 +139,44 @@ class ListStyle:
                 assert self.ordered is not None
                 return str(self.ordered)
 
-# --- 3. Intermediate Helper Types ---
 
-class ParsedMarker(NamedTuple):
-    """
-    Tuple of decomposed marker.
-    """
-    delimiter: DelimiterKind # ., ), or ()
-    ordinal: str # after stripping '.', ')' or '()'
-
-# --- 4. Parser Implementation ---
-
-_BULLET_MARKER = '+-*'
-_TASK_CHECKER = {' [ ]', ' [x]', ' [X]'}
-_PATT_DECIMAL = re.compile(r'[0-9]+')
-_LOWER_ROMAN_SINGLE = {'i', 'v', 'x', 'l', 'c', 'd', 'm'}
-_UPPER_ROMAN_SINGLE = {'I', 'V', 'X', 'L', 'C', 'D', 'M'}
-
-# Verify the validity of roman numerals with two or more characters
-_PATT_MULTI_LOWER_ROMAN = re.compile(r'[ivxlcdm]+')
-_PATT_MULTI_UPPER_ROMAN = re.compile(r'[IVXLCDM]+')
-
-def parse_task_marker(marker: str) -> TaskStyle | None:
-    """
-    - [ ]
-    01234
-    - [X]
-    - [x]
-    * [ ]
-    * [X]
-    * [x]
-    + [ ]
-    + [X]
-    + [x]
-    """
-    if len(marker) == 5 and marker[0] in _BULLET_MARKER and marker[1:] in _TASK_CHECKER:
-        return TaskStyle(
-            bullet=BulletKind(marker[0]),
-            checkbox=CheckboxKind(marker[3]),
-        )
-    return None
-
-
-def parse_ordinal_style(ordinal: str) -> List[OrdinalKind]:
-    """
-    Args:
-        ordinal: the string after stripping all delimiters.
-
-    Returns:
-        Candidates of ordered styles.
-        When there are multiple candidates,
-        the ambiguity should be resolved by following items.
-        In case of resoling failure, the first one is selected.
-    """
-    # 1., 1), (1)
-    if _PATT_DECIMAL.fullmatch(ordinal):
-        return [OrdinalKind.DECIMAL]
-
-    length = len(ordinal)
-    if length == 0:
-        return []
-
-    if length == 1:
-        ch = ordinal
-        if ch in _LOWER_ROMAN_SINGLE:
-            # i, v, x... could be either roman numeral or alpha
+def classify_ordinal(ordinal: str) -> List[OrdinalKind]:
+    if len(ordinal) == 1:
+        if '0' <= ordinal <= '9':
+            return [OrdinalKind.DECIMAL]
+        
+        if ordinal in _LOWER_ROMAN:
             return [
                 OrdinalKind.LOWER_ROMAN,
                 OrdinalKind.LOWER_ALPHA
             ]
 
-        if ch in _UPPER_ROMAN_SINGLE:
-            # I, V, X... could be either roman numeral or alpha
+        if ordinal in _UPPER_ROMAN:
             return [
                 OrdinalKind.UPPER_ROMAN,
                 OrdinalKind.UPPER_ALPHA
             ]
-        if 'a' <= ch <= 'z':
+
+        if 'a' <= ordinal <= 'z':
             return [OrdinalKind.LOWER_ALPHA]
-        if 'A' <= ch <= 'Z':
+        if 'A' <= ordinal <= 'Z':
             return [OrdinalKind.UPPER_ALPHA]
         return []
 
-    # 3. Mutiple characters like ii, ix, xiv or AA, BC)
-    # Roman numeral takes precedence over alpha
+    if all(c in _LOWER_ROMAN for c in ordinal):
+        return [OrdinalKind.LOWER_ROMAN]
+
+    if all (c in _UPPER_ROMAN for c in ordinal):
+        return [OrdinalKind.UPPER_ROMAN]
+
     if all('a' <= c <= 'z' for c in ordinal):
-        if _PATT_MULTI_LOWER_ROMAN.fullmatch(ordinal):
-            return [OrdinalKind.LOWER_ROMAN]
-        # Multiple English characters are usually not allowed to be used in lists.
-        return []
+        return [OrdinalKind.LOWER_ALPHA]
 
     if all('A' <= c <= 'Z' for c in ordinal):
-        if _PATT_MULTI_UPPER_ROMAN.fullmatch(ordinal):
-            return [OrdinalKind.UPPER_ROMAN]
-        return []
+        return [OrdinalKind.UPPER_ALPHA]
 
     return []
 
-
-def parse_ordered_delimiter(marker: str) -> ParsedMarker | None:
-    if marker[0] == '(' and marker[-1] == ')':
-        return ParsedMarker(
-            delimiter=DelimiterKind.TWO_PARENS,
-            ordinal=marker[1:-1]
-        )
-    
-    if marker[-1] == ')':
-        return ParsedMarker(
-            delimiter=DelimiterKind.PAREN,
-            ordinal=marker[:-1]
-        )
-
-    if marker[-1] == '.':
-        return ParsedMarker(
-            delimiter=DelimiterKind.PERIOD,
-            ordinal=marker[:-1]
-        )
-
-    return None
-
-
-def parse_ordered_marker(marker: str) -> List[OrderedStyle] | None:
-    parsed = parse_ordered_delimiter(marker)
-    if not parsed:
-        return None
-
-    delimiter, ordinal = parsed
-    ordinals = parse_ordinal_style(ordinal)
-
-    if not ordinals:
-        return None
-
-    return [
-        OrderedStyle(
-            ordinal=o,
-            delimiter=delimiter
-        )
-        for o in ordinals
-    ]
-
-    
-def parse_list_styles(marker: str) -> List[ListStyle]:
-    if marker in _BULLET_MARKER:
-        return [
-            ListStyle(
-                list_type=ListKind.BULLET,
-                bullet=BulletKind(marker)
-            )
-        ]
-    if marker == ':':
-        return [
-            ListStyle(
-                list_type=ListKind.DEFINITION,
-            )
-        ]
-
-    task_style = parse_task_marker(marker)
-    if task_style:
-        return [
-            ListStyle(
-                list_type=ListKind.TASK,
-                task=task_style
-            )
-        ]
-
-    ordered_styles = parse_ordered_marker(marker)
-
-    if ordered_styles is not None:
-        return [
-            ListStyle(
-                list_type=ListKind.ORDERED,
-                ordered=s,
-            )
-            for s in ordered_styles
-        ]
-
-    return []
 
 def intersect_list_styles(
     current: List[ListStyle],
