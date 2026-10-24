@@ -14,6 +14,7 @@ from .token import (
     RefDefToken,
     FootnoteDefToken,
     ListMarkerToken,
+    AutoLinkToken,
 )
 
 @dataclass(slots=True, frozen=True)
@@ -103,18 +104,9 @@ class Cursor:
     )
     # {=FORMAT}
     _FORMAT_EXCLUDES = ' \t\r\n\v\f{}`'
-    
-    # <https://pandoc.org/lua-filters>
-    # <me@example.com>
-    _PATT_AUTOLINK = re.compile(r'<([^<>\s]+)>')
-    
+    _ANGLE_BRACKETS = '<>'
     _SYMBOL_CHARS: Final = frozenset(string.ascii_letters + string.digits + "_+-")
-
     _DELIMITERS = '_*~^+=\'"-'
-    
-    # Replace `const pattNonspace = pattern("[^ \t\r\n]")` in djot.js.
-    # When you want to determine if a single char is space,
-    # use short plain str is always optimal in Python.
     _WHITESPACE = ' \t\r\n'
     _SPACE_TAB = ' \t'
     _DIV_LANG_CHARS: Final = frozenset(string.ascii_letters + string.digits + "-")
@@ -848,7 +840,7 @@ class Cursor:
             end=fmt_end,
         )
 
-    def find_autolink(self, pos: int, endpos: int) -> Optional[MatchedRange]:
+    def find_autolink(self, pos: int, endpos: int) -> Optional[AutoLinkToken]:
         # <([^<>\s]+)>
         # <https://pandoc.org/lua-filters>
         # <me@example.com>
@@ -857,8 +849,30 @@ class Cursor:
 
         if self.src[pos] != '<':
             return None
-        
-        return find(self.src, self._PATT_AUTOLINK, pos, endpos)
+
+        start = pos
+
+        pos += 1 # consume '<'
+        while pos <= endpos:
+            if self.src[pos] in self._WHITESPACE:
+                return None
+
+            if self.src[pos] == '<':
+                return None
+
+            if self.src[pos] == '>':
+                break
+
+            pos += 1
+
+        if pos > endpos:
+            return None
+
+        return AutoLinkToken(
+            start=start,
+            end=pos,
+            url=self.src[start+1:pos],
+        )
 
 
     def find_symbol(self, start: int, limit: int) -> Range | None:
