@@ -53,6 +53,7 @@ class State(Enum):
 class AttrStatus(Enum):
     DONE = 0
     FAIL = 1
+    CONTINUE = 2
 
 @dataclass(slots=True, frozen=True)
 class AttrParseResult:
