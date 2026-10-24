@@ -116,7 +116,8 @@ class OpenResult:
     """
     status: OpenStatus
     events: List[Event] = field(default_factory=list)
-    frame: Optional[BlockFrame] = None
+    frame: BlockFrame | None = None
+    fallback_span: Range | None = None
     
     def __repr__(self) -> str:
         return f'RuleResult(status={self.status.name}, new events: {len(self.events)}, new container: {self.frame})'
