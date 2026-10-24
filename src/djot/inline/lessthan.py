@@ -36,54 +36,50 @@ class LessthanMatcher(Matcher):
     """
 
     def __call__(self, state: InlineState, pos: int, endpos: int) -> Optional[int]:
-        m = state.cursor.find_autolink(pos, endpos)
-        if m is None:
+        token = state.cursor.find_autolink(pos, endpos)
+        if token is None:
             return None
 
-        starturl = m.start
-        endurl = m.end
-        url = m.captures[0]
-
-        if is_email(url):
+        if is_email(token.url):
             state.push_event(
                 Event.enter(
-                    Range(starturl, starturl),
+                    Range(token.start, token.start),
                     InlineContainer.EMAIL
                 )
             ) # <
             state.push_event(
                 Event.leaf(
-                    Range(starturl+1, endurl-1),
+                    Range(token.start+1, token.end-1),
                     InlineLeaf.STR
                 )
             ) # email
             state.push_event(
                 Event.exit(
-                    Range(endurl, endurl), 
+                    Range(token.end, token.end), 
                     InlineContainer.EMAIL
                 )
             ) # >
-            return endurl+1 # after  >
+            return token.end+1 # after  >
         
-        if is_url(url):
+        if is_url(token.url):
             state.push_event(
                 Event.enter(
-                    Range(starturl, starturl),
+                    Range(token.start, token.start),
                     InlineContainer.URL
                 )
             ) # <
             state.push_event(
                 Event.leaf(
-                    Range(starturl+1, endurl-1),
+                    Range(token.start+1, token.end-1),
                     InlineLeaf.STR
                 )
             ) # url
             state.push_event(
                 Event.exit(
-                    Range(endurl, endurl),
+                    Range(token.end, token.end),
                     InlineContainer.URL
                 )
             ) # >
-            return endurl+1 # after >
+            return token.end+1 # after >
         
         return None
