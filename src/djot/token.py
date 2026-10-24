@@ -43,3 +43,9 @@ class ListMarkerToken:
             return ''
 
         return self.marker[3]
+
+@dataclass(slots=True, frozen=True)
+class AutoLinkToken:
+    start: int
+    end: int
+    url: str
