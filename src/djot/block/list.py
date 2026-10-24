@@ -1,3 +1,4 @@
+import copy
 from typing import List
 from dataclasses import dataclass
 from typing import List
@@ -11,7 +12,6 @@ from djot.event import (
 from djot.logger import logger
 from djot.common import Range
 from djot.common.list_style import (
-    parse_list_styles,
     intersect_list_styles
 )
 
@@ -37,26 +37,9 @@ class ListRule(BlockRule):
     accepts_content: ContainerCap = ContainerCap.LIST_ITEM
 
     def try_open(self, cursor: Cursor) -> OpenResult:
-        m = cursor.find_list_marker() # matches the marker followed by a whitespace.
-        if not m:
-            return OpenResult.not_matched()
-        start_pos = m.start
-        end_pos = m.end # whitespace
-        marker = cursor.src[start_pos:end_pos] # content before whitespace.
-        # A bullete list item that begins with [ ], [X] or [x]
-        # followed by a space is a task list item.
-        # - [ ]
-        # - [X]
-        # - [x]
-        # 01234
-        mtask = cursor.find_task_list_marker()
-        if mtask is not None:
-            marker = cursor.src[mtask.start:mtask.start + 5] # '- [ ]'
 
-
-        styles = parse_list_styles(marker)
-        logger.debug(f'⏺ styles: {styles!r}')
-        if styles is None:
+        token = cursor.parse_list(cursor.pos, cursor.line_end)
+        if token is None:
             return OpenResult.not_matched()
         
         container = BlockFrame(
@@ -64,7 +47,7 @@ class ListRule(BlockRule):
             start_pos=cursor.pos,
             closing_boundary=Range(cursor.line_end, cursor.line_end),
             data=ListData(
-                styles=styles,
+                styles=token.styles.copy(),
                 indent=cursor.indent
             )
         )
@@ -74,11 +57,8 @@ class ListRule(BlockRule):
 
         event = Event.enter(
             kind=BlockContainer.LIST,
-            span=cursor.new_span(
-                start=start_pos,
-                end=end_pos - 1, # ignore trailing space.
-            ),
-        ).with_list_styles(styles)
+            span=copy.copy(token.item_span)
+        ).with_list_styles(token.styles.copy())
 
         # NOTE: cursor is not moved.
         return OpenResult(
@@ -121,22 +101,17 @@ class ListRule(BlockRule):
                 action=ContinueAction.CONTINUE,
             )
 
-        m = ctx.cursor.find_list_marker()
-        if m is None:
+        token = ctx.cursor.parse_list(ctx.cursor.pos, ctx.cursor.line_end)
+        if token is None:
             return ContinueResult(
                 action=ContinueAction.STOP,
             )
-
-        marker = ctx.cursor.src[m.start:m.end]
-        mtask = ctx.cursor.find_task_list_marker()
-        if mtask is not None:
-            marker = ctx.cursor.src[mtask.start:mtask.start + 5]
 
         # If new styles does not include previous style, drop it.
         # This plays two roles:
         # 1. narrow down styles based on later items
         # 2. stop a list if styles changed.
-        incoming_styles = parse_list_styles(marker)
+        incoming_styles = token.styles
         newstyles = intersect_list_styles(
             frame.data.styles,
             incoming_styles
@@ -189,28 +164,8 @@ class ListItemRule(BlockRule):
         A list item consists of a list marker, followed by a space (or a newline)
         followed by one or more lines, indented relative to the list marker.
         """
-        m = cursor.find_list_marker()
-        if m is None:
-            return OpenResult.not_matched()
-        
-        sp = m.start
-        ep = m.end
-        marker = cursor.src[sp:ep]
-        checkbox = None
-
-        # # perform second search from current pos
-        # Why it perfroms a second search only after find_list_marker succeeded?
-        # A task marker must starts with one of `*`, `+` or `-`.
-        # In find_list_marker, there is a group of match for [-*+:],
-        # so if find_list_marker fails, no need to try find_task_marker.
-        # If find_task_marker matches, then find_list_marker must succeed.
-        mtask = cursor.find_task_list_marker() 
-        if mtask is not None:
-            marker = cursor.src[mtask.start:mtask.end+5] # - [X]
-            checkbox = cursor.src[mtask.start+3] # ' ', 'x', 'X'
-
-        styles = parse_list_styles(marker)
-        if len(styles) == 0:
+        token = cursor.parse_list(cursor.pos, cursor.line_end)
+        if token is None:
             return OpenResult.not_matched()
 
         container = BlockFrame(
@@ -218,44 +173,30 @@ class ListItemRule(BlockRule):
             start_pos=cursor.pos,
             closing_boundary=Range(cursor.line_end, cursor.line_end),
             data=ListData(
-                styles=styles,
+                styles=token.styles.copy(),
                 indent=cursor.indent
             )
         )
-        # TODO: Container is added at this point.
-        # So previous container close point happens here!
-        # You cannot rely the cursor.pos after the method finished.
+
         events: List[Event] = [
             Event.enter(
                 kind=BlockContainer.LIST_ITEM,
-                span=cursor.new_span(
-                    start=sp,
-                    end=ep-1 # For checkbox, ep only points to the space after one of -, * or +
-                ),
-            ).with_list_styles(styles)
+                # '-', '(1)', '1)', '1.'
+                span=copy.copy(token.item_span)
+            ).with_list_styles(token.styles.copy())
         ]
-        # cursor.advance_to(ep)
-        next_pos = ep
 
         # - [X]
-        # LISTE_ITEM
-        # CHECKBOX
-        # LIST_ITEM
-        if checkbox is not None:
+        if token.checkbox_span is not None:
             # For checkbox, its range only includes [X]
             events.append(
                 Event.leaf(
-                    span=cursor.new_span(
-                        start=sp+2, # TODO: review if this is correct
-                        end=sp+4 # the number of chars in checkbox is fixed, so we don't have to be bothered with recording mtask.end.
-                    ),
                     kind=InlineLeaf.CHECKBOX,
-                ).with_checkbox(checkbox==' ')
+                    span=copy.copy(token.checkbox_span),
+                ).with_checkbox(token.checker==' ')
             )
-            # cursor.advance_to(sp+5)
-            next_pos = sp+5
 
-        cursor.advance_pos(next_pos)
+        cursor.advance_pos(token.end)
 
         return OpenResult(
             status=OpenStatus.MATCHED,
