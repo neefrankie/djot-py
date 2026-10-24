@@ -247,6 +247,14 @@ class Cursor:
 
     # === Locate line ===
 
+    def skip_space(self, line: LineContext) -> LineContext:
+        newpos = line.pos
+
+        while newpos < line.end_offset and self.src[newpos] in self._SPACE_TAB:
+            newpos += 1
+
+        return replace(line, pos=newpos)
+
     def peek_line(self, previous: LineContext) -> LineContext | None:
         if previous.end_offset >= self.length:
             return None
