@@ -46,10 +46,10 @@ class ListRule(BlockRule):
             rule=self,
             start_pos=cursor.pos,
             closing_boundary=Range(cursor.line_end, cursor.line_end),
-            data=ListData(
+            list_data=ListData(
                 styles=token.styles.copy(),
                 indent=cursor.indent
-            )
+            ),
         )
         # In djot.js. container is added here.
         # So anything unmatched container will
@@ -72,7 +72,8 @@ class ListRule(BlockRule):
         frame: BlockFrame,
         ctx: ParsingContext
     ) -> ContinueResult:
-        if not isinstance(frame.data, ListData):
+
+        if frame.list_data is None:
             return ContinueResult(
                 action=ContinueAction.STOP,
             )
@@ -81,8 +82,8 @@ class ListRule(BlockRule):
         # keep the container.
         # - one
         #   two
-        if ctx.cursor.indent > frame.data.indent:
-            logger.debug(f'{ctx.cursor.pos}. ListRule.on_continue due to indentation: current indent: {ctx.cursor.indent}, previous indent: {frame.data.indent}')
+        if ctx.cursor.indent > frame.list_data.indent:
+            logger.debug(f'{ctx.cursor.pos}. ListRule.on_continue due to indentation: current indent: {ctx.cursor.indent}, previous indent: {frame.list_data.indent}')
             frame.update_closing_boundary(
                 ctx.cursor.line_end,
                 ctx.cursor.line_end,
@@ -113,7 +114,7 @@ class ListRule(BlockRule):
         # 2. stop a list if styles changed.
         incoming_styles = token.styles
         newstyles = intersect_list_styles(
-            frame.data.styles,
+            frame.list_data.styles,
             incoming_styles
         )
 
@@ -122,7 +123,7 @@ class ListRule(BlockRule):
                 action=ContinueAction.STOP,
             )
 
-        frame.data.styles = newstyles
+        frame.list_data.styles = newstyles
         
         frame.update_closing_boundary(
             ctx.cursor.line_end,
@@ -172,7 +173,7 @@ class ListItemRule(BlockRule):
             rule=self,
             start_pos=cursor.pos,
             closing_boundary=Range(cursor.line_end, cursor.line_end),
-            data=ListData(
+            list_data=ListData(
                 styles=token.styles.copy(),
                 indent=cursor.indent
             )
@@ -209,7 +210,7 @@ class ListItemRule(BlockRule):
         frame: BlockFrame,
         ctx: ParsingContext
     ) -> ContinueResult:
-        if not isinstance(frame.data, ListData):
+        if frame.list_data is None:
             return ContinueResult(
                 action=ContinueAction.STOP,
             )
@@ -217,7 +218,7 @@ class ListItemRule(BlockRule):
         # A line indented should be taken as a continuation of previous list item.
         # - one
         #   - dash is plain text.
-        if ctx.cursor.indent > frame.data.indent or ctx.cursor.is_newline(ctx.cursor.pos):
+        if ctx.cursor.indent > frame.list_data.indent or ctx.cursor.is_newline(ctx.cursor.pos):
             logger.debug(f"{ctx.cursor.pos}. ListItem.on_continue due to indent or blankline")
             frame.update_closing_boundary(
                 ctx.cursor.line_end,

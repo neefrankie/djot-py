@@ -11,7 +11,6 @@ from ..common import Range
 from .container import ContainerCap
 from .frame import (
     BlockFrame,
-    HeadingData,
     OpenStatus,
     BlockRule,
     OpenResult,
@@ -79,7 +78,7 @@ class HeadingRule(BlockRule):
             status=OpenStatus.MATCHED,
             frame=BlockFrame(
                 rule=self,
-                data=HeadingData(level=level),
+                heading_level=level,
                 start_pos=cursor.pos,
                 closing_boundary=Range(cursor.line_end, cursor.line_end)
             ),
@@ -102,7 +101,7 @@ class HeadingRule(BlockRule):
                 action=ContinueAction.STOP,
             )
         
-        if not isinstance(frame.data, HeadingData):
+        if frame.heading_level is None:
             return ContinueResult(
                 action=ContinueAction.STOP,
             )
@@ -111,7 +110,7 @@ class HeadingRule(BlockRule):
         # you can split heading over multiple lines. 
         # The following lines do not need to have starting #.
         # In my opinion, the multi-line heading should not be allowed in the first place.
-        if frame.data.level != level: 
+        if frame.heading_level != level: 
             return ContinueResult(
                 action=ContinueAction.STOP,
             )

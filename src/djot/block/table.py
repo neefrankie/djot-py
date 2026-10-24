@@ -17,7 +17,6 @@ from djot.common import (
 from .container import ContainerCap
 from .frame import (
     BlockFrame,
-    TableData,
     OpenStatus,
     BlockRule,
     OpenResult,
@@ -324,11 +323,9 @@ class TableRule(BlockRule):
 
         container = BlockFrame(
             rule=self,
-            data=TableData(
-                columns=0
-            ),
             start_pos=cursor.pos,
-            closing_boundary=Range(cursor.line_end, cursor.line_end)
+            closing_boundary=Range(cursor.line_end, cursor.line_end),
+            table_columns=0,
         )
 
         events: List[Event] = [

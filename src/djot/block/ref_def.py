@@ -55,12 +55,12 @@ class ReferenceDefinitionRule(BlockRule):
         # value = m.captures[1].lstrip() # anything after :
         container = BlockFrame(
             rule=self,
-            data=RefDefData(
+            start_pos=cursor.pos,
+            closing_boundary=Range(cursor.pos, cursor.line_end),
+            ref_def=RefDefData(
                 key=token.label,
                 indent=cursor.indent,
             ),
-            start_pos=cursor.pos,
-            closing_boundary=Range(cursor.pos, cursor.line_end),
         )
 
         events = [
@@ -110,12 +110,12 @@ class ReferenceDefinitionRule(BlockRule):
         frame: BlockFrame,
         ctx: ParsingContext
     ) -> ContinueResult:
-        if not isinstance(frame.data, RefDefData):
+        if frame.ref_def is None:
             return ContinueResult(
                 action=ContinueAction.STOP,
             )
 
-        if frame.data.indent >= ctx.cursor.indent: # previous line was indented more than this line
+        if frame.ref_def.indent >= ctx.cursor.indent: # previous line was indented more than this line
             return ContinueResult(
                 action=ContinueAction.STOP,
             )

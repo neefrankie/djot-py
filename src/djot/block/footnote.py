@@ -55,7 +55,7 @@ class FootnoteRule(BlockRule):
 
         container = BlockFrame(
             rule=self,
-            data=FootnoteData(
+            footnote=FootnoteData(
                 label=token.label,
                 indent=cursor.indent,
             ),
@@ -88,12 +88,12 @@ class FootnoteRule(BlockRule):
         frame: BlockFrame,
         ctx: ParsingContext
     ) -> ContinueResult:
-        if not isinstance(frame.data, FootnoteData):
+        if frame.footnote is None:
             return ContinueResult(
                 action=ContinueAction.STOP,
             )
 
-        if ctx.cursor.indent > frame.data.indent or ctx.cursor.pos == ctx.cursor.line_end: # line start or line end
+        if ctx.cursor.indent > frame.footnote.indent or ctx.cursor.pos == ctx.cursor.line_end: # line start or line end
             frame.update_closing_boundary(
                 ctx.cursor.line_end,
                 ctx.cursor.line_end,

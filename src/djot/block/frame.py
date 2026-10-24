@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, Generic, List, Optional, TypeVar
+from typing import List, Optional
 
 from djot.cursor import Cursor
 from djot.inline import InlineParser
@@ -14,10 +14,6 @@ from djot.common.list_style import ListStyle
 
 from .container import ContainerCap
 
-
-@dataclass(slots=True)
-class HeadingData:
-    level: int
 
 @dataclass(slots=True)
 class FootnoteData:
@@ -34,9 +30,6 @@ class ListData:
     styles: List[ListStyle]
     indent: int
 
-@dataclass(slots=True)
-class TableData:
-    columns: int
 
 
 @dataclass(frozen=True)
@@ -56,19 +49,21 @@ class ParsingContext:
     cursor: Cursor
     is_covered: bool = False
 
-T = TypeVar('T')
-
 @dataclass
-class BlockFrame(Generic[T]):
+class BlockFrame:
     rule: 'BlockRule'
     start_pos: int = 0 # snapshot of cursor position the moment this container is created.
     closing_boundary: Optional[Range] = None # the position of closing token.
     indent: Optional[int] = None
-    data: Optional[T] = None
     inline_parser: Optional[InlineParser] = None
 
     code_fence: str | None = None
     div_colon: str | None = None
+    table_columns: int | None = None
+    list_data: ListData | None = None
+    ref_def: RefDefData | None = None
+    footnote: FootnoteData | None = None
+    heading_level: int | None = None
 
     def update_closing_boundary(self, start: int, end: int):
         self.closing_boundary = Range(start, end)
@@ -121,7 +116,7 @@ class OpenResult:
     """
     status: OpenStatus
     events: List[Event] = field(default_factory=list)
-    frame: Optional[BlockFrame[Any]] = None
+    frame: Optional[BlockFrame] = None
     
     def __repr__(self) -> str:
         return f'RuleResult(status={self.status.name}, new events: {len(self.events)}, new container: {self.frame})'
