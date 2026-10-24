@@ -36,21 +36,19 @@ class ThematicBreakRule(BlockRule):
 
         When they woke up, ...
         """
-        # [-*][ \t]*[-*][ \t]*[-*][-* \t]*\r?\n
-        # - * * also works for this regex.
-        m = cursor.find_thematic_break()
-        if not m:
+        
+        if not cursor.is_thematic_break(cursor.line_start, cursor.line_end):
             return OpenResult.not_matched()
 
         event = Event.leaf(
             kind=BlockLeaf.THEMATIC_BREAK,
             span=cursor.new_span(
-                start=m.start,
-                end=m.end,
+                start=cursor.pos,
+                end=cursor.line_end,
             )
         )
 
-        cursor.advance_pos(m.end)
+        cursor.advance_pos(cursor.line_end)
         
         return OpenResult(
             status=OpenStatus.MATCH_AND_CONSUMED,
