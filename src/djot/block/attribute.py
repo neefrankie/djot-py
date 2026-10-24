@@ -72,7 +72,7 @@ class AttributeRule(BlockRule):
         start = cursor.pos
         attribute_parser = AttributeParser(cursor)
         
-        res = attribute_parser.feed(start, cursor.line_end)
+        res = parse_attributes(cursor, attribute_parser)
 
         match res.status:
             case AttrStatus.CONTINUE:
