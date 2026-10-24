@@ -4,11 +4,16 @@ import string
 from typing import Final, List, Optional
 
 from .common import Range
+from djot.common.list_style import (
+    ListStyle,
+    classify_ordinal,
+)
 from .token import (
     DivFenceToken,
     CodeFenceToken,
     RefDefToken,
     FootnoteDefToken,
+    ListMarkerToken,
 )
 
 @dataclass(slots=True, frozen=True)
@@ -81,23 +86,7 @@ class LineContext:
         return replace(self, pos=indent)
 
 class Cursor:
-    
-    _PATT_NON_WHITESPACE = re.compile(r'[^ \t\r\n]+')
-    _PATT_THEMATIC_BREAK = re.compile(r'[-*][ \t]*[-*][ \t]*[-*][-* \t]*\r?\n')
-    _PATT_LIST_MARKER = re.compile(
-        r'(:?[-*+:]' # - or * or + or :, this group includes possible task list.
-        r'|\([0-9]+\)' # (1)
-        r'|[0-9]+[.)]' #  1. or 1)
-        r'|[ivxlcdmIVXLCDM]+[.)]' # i. or i)
-        r'|\([ivxlcdmIVXLCDM]+\)' # (i)
-        r'|[a-zA-Z][.)]' # a. or a) or A. or A)
-        r'|\([a-zA-Z]\)' # (a) or (A)
-        r')'
-        r'[ \t\r\n]'
-    )
-    _PATT_TASK_LIST_MARKER = re.compile(
-        r'[*+-] \[[Xx ]\][ \t\r\n]' # - [ ] or - [X]
-    )
+
     # Match the whole line:
     # A pipe, followed by anything but new line, ended with a pipe.
     _PATT_TABLE_ROW = re.compile(r'(\|[^\r\n]*\|)[ \t]*\r?\n')
@@ -159,6 +148,10 @@ class Cursor:
     @property
     def line_end(self) -> int:
         return self._line_end
+
+    @property
+    def line_start(self) -> int:
+        return self._line_start
 
     @property
     def indent(self) -> int:
@@ -363,11 +356,8 @@ class Cursor:
 
         return self.src[pos] not in self._WHITESPACE
 
-    def find_non_whitespace(self, start: int) -> Optional[MatchedRange]:
-        # [^ \t\r\n]+
-        return find(self.src, self._PATT_NON_WHITESPACE, start)
-
     def has_space(self, start: int, line_end: int) -> bool:
+        # [^ \t\r\n]+
         line_slice = self.src[start:line_end]
         if not line_slice:
             return True
@@ -670,14 +660,32 @@ class Cursor:
 
         return RefDefToken(label_span, label, val_span)
 
-    def find_thematic_break(self):
-        return find(self.src, self._PATT_THEMATIC_BREAK, self.pos)
-
-    def find_list_marker(self):
-        return find(self.src, self._PATT_LIST_MARKER, self.pos)
-
-    def find_task_list_marker(self):
-        return find(self.src, self._PATT_TASK_LIST_MARKER, self.pos)
+    def is_thematic_break(self, start: int, line_end: int) -> bool:
+        # re.compile(r'[-*][ \t]*[-*][ \t]*[-*][-* \t]*\r?\n')
+        # I don't think this regex is correct for thematic break.
+        """
+        精确校验这一行是否为合法的 Thematic Break (---, ***, ___ 等)
+        要求：
+        1. 去掉首尾空白后，核心字符必须全部是同一字符 ('-' 或 '*')
+        2. 数量必须 >= 3
+        3. 中间只允许包含空格或 Tab
+        """
+        # 1. 过滤掉换行符和首尾空白
+        line_slice = self.src[start:line_end+1]
+        stripped = line_slice.strip()
+        
+        if len(stripped) < 3:
+            return False
+            
+        # 2. 检查首字符是什么（常见的是 -, *, _）
+        marker = stripped[0]
+        if marker not in "-*":
+            return False
+            
+        # 3. 剥离所有内部的空格和 Tab，检查剩下的字符是否全部等于 marker
+        cleaned = "".join(c for c in stripped if c not in self._SPACE_TAB)
+        
+        return len(cleaned) >= 3 and all(c == marker for c in cleaned)
 
     def find_table_row(self, start: Optional[int] = None):
         if start is None:
@@ -889,12 +897,166 @@ class Cursor:
 
         return self.src[pos-1] in ' \t\r\n"\'-(['    
 
-    
+    _BULLET_MARKER = '+-*'
+    _TASK_CHECKER = {'[ ]', '[x]', '[X]'}
+    _DOT_PAREN = '().'
 
-    
+    def parse_list(self, pos: int, limit: int) -> ListMarkerToken | None:
+        # _PATT_LIST_MARKER = re.compile(
+        #     r'(:?[-*+:]'
+        #     r'|\([0-9]+\)' # (1)
+        #     r'|[0-9]+[.)]' #  1. or 1)
+        #     r'|[ivxlcdmIVXLCDM]+[.)]' # i. or i)
+        #     r'|\([ivxlcdmIVXLCDM]+\)' # (i)
+        #     r'|[a-zA-Z][.)]' # a. or a) or A. or A)
+        #     r'|\([a-zA-Z]\)' # (a) or (A)
+        #     r')'
+        #     r'[ \t\r\n]'
+        # )
+        # - [ ]
+        # r'[*+-] \[[Xx ]\][ \t\r\n]' # - [ ] or - [X]
 
-    
+        # - item
+        # * item
+        # + item
+        if self.src[pos] in self._BULLET_MARKER:
+            return self._try_parse_bullet(pos, limit)
 
-    
+        # : term
+        if self.src[pos] == ':':
+            return self._try_parse_term_def(pos, limit)
 
-    
+        # 1. item
+        # 1) item
+        # (1) item
+        # Starting char could be:
+        # - (
+        # - 0-9
+        # - a-zA-Z
+        if is_ordered_start(self.src[pos]):
+            return self._try_parse_ordered(pos, limit)
+
+        return None
+
+    def _try_parse_bullet(self, pos: int, limit: int) -> ListMarkerToken | None:
+        if pos+ 1 > limit or self.src[pos+1] not in self._WHITESPACE:
+            return None
+
+        # '- ', '+ ', '* '
+        if pos + 2 > limit or self.src[pos+2] != '[':
+            return ListMarkerToken(
+                start=pos,
+                end=pos+1,
+                marker=self.src[pos],
+                styles=[
+                    ListStyle.new_bullet(self.src[pos])
+                ],
+                item_span=Range(pos, pos),
+            )
+
+        # '- [ ] '
+        left_bracket_pos = pos + 2
+        space_pos = pos + 5
+
+        if space_pos > limit:
+            return None
+
+        if self.src[space_pos] not in self._WHITESPACE:
+            return None
+        
+        if self.src[left_bracket_pos:space_pos] in self._TASK_CHECKER:
+            checker_pos = pos + 3
+            right_bracket_pos = pos + 4
+            
+            return ListMarkerToken(
+                start=pos,
+                end=space_pos,
+                marker=self.src[pos:space_pos],
+                styles=[
+                    ListStyle.new_task(
+                        marker=self.src[pos],
+                        checker=self.src[checker_pos],
+                    )
+                ],
+                item_span=Range(pos, pos+4),
+                checkbox_span=Range(left_bracket_pos, right_bracket_pos),
+            )
+
+        return None
+
+    def _try_parse_term_def(self, pos: int, limit: int) -> ListMarkerToken | None:
+        if pos+ 1 > limit or self.src[pos+1] not in self._WHITESPACE:
+            return None
+        
+        return ListMarkerToken(
+            start=pos,
+            end=pos+1,
+            marker=self.src[pos],
+            styles=[
+                ListStyle.new_defition()
+            ],
+            item_span=Range(pos, pos),
+        )
+
+    def _try_parse_ordered(self, pos: int, limit: int) -> ListMarkerToken | None:
+
+        enclose = False
+        start_pos = pos
+        if self.src[pos] == '(':
+            # (1)
+            pos += 1
+            content_start = pos
+            enclose = True
+        else:
+            content_start = pos
+
+        while pos <= limit:
+            if self.src[pos] in self._WHITESPACE:
+                return None
+            
+            if self.src[pos] in self._DOT_PAREN:
+                break
+
+            pos += 1
+
+        if pos > limit:
+            return None
+
+        # If there's ( but not )
+        if enclose and self.src[pos] != ')':
+            return None
+
+        content_end = pos
+        if enclose:
+            delim = '()'
+        else:
+            delim = self.src[pos]
+
+        content = self.src[content_start:content_end]
+        if not content:
+            return None
+
+        ordered_styles = classify_ordinal(content)
+        if not ordered_styles:
+            return None
+
+        return ListMarkerToken(
+            start=start_pos,
+            end=pos+1, # include space
+            marker=self.src[start_pos:pos+1], # exclude space
+            styles=[
+                ListStyle.new_ordered(
+                    ordinal=k,
+                    delimiter=delim,
+                )
+                for k in ordered_styles
+            ],
+            item_span=Range(start_pos, pos),
+        )
+
+def is_ordered_start(ch: str) -> bool:
+    return( ch == '(' or 
+           '0' <= ch <= '9' or 
+           'a' <= ch <= 'z' or 
+           'A' <= ch <= 'Z')
+
