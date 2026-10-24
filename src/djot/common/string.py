@@ -39,6 +39,18 @@ def is_ascii_whitespace(c: str) -> bool:
     """
     return c in _ASCII_WHITESPACE
 
+def is_lower_alpha(c: str) -> bool:
+    return 'a' <= c <= 'z'
+
+def is_upper_alpha(c: str) -> bool:
+    return 'A' <= c <= 'Z'
+
+def is_digit(c: str) -> bool:
+    return '0' <= c <= '9'
+
+def is_alnum(ch: str) -> bool:
+    return '0' <= ch <= '9' or 'a' <= ch <= 'z' or 'A' <= ch <= 'Z'
+
 
 def unescape_djot(s: str) -> str:
     """
