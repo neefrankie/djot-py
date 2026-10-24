@@ -10,6 +10,7 @@ from djot.event import (
     Event,
     BlockContainer,
 )
+from djot.common import Range
 
 from .container import ContainerCap
 from .frame import (
@@ -19,7 +20,6 @@ from .frame import (
     OpenResult,
     ContinueResult,
     ContinueAction,
-    LineAction,
     ParsingContext,
 )
 
@@ -36,14 +36,16 @@ class AttributeRule(BlockRule):
                 status=OpenStatus.NOT_MATCHED,
             )
 
+        start = cursor.pos
         attribute_parser = AttributeParser(cursor)
         
-        res = attribute_parser.feed(cursor.pos, cursor.line_end)
+        res = attribute_parser.feed(start, cursor.line_end)
 
         match res.status:
             case AttrStatus.FAIL:
                 return OpenResult(
                     status=OpenStatus.FALLBACK,
+                    fallback_span=Range(start, res.position)
                 )
 
             case AttrStatus.DONE:
@@ -51,17 +53,17 @@ class AttributeRule(BlockRule):
                 if not cursor.is_ahead_blank(res.position + 1):
                     return OpenResult(
                         status=OpenStatus.FALLBACK,
+                        fallback_span=Range(start, res.position)
                     )
 
-        container = BlockFrame(
+        frame = BlockFrame(
             rule=self,
-            start_pos=cursor.pos
+            start_pos=start
         )
 
-        pos = cursor.pos
         events = [
             Event.enter(
-                cursor.new_span(pos, pos),
+                cursor.new_span(start, start),
                 BlockContainer.ATTRIBUTES
             )
         ]
@@ -85,7 +87,7 @@ class AttributeRule(BlockRule):
         return OpenResult(
             status=OpenStatus.MATCH_AND_CONSUMED,
             events=events,
-            frame=container,
+            frame=frame,
         )
 
     def on_continue(
