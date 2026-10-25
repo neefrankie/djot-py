@@ -1,7 +1,7 @@
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 import re
 import string
-from typing import Final, List, Optional
+from typing import Final, List, NamedTuple, Optional
 
 from .common import Range
 from djot.common.list_style import (
@@ -51,18 +51,17 @@ def find(
             captures=list(m.groups()) # Match.groups() returns a tuple containing string or None.
         )
 
-@dataclass(slots=True, frozen=True)
-class LineContext:
+class LineContext(NamedTuple):
     start_offset: int = 0 # current line start position in global text.
     end_offset: int = 0
     pos: int = 0 # current char position in global text.
 
     @property
-    def is_reaching_end(self) -> bool:
+    def is_reaching_eol(self) -> bool:
         if self.end_offset == -1:
             return False
         
-        return self.pos == self.end_offset
+        return self.pos == self.end_offset or self.pos + 1 == self.end_offset
 
     @property
     def current_column(self) -> int:
@@ -72,19 +71,24 @@ class LineContext:
     def next_line_start(self) -> int:
         return self.end_offset + 1
 
+    def is_ahead(self, other: 'LineContext') -> bool:
+        return self.end_offset > other.end_offset
+
     def new_pos(self, pos: int) -> 'LineContext':
-        return replace(self, pos=pos)
+        if pos < self.start_offset or pos > self.end_offset:
+            raise Exception('Cannot advanced beyond a line limit')
+        return LineContext(
+            start_offset=self.start_offset,
+            end_offset=self.end_offset,
+            pos=pos
+        )
 
-    def to_line_end(self) -> 'LineContext':
-        return replace(self, pos=self.end_offset)
+    def advance(self) -> 'LineContext':
+        return self.new_pos(self.pos+1)
 
-    def adjust_indented_start(self, indent: int | None) -> 'LineContext':
-        if indent is None:
-            return self
-        if self.pos <= indent + self.start_offset:
-            return self
+    
 
-        return replace(self, pos=indent)
+
 
 class Cursor:
 
@@ -186,6 +190,8 @@ class Cursor:
 
         return True
 
+    
+
     def advance_line(self, target: LineContext) -> bool:
         if target.end_offset >= self.length:
             return False
@@ -210,13 +216,67 @@ class Cursor:
         if newpos == self.pos:
             return
 
-        if self._line_start <= newpos <= self.line_end: # same line
+        if newpos <= self._line_end: # same line
             self._pos = newpos
 
         new_line = self.locate_line(newpos)
         assert new_line is not None
 
         self.advance_line(new_line)
+
+    def peek_line(self, prev: LineContext) -> LineContext | None:
+        if prev.end_offset >= self.length:
+            return None
+
+        start_offset = prev.end_offset + 1
+        if start_offset >= self.length:
+            return None
+        end_offset = self.src.find('\n', start_offset)
+
+        return LineContext(
+            start_offset=start_offset,
+            end_offset=end_offset,
+            pos=start_offset
+        )
+
+    def locate_next_line(self, pos: int) -> LineContext | None:
+        if pos >= self.length or pos < 0:
+            return None
+
+        if self.src[pos] != '\n':
+            current_end = self.src.find('\n', pos)
+            if current_end == -1:
+                return None
+            pos = current_end
+
+        next_start = pos + 1
+        if next_start >= self.length:
+            return None
+
+        next_end = self.src.find('\n', next_start)
+
+        return LineContext(
+            start_offset=next_start,
+            end_offset=next_end,
+            pos=next_start
+        )
+
+    def locate_line(self, pos: int) -> LineContext | None:
+        if pos >= self.length or pos < 0:
+            return None
+
+        end_offset = self.src.find('\n', pos)
+        prev_newline = self.src.rfind('\n', 0, pos)
+        start_offset = prev_newline + 1
+
+        if start_offset > end_offset:
+            return None
+
+        return LineContext(
+            start_offset=start_offset,
+            end_offset=end_offset,
+            pos=pos
+        )
 
     def skip_frame_space(self):
         """
@@ -245,52 +305,18 @@ class Cursor:
         self._indent = newpos - self._line_start
         self._pos = newpos
 
-    # === Locate line ===
-
     def skip_space(self, line: LineContext) -> LineContext:
         newpos = line.pos
 
         while newpos < line.end_offset and self.src[newpos] in self._SPACE_TAB:
             newpos += 1
 
-        return replace(line, pos=newpos)
+        return line.new_pos(pos=newpos)
 
-    def peek_line(self, previous: LineContext) -> LineContext | None:
-        if previous.end_offset >= self.length:
-            return None
-
-        start_offset = previous.next_line_start
-        end_offset = self.find_next_newline(start_offset)
-
-        return LineContext(
-            start_offset=start_offset,
-            end_offset=end_offset,
-            pos=start_offset
-        )
-
-    def locate_line(self, pos: int) -> LineContext | None:
-        if pos >= self.length or pos < 0:
-            return None
-
-        end_offset = self.find_next_newline(pos)
-        prev_newline = self.find_previous_newline(pos)
-        start_offset = prev_newline + 1
-
-        if start_offset > end_offset:
-            return None
-
-        return LineContext(
-            start_offset=start_offset,
-            end_offset=end_offset,
-            pos=start_offset
-        )
+    
 
     def find_next_newline(self, pos: int) -> int:
-        i = self.src.find('\n', pos)
-        if i == -1:
-            return self.length
-        else:
-            return i
+        return self.src.find('\n', pos)
 
     def find_previous_newline(self, pos: int) -> int:
         return self.src.rfind('\n', 0, pos) # -1 is valid.
