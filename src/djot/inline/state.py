@@ -2,9 +2,9 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Dict, List, NamedTuple, Optional
 
-from ..common import Range
-from ..cursor import Cursor
-from ..event import (
+from djot.common import Range
+from djot.cursor import Cursor
+from djot.event import (
     Event,
     VerbatimKind,
     InlineLeaf,
@@ -203,6 +203,19 @@ class PendingSpan:
     open_event_idx: int # Event index for [
     close_event_idx: int # Event index for ]
 
+class AttributeAction(Enum):
+    """
+    Determine how attribute-like text is handled.
+
+    Attributes
+        DISABLED: completely disable attribute parsing
+        ENABLED: attribute parsing is allowed, but not in attribute yet.
+        PROCEED: attribute parsing is allowed, and in attribute.
+    """
+    DISABLED = auto()
+    ENABLED = auto() # similar to allowAttributes = true in djot.js
+    PROCEED = auto()
+
 class InlineState:
     def __init__(self, cursor: Cursor,):
         self.cursor = cursor
@@ -216,9 +229,74 @@ class InlineState:
         self.verbatim_len = 0 # length of verbatim markers.
         self.verbatim_type: VerbatimKind = VerbatimKind.VERBATIM
 
-        self.in_attribute: bool = False
-        # Initiated in when a } is seen followed by a {.
-        self.pending_span: Optional[PendingSpan] = None 
+        # Initiated in when a ] is seen followed by a {.
+        self.pending_span: Optional[PendingSpan] = None
+
+        # Attributes
+        self._attr_action = AttributeAction.ENABLED
+        self._allow_attributes = True # Determine if { is treated as attribute starting token.
+        self._attr_start_pos: int | None = None # The position of {.
+        self._attr_slices: List[Range] = []
+
+    @property
+    def attribute_spans(self) -> List[Range]:
+        return self._attr_slices
+
+    @property
+    def attribute_start(self) -> int | None:
+        return self._attr_start_pos
+
+    @property
+    def allow_attributes(self) -> bool:
+        return self._attr_action == AttributeAction.ENABLED
+
+    @property
+    def in_attributes(self) -> bool:
+        return self._attr_action == AttributeAction.PROCEED
+
+    def disable_attribute(self):
+        self._attr_action = AttributeAction.DISABLED        
+
+    def enable_attribute(self):
+        self._attr_action = AttributeAction.ENABLED
+        self._attr_start_pos = None
+        self._attr_slices = []
+
+    def enter_attribute(self, left_brace_pos: int):
+        self._attr_action = AttributeAction.PROCEED
+        # self.attribute_parser = AttributeParser(self.cursor)
+        self._attr_start_pos = left_brace_pos
+        self._attr_slices = []
+
+    def exit_attribute(self):
+        self._attr_action = AttributeAction.ENABLED
+        self._attr_start_pos = None
+        self._attr_slices = []
+
+        self.pending_span = None
+
+    def add_attr_span(self, start: int, end: int):
+        self._attr_slices.append(
+            Range(start, end)
+        )
+
+
+    def set_pending_span(self, opener: Opener):
+        self.pending_span = PendingSpan(
+            open_event_idx=opener.text_opener.idx,
+            close_event_idx=len(self.events)-1
+        )
+
+    def demote_span_to_str(self):
+        if self.pending_span is None:
+            return
+
+        self.events[self.pending_span.open_event_idx].demote_to_str()
+        self.events[self.pending_span.close_event_idx].demote_to_str()
+
+        self.pending_span = None
+
+    
 
     @property
     def last_event(self) -> Optional[Event]:
@@ -401,26 +479,7 @@ class InlineState:
 
             i += 1
 
-    def init_attribute_parser(self, pos: int):
-        self.in_attribute = True
-
-    def reset_attribute_state(self):
-        self.in_attribute = False
-
-    def set_pending_span(self, opener: Opener):
-        self.pending_span = PendingSpan(
-            open_event_idx=opener.text_opener.idx,
-            close_event_idx=len(self.events)-1
-        )
-
-    def demote_span_to_str(self):
-        if self.pending_span is None:
-            return
-
-        self.events[self.pending_span.open_event_idx].demote_to_str()
-        self.events[self.pending_span.close_event_idx].demote_to_str()
-
-        self.pending_span = None
+    
 
     def trim_trailing_space(self, pop_empty: bool = True):
         if not self.events:
@@ -466,20 +525,3 @@ class InlineState:
                     kind=self.verbatim_type,
                 )
             )
-
-    def get_matches(self) -> List[Event]:
-        """Get parsed events.
-        
-        Remove trailing softbreak and any spaces.
-
-        If verbatim is not closed, it will be closed.
-        """
-        self.trim_softbreak()
-
-        if not self.events:
-            return []
-
-        
-        self.close_verbatim()
-
-        return self.events
