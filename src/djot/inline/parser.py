@@ -1,4 +1,4 @@
-from typing import Dict, Iterator, NamedTuple, Optional
+from typing import Dict, Iterator, List, NamedTuple, Optional
 
 from djot.cursor import (
     Cursor,
@@ -83,10 +83,33 @@ class InlineParser:
         self.state = InlineState(cursor)
         self.matchers = MATCHERS
         self._attribute_parser: AttributeParser | None = None
+        # The full range the parser processed.
+        # It might span multiple lines.
+        self._full_span = Range(
+            start=-1,
+            end=0,
+        )
 
     @property
     def in_verbatim(self) -> bool:
         return self.state.verbatim_len > 0
+
+    @property
+    def last_pos(self) -> int:
+        return self._full_span.end
+
+    @property
+    def first_pos(self) -> int:
+        return self._full_span.start
+
+    def renew_full_span(self, start_pos: int, end_pos: int):
+        # Go back as far as possible
+        if (self._full_span.start == -1 or self._full_span.start > start_pos):
+            self._full_span.start = start_pos
+
+        # Go forward as far as possible.
+        if (self._full_span.end == 0 or self._full_span.end < end_pos):
+            self._full_span.end = end_pos
 
     def get_attribute_parser(self) -> AttributeParser:
         if self._attribute_parser is None:
@@ -148,7 +171,7 @@ class InlineParser:
         If verbatim is not closed, it will be closed.
         """
         if self._attribute_parser:
-            self.reparse_attributes()
+            self.reparse_attributes(self.state.attribute_spans)
 
         self.state.trim_softbreak()
 
@@ -160,11 +183,10 @@ class InlineParser:
 
         return self.state.events
 
-    def reparse_attributes(self):
+    def reparse_attributes(self, spans: List[Range]):
         logger.debug(f'## Reparse attributes')
-        spans = self.state.attribute_spans
         if not spans:
-            logger.debug('No attribute spans saved. Stop reparsing.')
+            logger.debug('No attribute spans. Stop reparsing.')
             return
         
         # If attribute parsing failed, turn pending Span to str.
@@ -189,6 +211,8 @@ class InlineParser:
         logger.debug(f'=== Reparse ends. Re-enabled attribute parsing: {self.state._attr_action}')
     
     def feed(self, startpos: int, endpos: int):
+        self.renew_full_span(startpos, endpos)
+
         pos = startpos
         while pos <= endpos:
             logger.debug(f'## {pos}: start parsing. Attribute action: {self.state._attr_action}\n')
@@ -258,7 +282,7 @@ class InlineParser:
                 logger.debug(f'Parsing attribute failed. Save failed span {sp}~{ep}')
                 self.state.add_attr_span(sp, ep)
                 self.clear_attribute_parser()
-                self.reparse_attributes()
+                self.reparse_attributes(self.state.attribute_spans)
                 logger.debug(f'Resume parsing after failed attributes at {ep+1}')
                 return ep + 1
 
@@ -266,13 +290,14 @@ class InlineParser:
                 self.state.add_attr_span(sp, ep)
                 return ep + 1
 
-    def _parse_text(self, pos: int, endpos: int):
-        while pos <= endpos:
-            newpos = self._parse_without_attributes(pos, endpos)
+    def _parse_text(self, startpos: int, endpos: int):
+        self.renew_full_span(startpos, endpos)
+        while startpos <= endpos:
+            newpos = self._parse_without_attributes(startpos, endpos)
             if newpos > endpos:
                 break
             else:
-                pos = newpos
+                startpos = newpos
     
 
     def _parse_without_attributes(self, pos: int, endpos: int) -> int:
