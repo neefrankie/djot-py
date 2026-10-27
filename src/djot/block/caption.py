@@ -15,7 +15,7 @@ from .frame import (
     BlockRule,
     OpenResult,
     ContinueResult,
-    ContinueAction,
+    FrameAction,
     ParsingContext,
 )
 
@@ -65,7 +65,7 @@ class CaptionRule(BlockRule):
         # Check if the line is indented.
         if ctx.cursor.is_whitespace(ctx.cursor.pos):
             return ContinueResult(
-                action=ContinueAction.STOP,
+                frame_action=FrameAction.IMPLICIT_CLOSE,
             )
 
         frame.update_closing_boundary(
@@ -73,7 +73,7 @@ class CaptionRule(BlockRule):
             ctx.cursor.line_end,
         )
         return ContinueResult(
-            action=ContinueAction.CONTINUE,
+            frame_action=FrameAction.PRESERVE,
         )
 
     def on_close(

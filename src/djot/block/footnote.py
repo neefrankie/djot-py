@@ -18,7 +18,7 @@ from .frame import (
     BlockRule,
     OpenResult,
     ContinueResult,
-    ContinueAction,
+    FrameAction,
     ParsingContext,
 )
 
@@ -90,7 +90,7 @@ class FootnoteRule(BlockRule):
     ) -> ContinueResult:
         if frame.footnote is None:
             return ContinueResult(
-                action=ContinueAction.STOP,
+                frame_action=FrameAction.IMPLICIT_CLOSE,
             )
 
         if ctx.cursor.indent > frame.footnote.indent or ctx.cursor.pos == ctx.cursor.line_end: # line start or line end
@@ -99,11 +99,11 @@ class FootnoteRule(BlockRule):
                 ctx.cursor.line_end,
             )
             return ContinueResult(
-                action=ContinueAction.CONTINUE,
+                frame_action=FrameAction.PRESERVE,
             )
 
         return ContinueResult(
-            action=ContinueAction.STOP,
+            frame_action=FrameAction.IMPLICIT_CLOSE,
         )
 
     def on_close(

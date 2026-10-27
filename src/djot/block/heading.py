@@ -15,7 +15,7 @@ from .frame import (
     BlockRule,
     OpenResult,
     ContinueResult,
-    ContinueAction,
+    FrameAction,
     ParsingContext,
 )
 
@@ -98,12 +98,12 @@ class HeadingRule(BlockRule):
         level = ctx.cursor.count_char('#')
         if level == 0:
             return ContinueResult(
-                action=ContinueAction.STOP,
+                frame_action=FrameAction.IMPLICIT_CLOSE,
             )
         
         if frame.heading_level is None:
             return ContinueResult(
-                action=ContinueAction.STOP,
+                frame_action=FrameAction.IMPLICIT_CLOSE,
             )
 
         # TODO: this seems unreasonable since the specification says 
@@ -112,12 +112,12 @@ class HeadingRule(BlockRule):
         # In my opinion, the multi-line heading should not be allowed in the first place.
         if frame.heading_level != level: 
             return ContinueResult(
-                action=ContinueAction.STOP,
+                frame_action=FrameAction.IMPLICIT_CLOSE,
             )
 
         if not ctx.cursor.is_whitespace(ctx.cursor.pos + level):
             return ContinueResult(
-                action=ContinueAction.STOP,
+                frame_action=FrameAction.IMPLICIT_CLOSE,
             )
 
         frame.update_closing_boundary(ctx.cursor.line_end, ctx.cursor.line_end)
@@ -126,7 +126,7 @@ class HeadingRule(BlockRule):
         ctx.cursor.advance_pos(next_pos)
 
         return ContinueResult(
-            action=ContinueAction.CONTINUE,
+            frame_action=FrameAction.PRESERVE,
         )
     
 

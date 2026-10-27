@@ -15,7 +15,7 @@ from .frame import (
     BlockRule,
     OpenResult,
     ContinueResult,
-    ContinueAction,
+    FrameAction,
     ParsingContext,
 )
 
@@ -58,7 +58,7 @@ class BlockquoteRule(BlockRule):
     ) -> ContinueResult:
         if not ctx.cursor.is_blockquote(ctx.cursor.pos):
             return ContinueResult(
-                action=ContinueAction.STOP,
+                frame_action=FrameAction.IMPLICIT_CLOSE,
             )
 
         frame.update_closing_boundary(
@@ -68,7 +68,7 @@ class BlockquoteRule(BlockRule):
         next_pos = ctx.cursor.pos + 1 # Eat starting >
         ctx.cursor.advance_pos(next_pos)
         return ContinueResult(
-            action=ContinueAction.CONTINUE,
+            frame_action=FrameAction.PRESERVE,
         )
         
         

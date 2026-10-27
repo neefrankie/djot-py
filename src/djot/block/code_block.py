@@ -17,7 +17,7 @@ from .frame import (
     BlockRule,
     OpenResult,
     ContinueResult,
-    ContinueAction,
+    FrameAction,
     LineAction,
     ParsingContext,
 )
@@ -110,7 +110,7 @@ class CodeBlockRule(BlockRule):
     ) -> ContinueResult:
         if frame.code_fence is None:
             return ContinueResult(
-                action=ContinueAction.STOP,
+                frame_action=FrameAction.IMPLICIT_CLOSE,
             )
 
         # Similar to fenced div, if we didn't find ending markup,
@@ -119,7 +119,7 @@ class CodeBlockRule(BlockRule):
         span = ctx.cursor.find_code_end(pos, frame.code_fence)
         if span is None:
             return ContinueResult(
-                action=ContinueAction.CONTINUE,
+                frame_action=FrameAction.PRESERVE,
             )
         
         frame.update_closing_boundary(
@@ -131,7 +131,7 @@ class CodeBlockRule(BlockRule):
 
         # If we find ending token, it should stop at this container.
         return ContinueResult(
-            action=ContinueAction.STOP,
+            frame_action=FrameAction.IMPLICIT_CLOSE,
             line_action=LineAction.CONSUMED,
         )
 

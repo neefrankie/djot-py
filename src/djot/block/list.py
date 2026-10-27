@@ -23,7 +23,7 @@ from .frame import (
     BlockRule,
     OpenResult,
     ContinueResult,
-    ContinueAction,
+    FrameAction,
     ParsingContext,
 )
 
@@ -75,7 +75,7 @@ class ListRule(BlockRule):
 
         if frame.list_data is None:
             return ContinueResult(
-                action=ContinueAction.STOP,
+                frame_action=FrameAction.IMPLICIT_CLOSE,
             )
 
         # As long as next line is indented more than previous line,
@@ -89,7 +89,7 @@ class ListRule(BlockRule):
                 ctx.cursor.line_end,
             )
             return ContinueResult(
-                action=ContinueAction.CONTINUE,
+                frame_action=FrameAction.PRESERVE,
             )
 
         if ctx.cursor.is_newline(ctx.cursor.pos):
@@ -99,13 +99,13 @@ class ListRule(BlockRule):
                 ctx.cursor.line_end,
             )
             return ContinueResult(
-                action=ContinueAction.CONTINUE,
+                frame_action=FrameAction.PRESERVE,
             )
 
         token = ctx.cursor.parse_list(ctx.cursor.pos, ctx.cursor.line_end)
         if token is None:
             return ContinueResult(
-                action=ContinueAction.STOP,
+                frame_action=FrameAction.IMPLICIT_CLOSE,
             )
 
         # If new styles does not include previous style, drop it.
@@ -120,7 +120,7 @@ class ListRule(BlockRule):
 
         if not newstyles:
             return ContinueResult(
-                action=ContinueAction.STOP,
+                frame_action=FrameAction.IMPLICIT_CLOSE,
             )
 
         frame.list_data.styles = newstyles
@@ -130,7 +130,7 @@ class ListRule(BlockRule):
             ctx.cursor.line_end,
         )
         return ContinueResult(
-            action=ContinueAction.CONTINUE,
+            frame_action=FrameAction.PRESERVE,
         )
 
     def on_close(
@@ -212,7 +212,7 @@ class ListItemRule(BlockRule):
     ) -> ContinueResult:
         if frame.list_data is None:
             return ContinueResult(
-                action=ContinueAction.STOP,
+                frame_action=FrameAction.IMPLICIT_CLOSE,
             )
 
         # A line indented should be taken as a continuation of previous list item.
@@ -225,11 +225,11 @@ class ListItemRule(BlockRule):
                 ctx.cursor.line_end,
             )
             return ContinueResult(
-                action=ContinueAction.CONTINUE,
+                frame_action=FrameAction.PRESERVE,
             )
 
         return ContinueResult(
-            action=ContinueAction.STOP,
+            frame_action=FrameAction.IMPLICIT_CLOSE,
         )
 
     def on_close(

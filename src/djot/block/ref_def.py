@@ -18,7 +18,7 @@ from .frame import (
     BlockRule,
     OpenResult,
     ContinueResult,
-    ContinueAction,
+    FrameAction,
     ParsingContext,
 )
 
@@ -112,12 +112,12 @@ class ReferenceDefinitionRule(BlockRule):
     ) -> ContinueResult:
         if frame.ref_def is None:
             return ContinueResult(
-                action=ContinueAction.STOP,
+                frame_action=FrameAction.IMPLICIT_CLOSE,
             )
 
         if frame.ref_def.indent >= ctx.cursor.indent: # previous line was indented more than this line
             return ContinueResult(
-                action=ContinueAction.STOP,
+                frame_action=FrameAction.IMPLICIT_CLOSE,
             )
 
         
@@ -125,13 +125,13 @@ class ReferenceDefinitionRule(BlockRule):
         # and content should be ended with a newline.
         if ctx.cursor.is_eol_reached:
             return ContinueResult(
-                action=ContinueAction.STOP,
+                frame_action=FrameAction.IMPLICIT_CLOSE,
             )
 
         start = ctx.cursor.pos # first non space char
         if ctx.cursor.has_space(start, ctx.cursor.line_end):
             return ContinueResult(
-                action=ContinueAction.STOP,
+                frame_action=FrameAction.IMPLICIT_CLOSE,
             )
         
         event = Event.leaf(
@@ -150,7 +150,7 @@ class ReferenceDefinitionRule(BlockRule):
         ctx.cursor.advance_pos(ctx.cursor.line_end) # \n
         
         return ContinueResult(
-            action=ContinueAction.CONTINUE,
+            frame_action=FrameAction.PRESERVE,
             events=[event],
         )
 

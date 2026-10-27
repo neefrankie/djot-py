@@ -14,7 +14,7 @@ from .frame import (
     BlockRule,
     OpenResult,
     ContinueResult,
-    ContinueAction,
+    FrameAction,
     ParsingContext,
 )
 
@@ -62,7 +62,7 @@ class ThematicBreakRule(BlockRule):
         ctx: ParsingContext
     ) -> ContinueResult:
         return ContinueResult(
-            action=ContinueAction.STOP,
+            frame_action=FrameAction.IMPLICIT_CLOSE,
         )
 
     def on_close(

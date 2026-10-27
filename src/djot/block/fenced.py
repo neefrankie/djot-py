@@ -17,7 +17,7 @@ from .frame import (
     BlockRule,
     OpenResult,
     ContinueResult,
-    ContinueAction,
+    FrameAction,
     LineAction,
     ParsingContext,
 )
@@ -98,7 +98,7 @@ class FencedDivRule(BlockRule):
         # current container find a ::: symbol, it should yield to code block.
         if ctx.is_covered:
             return ContinueResult(
-                action=ContinueAction.CONTINUE,
+                frame_action=FrameAction.PRESERVE,
             ) # see #109
 
         # Now you do not have code block as innner node.
@@ -113,7 +113,7 @@ class FencedDivRule(BlockRule):
 
         if not frame.div_colon:
             return ContinueResult(
-                action=ContinueAction.CONTINUE,
+                frame_action=FrameAction.PRESERVE,
             )
         
         start_pos = ctx.cursor.pos
@@ -121,7 +121,7 @@ class FencedDivRule(BlockRule):
         
         if span is None:
             return ContinueResult(
-                action=ContinueAction.CONTINUE,
+                frame_action=FrameAction.PRESERVE,
             )
 
 
@@ -136,7 +136,7 @@ class FencedDivRule(BlockRule):
         
         ctx.cursor.advance_pos(ctx.cursor.line_end) # \n
         return ContinueResult(
-            action=ContinueAction.STOP,
+            frame_action=FrameAction.IMPLICIT_CLOSE,
             line_action=LineAction.CONSUMED,
             # TODO: can we emit events here?
         )

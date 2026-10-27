@@ -21,7 +21,7 @@ from .frame import (
     BlockRule,
     OpenResult,
     ContinueResult,
-    ContinueAction,
+    FrameAction,
     LineAction,
     ParsingContext,
 )
@@ -375,7 +375,7 @@ class TableRule(BlockRule):
         m = ctx.cursor.find_table_row()
         if not m:
             return ContinueResult(
-                action=ContinueAction.STOP,
+                frame_action=FrameAction.IMPLICIT_CLOSE,
             )
 
         rawrow = m.captures[0] # | fruit  | price |
@@ -386,14 +386,14 @@ class TableRule(BlockRule):
 
         if parsed_row is None:
             return ContinueResult(
-                action=ContinueAction.STOP,
+                frame_action=FrameAction.IMPLICIT_CLOSE,
             )
 
         frame.update_closing_boundary(ctx.cursor.line_end, ctx.cursor.line_end)
 
         ctx.cursor.advance_pos(ctx.cursor.line_end)
         return ContinueResult(
-            action=ContinueAction.CONTINUE,
+            frame_action=FrameAction.PRESERVE,
             line_action=LineAction.CONSUMED,
             events=parsed_row,
         )
