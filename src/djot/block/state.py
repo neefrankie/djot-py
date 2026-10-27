@@ -1,16 +1,14 @@
-from typing import Any, List, Optional
+from typing import List, Optional
 
-from ..logger import logger
-from ..cursor import Cursor
-from ..event import (
+from djot.cursor import Cursor
+from djot.event import (
     Event,
 )
-from ..inline import InlineParser
+from djot.inline import InlineParser
 from .container import ContainerCap
 from .frame import (
     BlockFrame,
     ParsingContext,
-    OpenResult,
 )
 
 class BlockState:
@@ -19,7 +17,7 @@ class BlockState:
 
         # A container stack describes a path in a tree from root to a leaf.
         # When we push a new container, we are exiting a node and switch to a sibling.
-        self.frame_stack: List[BlockFrame[Any]] = []
+        self.frame_stack: List[BlockFrame] = []
         # Index of container with opaque content, a block of raw text
         # with higher precedence shadowing outer container.
         # -1 mean the stack does not have such a container.
