@@ -208,7 +208,7 @@ class InlineParser:
         # Revert attributes state to enabled so that following
         # attributes could be parsed as normal.
         self.state.enable_attribute()
-        logger.debug(f'=== Reparse ends. Re-enabled attribute parsing: {self.state._attr_action}')
+        logger.debug(f'=== Reparse ends. Re-enabled attribute parsing: {self.state._attr_action}\n')
     
     def feed(self, startpos: int, endpos: int):
         self.renew_full_span(startpos, endpos)
