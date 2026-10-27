@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Iterator, List, Optional, Type, TypeVar, cast
+from typing import List, Optional, Type, TypeVar, cast
 
 from djot.common import Alignment
 from djot.event import (
@@ -10,11 +10,7 @@ from djot.ast import (
     AstNode,
     InlineNode,
     BlockNode,
-    HasText,
     HasChildren,
-    SoftBreak,
-    HardBreak,
-    FootnoteReference,
     DefinitionListItem,
     TaskListItem,
     ListItem,
@@ -26,20 +22,10 @@ from djot.logger import logger
 from djot.common.list_style import ListStyle
 
 from .attr import AttrBuilder
+from .string import iter_string_content
 
 N = TypeVar("N", bound=AstNode)
 
-def _iter_string_content(node: AstNode) -> Iterator[str]:
-    if isinstance(node, FootnoteReference):
-        return
-    
-    if isinstance(node, HasText):
-        yield node.text
-    elif isinstance(node, (SoftBreak, HardBreak)):
-        yield '\n'
-    elif isinstance(node, HasChildren):
-        for child in node.children:
-            yield from _iter_string_content(child)
 
 @dataclass(slots=True)
 class ListData:
@@ -150,8 +136,8 @@ class Frame:
         self.text_buffer.append(text)
 
     def iter_children_text(self):
-            for node in self.children:
-                yield from _iter_string_content(node) 
+        for node in self.children:
+            yield from iter_string_content(node) 
     
     def get_children_text(self) -> str:
         return ''.join(self.iter_children_text())     
