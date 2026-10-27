@@ -1,13 +1,17 @@
 from dataclasses import dataclass, field
-from typing import Iterator, List, Optional, Tuple
+from typing import Iterator, List, Optional
 
-from ..cursor import Cursor
-from ..event import (
+from djot.cursor import Cursor
+from djot.event import (
     Event,
     BlockLeaf,
     InlineLeaf,
+    BlockContainer,
 )
-from ..logger import logger
+from djot.logger import logger
+from djot.common import (
+    Range,
+)
 
 from .frame import (
     ParsingContext,
@@ -16,7 +20,7 @@ from .frame import (
     BlockRule,
     OpenResult,
     LineAction,
-    ContinueAction,
+    FrameAction,
 )
 from .state import (
     BlockState,
@@ -135,6 +139,7 @@ class EventParser:
         last_matched_idx = -1
         line_is_finished = False
         is_explicit_close = False # True indicates explicitly closed element appeared.
+        fallback_frame: BlockFrame | None = None
         events: List[Event] = []
 
         # 1. Determine if the top of curent stack has a raw block like CodeBlock.
@@ -163,17 +168,23 @@ class EventParser:
 
             events.extend(cont_res.events)
 
-            match cont_res.action:
-                case ContinueAction.STOP:
+            match cont_res.frame_action:
+                case FrameAction.IMPLICIT_CLOSE:
                     logger.debug(f'{frame} at {idx} stops continuation')
                     break
 
-                case ContinueAction.CLOSE:
+                case FrameAction.EXPLICIT_CLOSE:
                     is_explicit_close = True
                     logger.debug(f'{frame} at {idx} requires explicit close')
                     break
 
-                case ContinueAction.CONTINUE:
+                case FrameAction.FALLBACK:
+                    logger.debug(f'{frame} at index {idx} fallback')
+                    fallback_frame = frame
+                    break
+
+
+                case FrameAction.PRESERVE:
                     logger.debug(f'@ {self.state.cursor.pos}: continue to next frame')
                     last_matched_idx = idx
 
@@ -181,15 +192,70 @@ class EventParser:
         if is_explicit_close:
             logger.debug(f'Explicit close stack to {last_matched_idx}')
             close_events = self.state.close_frame_to_depth(last_matched_idx)
-            # Ensure proper order since continued events
-            # should not come before previous elements' closed events.
-            events = close_events + events
+            events.extend(close_events)
+        elif fallback_frame is not None:
+            # What happens if the frame stack has [A, B, C],
+            # and B should fallback?
+            # Initially we have events A OPEN, B OPEN, C OPEN,
+            # and then, B fallback. C is invalid but already geneated events!
+            # In reality such case should not happen since fallback
+            # frame is leaf node.
+            # It might happen for inline parsing.
+            # That's why there's a lot of in-place mutation of events.
+            fb_events = self._handle_fallback(fallback_frame, last_matched_idx)
+            events.extend(fb_events)
 
         return LineStepFrame(
             last_matched_idx=last_matched_idx,
             finished_line=line_is_finished,
             events=events, 
         )
+
+    def _handle_fallback(self, prev_frame: BlockFrame, last_matched_idx: int) -> List[Event]:
+
+        logger.debug(f'## Handle fallback for frame {prev_frame}\n')
+
+        if prev_frame.block_attr is None:
+            return []
+
+        start_pos = prev_frame.block_attr.start_pos
+        logger.debug(f'Attribute frame cache: {prev_frame.block_attr}')
+
+        new_frame = BlockFrame(
+            rule=self.para_rule,
+            start_pos=start_pos,
+            closing_boundary=Range(self.state.cursor.line_end, self.state.cursor.line_end)
+        )
+
+        logger.debug(f'Created fallback frame {new_frame}')
+
+        # All frames from prev_frame should be invalid.
+        # So we don't gather their events.
+        # (In real world there's actually no events)
+        self.state.close_frame_to_depth(last_matched_idx)
+
+        # However, sibling node's events should be collected.
+        # (In real word this shouldn't happen)
+        events = self.state.close_frame_to_parent(new_frame)
+        
+        new_frame = self.state.push_frame(new_frame)
+
+        events.append(
+            Event.enter(
+                kind=BlockContainer.PARA,
+                span=self.state.cursor.new_span(start_pos, start_pos),
+            )
+        )
+
+        assert new_frame.inline_parser is not None
+
+        logger.debug(f'Reparse spans: {prev_frame.block_attr.slices}')
+
+        new_frame.inline_parser.reparse_attributes(prev_frame.block_attr.slices)
+
+        self.state.cursor.advance_pos(new_frame.inline_parser.last_pos+1)
+
+        return events
 
     def _try_open_new_frame(self, last_matched_idx: int) -> LineStepFrame:
         logger.debug(f'## {self.state.cursor.pos}: Try open new containers\n')
@@ -232,7 +298,6 @@ class EventParser:
         # 1. If no rule applied.
         # 2. If a rule matched, but does not accept further block elements.
         # 3. If a rule matches, and consumed the whole line.
-        # 4. Fallback
         while True:
             more_frames_required = False
 
@@ -255,18 +320,6 @@ class EventParser:
                     case OpenStatus.NOT_MATCHED:
                         logger.debug(f'XX {rule.__class__.__name__} cannot open')
                         continue
-
-                    case OpenStatus.FALLBACK:
-                        logger.debug(f'?? {rule.__class__.__name__} fallback.')
-                        _, para_events = self._open_para(last_matched_idx)
-
-                        last_matched_idx = self.state.last_frame_index
-                        events.extend(para_events)
-
-                        return LineStepFrame(
-                            last_matched_idx=last_matched_idx,
-                            events=events,
-                        )
 
                     case OpenStatus.MATCHED:
                         logger.debug(f'OK {rule.__class__.__name__} matched.')
@@ -424,7 +477,10 @@ class EventParser:
             span=self.state.cursor.new_span(line_end, line_end)
         )
 
-    def _open_para(self, last_matched_idx: int):
+    def _open_para(
+        self,
+        last_matched_idx: int,
+    ):
         logger.debug(f'{self.state.cursor.pos}. Fallback to paragraph.')
         
         result = self.para_rule.try_open(self.state.cursor)
