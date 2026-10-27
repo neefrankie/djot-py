@@ -134,7 +134,7 @@ class AttributeParser:
         # This differs from js version, which returns CONTINUE to support newline in attributes.
         return AttrParseResult(
             status=AttrStatus.CONTINUE,
-            position=pos
+            position=endpos
         )
 
 
