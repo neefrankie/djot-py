@@ -38,10 +38,7 @@ There are no rendering features available currently. Will be added in the future
 
 ## Differences from Djot.js
 
-- Comment is not supported yet.
-- Multi-line attributes is not supported yet.
-
-## My personal view on the above not-yet-implemented features
+- Support for comment is deliberately dropped.
 
 ### Comment
 
@@ -52,16 +49,25 @@ I hope there's a specific comment syntax in the future. For example, there could
 - Line comment appeared at the end of each line, using symbols like `%%`
 - Block comment wrapped in `%%%`, similar to code block.
 
-### Multi-line attributes
-
-Djot.js current implementation to support multi-line attributes involves a lot of backtracing,
-which is in direct conflict with the philosophy of djot. To support multi-line attributes,
-there needs a fundamental change in the line-based parsing algorithm.
-
 ### List
 
 This is not hard to implement. However, too much choices might introduce future ambiguity.
 I prefere simplicity rather than feature-rich. For example, Typst style simply uses `-` and `+`. Leave styling to a renderer. And block attributes could be used to convey some basic styling information.
+
+## Proposal for new syntax
+
+### Blockquote
+
+Markdown style blockquote is unsual. It is prefix-based block element, different from other tokens.
+How about a new syntax specific to blockquote:
+
+```djot
+>>> source="Source" author="Author"
+This is a blockquote.
+>>>
+```
+
+Will this simplify the parsing algorithm and make composing blockquote less tedious?
 
 ## Chunk-based Advancement
 
