@@ -30,7 +30,7 @@ class TestInlineParser(unittest.TestCase):
             Event.str(8, 10)
         ]
 
-        self.assertEqual(parser.state.get_matches(), expected)
+        self.assertEqual(parser.get_matches(), expected)
 
     def test_verbatim(self):
         text = "x ``` hello ``there ``` x"
@@ -51,7 +51,7 @@ class TestInlineParser(unittest.TestCase):
             Event.str(23, 24)
         ]
 
-        self.assertEqual(parser.state.get_matches(), expected)
+        self.assertEqual(parser.get_matches(), expected)
 
     def test_parse_escaped(self):
         text = '\\"\\*\\ \\a \\\n'
@@ -75,7 +75,7 @@ class TestInlineParser(unittest.TestCase):
             Event.hardbreak(10, 10)
         ]
 
-        self.assertEqual(parser.state.get_matches(), expected)
+        self.assertEqual(parser.get_matches(), expected)
 
     def test_parse_autolinks(self):
         parser = InlineParser(
@@ -91,7 +91,7 @@ class TestInlineParser(unittest.TestCase):
             Event.exit(Range(39, 39), InlineContainer.URL),
         ]
 
-        self.assertEqual(parser.state.get_matches(), expected)
+        self.assertEqual(parser.get_matches(), expected)
 
     def test_parse_email_autolinks(self):
             parser = InlineParser(
@@ -107,7 +107,7 @@ class TestInlineParser(unittest.TestCase):
                 Event.exit(Range(15, 15), InlineContainer.EMAIL),
             ]
     
-            self.assertEqual(parser.state.get_matches(), expected)
+            self.assertEqual(parser.get_matches(), expected)
 
     def test_super_subscript(self):
         parser = InlineParser(
@@ -135,7 +135,7 @@ class TestInlineParser(unittest.TestCase):
              Event.exit(Range(29, 30), InlineContainer.SUPERSCRIPT),
         ]
 
-        self.assertEqual(parser.state.get_matches(), expected)
+        self.assertEqual(parser.get_matches(), expected)
 
     def test_emphasis(self):
         parser = InlineParser(
@@ -155,7 +155,7 @@ class TestInlineParser(unittest.TestCase):
             Event.str(15, 20)
         ]
 
-        self.assertEqual(parser.state.get_matches(), expected)
+        self.assertEqual(parser.get_matches(), expected)
 
     def test_mark(self):
         parser = InlineParser(
@@ -173,7 +173,7 @@ class TestInlineParser(unittest.TestCase):
             Event.exit(Range(7, 8), InlineContainer.MARK)
         ]
 
-        self.assertEqual(parser.state.get_matches(), expected)
+        self.assertEqual(parser.get_matches(), expected)
 
     def test_inserted(self):
         parser = InlineParser(
@@ -191,7 +191,7 @@ class TestInlineParser(unittest.TestCase):
             Event.exit(Range(7, 8), InlineContainer.INSERT)
         ]
 
-        self.assertEqual(parser.state.get_matches(), expected)
+        self.assertEqual(parser.get_matches(), expected)
 
     def test_quoted(self):
         parser = InlineParser(
@@ -209,12 +209,13 @@ class TestInlineParser(unittest.TestCase):
             Event.exit(Range(16, 16), InlineContainer.DOUBLE_QUOTED),
         ]
 
-        self.assertEqual(parser.state.get_matches(), expected)
+        self.assertEqual(parser.get_matches(), expected)
 
-    def test_parse_attributes(self):
+    def test_attributes(self):
+        text = '{#foo .bar baz="bim"}'
+        #       012345678901234567890
         parser = InlineParser(
-            cursor=Cursor('{#foo .bar baz="bim"}'),
-            
+            cursor=Cursor(text),
         )
 
         parser.feed(0, 20)
@@ -235,11 +236,13 @@ class TestInlineParser(unittest.TestCase):
             Event.exit(Range(20, 20), InlineContainer.ATTR),
         ]
 
-        self.assertEqual(parser.state.get_matches(), expected)
+        self.assertEqual(parser.get_matches(), expected)
 
     def test_spans(self):
+        text = '[hi]{#foo .bar baz="bim"}'
+        #       0123456789012345678901234
         parser = InlineParser(
-            cursor=Cursor('[hi]{#foo .bar baz="bim"}'),
+            cursor=Cursor(text),
             
         )
 
@@ -282,7 +285,7 @@ class TestInlineParser(unittest.TestCase):
             Event.exit(Range(24, 24), InlineContainer.ATTR),
         ]
 
-        self.assertEqual(parser.state.get_matches(), expected)
+        self.assertEqual(parser.get_matches(), expected)
 
     def test_inline_links(self):
         parser = InlineParser(
@@ -313,7 +316,7 @@ class TestInlineParser(unittest.TestCase):
             ),
         ]
 
-        self.assertEqual(parser.state.get_matches(), expected)
+        self.assertEqual(parser.get_matches(), expected)
 
     def test_refrence_links(self):
         parser = InlineParser(
@@ -332,7 +335,7 @@ class TestInlineParser(unittest.TestCase):
             Event.exit(Range(10, 10), InlineContainer.REFERENCE)
         ]
 
-        self.assertEqual(parser.state.get_matches(), expected)
+        self.assertEqual(parser.get_matches(), expected)
 
     def test_inline_image(self):
         parser = InlineParser(
@@ -350,7 +353,7 @@ class TestInlineParser(unittest.TestCase):
             Event.exit(Range(13, 13), InlineContainer.DESTINATION),
         ]
 
-        self.assertEqual(parser.state.get_matches(), expected)
+        self.assertEqual(parser.get_matches(), expected)
 
     def test_symbs(self):
         parser = InlineParser(
@@ -364,7 +367,7 @@ class TestInlineParser(unittest.TestCase):
             Event.leaf(Range(0, 3), InlineLeaf.SYMBOL),
         ]
 
-        self.assertEqual(parser.state.get_matches(), expected)
+        self.assertEqual(parser.get_matches(), expected)
 
     def test_ellipses(self):
         parser = InlineParser(
@@ -378,7 +381,7 @@ class TestInlineParser(unittest.TestCase):
             Event.leaf(Range(0, 2), InlineLeaf.ELLIPSES),
         ]
 
-        self.assertEqual(parser.state.get_matches(), expected)
+        self.assertEqual(parser.get_matches(), expected)
 
     def test_dashes(self):
         parser = InlineParser(
@@ -395,7 +398,7 @@ class TestInlineParser(unittest.TestCase):
             Event.str(7, 7),
         ]
 
-        self.assertEqual(parser.state.get_matches(), expected)
+        self.assertEqual(parser.get_matches(), expected)
 
     def test_note_reference(self):
         parser = InlineParser(
@@ -409,12 +412,20 @@ class TestInlineParser(unittest.TestCase):
             Event.leaf(Range(0, 5), InlineLeaf.FOOTNOTE_REF)
         ]
 
-        self.assertEqual(parser.state.get_matches(), expected)
+        self.assertEqual(parser.get_matches(), expected)
 
+    def test_attr(self):
+        text = '{#foo'
+        #       012345
 
+        cursor = Cursor(text)
+        cursor.next_line()
 
+        parser = InlineParser(cursor)
+        parser.feed(0, 5)
 
-
+        for e in parser.get_matches():
+            print(e)
 
 if __name__ == '__main__':
     unittest.main()
