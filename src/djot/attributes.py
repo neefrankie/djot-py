@@ -7,24 +7,14 @@ attributes { id = "foo", class = "bar baz",
 syntax:
 
 attributes <- '{' whitespace* attribute (whitespace attribute)* whitespace* '}'
-
 attribute <- identifier | class | keyval
-
 identifier <- '#' name
-
 class <- '.' name
-
 name <- (nonspace, nonpunctuation other than ':', '_', '-')+
-
 key <- (ASCII_ALPHANUM } | ':' | '_' | '-')+
-
 val <- bareval | quotevdval
-
 bareval <- (ASCII_ALPHANUM | '.' | '-' | '_')+
-
 quotedval <- '"' ([^"] | '\"') '"'
-
-NOTE: this is the original js doc. My impelementation does not support newline and comment in attributes.
 """
 
 from dataclasses import dataclass
@@ -44,7 +34,9 @@ class State(Enum):
     SCANNING_VALUE = 4
     SCANNING_BARE_VALUE = 5
     SCANNING_QUOTED_VALUE = 6
+    SCANNING_QUOTED_VALUE_CONTINUATION = 7,
     SCANNING_ESCAPED = 8
+    SCANNING_ESCAPED_IN_CONTINUATION = 9,
     FAIL = 11
     DONE = 12
     START = 13
@@ -93,54 +85,6 @@ class AttributeParser:
 
     avant{lang=fr}{.blue}
     ```
-    
-    ## Block attributes
-    
-    A line immediately before the block.
-    Block attributes have the same syntax as inline attributes,
-    but if they don't fit on one line, subsequence lines must be indented.
-    Repeated attribute specifiers can be used, and the attributes
-    will accumulate.
-
-    
-    {#water}
-    {.important .large}
-    Don't forget to turn off the water.
-
-
-    ## My restriction on attributes.
-
-    Permitting line break inside attributes causes a lot trouble
-    to implement. You have to use a lot of backtracing,
-    which is against the spirit of djot.
-
-    I guess the cause of the problem comes from comment. It looks like this with comment inside attributes:
-
-    ```
-    {#ident % later we'll add a class % }
-    ```
-
-    Whe there is only comment in attributes, it degrades to
-    a comment-only attribute. That's why `{% ... %}` serve as
-    a general way to add comment.
-    When you write a comment-only attribute, you naturally want
-    to have line breaks.
-    This approach make `{ }` serving totally different purposes. 
-    What's more, there is a repetition for block attributes.
-    Repeated attribute specifiers play the same role line breaks
-    in attribute.
-    If we really want to support continuation to another line, 
-    why not use another `{ }` on a new line? 
-    Multiple lines of `{ }` is much easier to parse.
-
-    Comment in attributes causes a lot trouble.
-    In reality, it's not a must-have feature.
-    So I decided to restrcit attribute on one line,
-    and no comment in attributes.
-
-    This will greatly simplify the implementation.
-    Whenever a `{` appeared, feed it to the the end of line.
-    If closing `}` is not found, it's a fail.
     """
 
     _SPACE_TAB = ' \t'
@@ -189,16 +133,12 @@ class AttributeParser:
         # Default to FAIL.
         # This differs from js version, which returns CONTINUE to support newline in attributes.
         return AttrParseResult(
-            status=AttrStatus.FAIL,
+            status=AttrStatus.CONTINUE,
             position=pos
         )
 
 
     def step(self, state: State, pos: int) -> State:
-        """
-        Equivalent to js version handlers array.
-        """
-
         match state:
             case State.START:
                 return self._start(pos)
@@ -220,10 +160,13 @@ class AttributeParser:
                 return self._scanning_bare_value(pos)
             case State.SCANNING_ESCAPED:
                 return self._scanning_escaped(pos)
+            case State.SCANNING_ESCAPED_IN_CONTINUATION:
+                return self._scanning_escaped_in_continuation(pos)
             case State.SCANNING_QUOTED_VALUE:
                 return self._scanning_quoted_value(pos)
-            case _:
-                raise Exception(f"Invalid state: {state}")
+            case State.SCANNING_QUOTED_VALUE_CONTINUATION:
+                return self._scanning_quoted_value_continuation(pos)
+
 
     def _start(self, pos: int) -> State:
         """
@@ -241,6 +184,8 @@ class AttributeParser:
         """
         ch = self.cursor.src[pos]
         match ch:
+            case '\n':
+                return State.SCANNING # trigger CONTINUE
             case ' ' | '\t':
                 self.add_event(
                     Event.attr(
@@ -307,7 +252,7 @@ class AttributeParser:
 
         # Space indicates current id attrbute ends.
         # Here it differs from js version. We don't permit newline.
-        if ch in self._SPACE_TAB: 
+        if ch.isspace():
             # the id is ended.
             if self.begin and self.lastpos and self.lastpos > self.begin: # content
                 self.add_event(
@@ -317,12 +262,13 @@ class AttributeParser:
                     )
                 )
 
-            self.add_event(
-                Event.attr(
-                    Range(pos, pos), 
-                    AttrKind.SPACE
+            if ch != '\n':
+                self.add_event(
+                    Event.attr(
+                        Range(pos, pos), 
+                        AttrKind.SPACE
+                    )
                 )
-            )
             # Prepare to scan next attribute.
             self.begin = None
             return State.SCANNING
@@ -354,7 +300,7 @@ class AttributeParser:
             self.begin = None
             return State.DONE
 
-        if ch in self._SPACE_TAB: # Differs from js vesion. We don't permit newline.
+        if ch.isspace(): # Differs from js vesion. We don't permit newline.
             if self.begin and self.lastpos and self.lastpos > self.begin:
                 self.add_event(
                     Event.attr(
@@ -362,13 +308,14 @@ class AttributeParser:
                         kind=AttrKind.CLASS,
                     )
                 )
-            
-            self.add_event(
-                Event.attr(
-                    Range(pos, pos),
-                    kind=AttrKind.SPACE
+
+            if ch != '\n':
+                self.add_event(
+                    Event.attr(
+                        Range(pos, pos),
+                        kind=AttrKind.SPACE
+                    )
                 )
-            )
             self.begin = None
             return State.SCANNING
         
@@ -440,20 +387,21 @@ class AttributeParser:
             return State.DONE
 
         # It differs from js version. We don't permit newline.
-        if ch in self._SPACE_TAB and self.begin and self.lastpos: # finished key=value
+        if ch.isspace() and self.begin and self.lastpos: # finished key=value
             self.add_event(
                 Event.attr(
                     Range(self.begin, self.lastpos),
                     kind=AttrKind.VALUE
                 )
             )
-            
-            self.add_event(
-                Event.attr(
-                    Range(pos, pos),
-                    kind=AttrKind.SPACE
+
+            if ch != '\n':
+                self.add_event(
+                    Event.attr(
+                        Range(pos, pos),
+                        kind=AttrKind.SPACE
+                    )
                 )
-            )
             self.begin = None
             return State.SCANNING
         
@@ -461,11 +409,11 @@ class AttributeParser:
         
     def _scanning_escaped(self, pos: int) -> State:
         return State.SCANNING_QUOTED_VALUE
+
+    def _scanning_escaped_in_continuation(self, pos: int) -> State:
+        return State.SCANNING_QUOTED_VALUE_CONTINUATION
     
     def _scanning_quoted_value(self, pos: int) -> State:
-        """
-        Equivalent to js version handlers[State.SCANNING_QUOTED_VALUE]
-        """
         ch = self.cursor.src[pos]
         if ch == '"' and self.begin and self.lastpos: # closing "
             self.add_event(
@@ -483,13 +431,60 @@ class AttributeParser:
             self.begin = None
             return State.SCANNING
 
-        # Here it dffers from js version. We don't permit newline.
-        if ch in '\r\n' and self.begin and self.lastpos:
-            return State.FAIL
+
+        if ch == '\n' and self.begin and self.lastpos:
+            self.add_event(
+                Event.attr(
+                    Range(self.begin+1, pos),
+                    kind=AttrKind.VALUE,
+                )
+            )
+            self.begin = None
+            return State.SCANNING_QUOTED_VALUE_CONTINUATION
 
         if ch == '\\':
             return State.SCANNING_ESCAPED
         
         return State.SCANNING_QUOTED_VALUE
+
+    def _scanning_quoted_value_continuation(self, pos: int) -> State:
+        ch = self.cursor.src[pos]
+
+        if self.begin is None:
+            self.begin = pos
+
+        if ch == '"' and self.begin and self.lastpos:
+            # In djot.js, QUOTE_MARKER event comes before VALUE event.
+            # I think it's a bug.
+            self.add_event(
+                Event.attr(
+                    Range(self.begin, self.lastpos),
+                    kind=AttrKind.VALUE
+                )
+            )
+            self.add_event(
+                Event.attr(
+                    Range(pos, pos),
+                    kind=AttrKind.QUOTE_MARKER
+                )
+            )
+            
+            self.begin = None
+            return State.SCANNING
+
+        if ch == '\n' and self.begin and self.lastpos:
+            self.add_event(
+                Event.attr(
+                    Range(self.begin, self.lastpos),
+                    kind=AttrKind.VALUE
+                )
+            )
+            self.begin = None
+            return State.SCANNING_QUOTED_VALUE_CONTINUATION
+
+        if ch == '\\':
+            return State.SCANNING_ESCAPED_IN_CONTINUATION
+
+        return State.SCANNING_QUOTED_VALUE_CONTINUATION
             
 
