@@ -1,12 +1,12 @@
 from dataclasses import dataclass
 from typing import List
 
-from ..cursor import Cursor
-from ..event import (
+from djot.cursor import Cursor
+from djot.event import (
     BlockContainer,
     Event,
 )
-from ..common import Range
+from djot.common import Range
 
 from .container import ContainerCap
 from .frame import (
@@ -15,7 +15,7 @@ from .frame import (
     BlockRule,
     OpenResult,
     ContinueResult,
-    ContinueAction,
+    FrameAction,
     ParsingContext,
 )
 
@@ -26,7 +26,7 @@ class ParaRule(BlockRule):
     accepts_content: ContainerCap = ContainerCap.INLINE
 
     def try_open(self, cursor: Cursor) -> OpenResult:
-        container = BlockFrame(
+        frame = BlockFrame(
             rule=self,
             start_pos=cursor.pos,
             closing_boundary=Range(cursor.line_end, cursor.line_end)
@@ -41,7 +41,7 @@ class ParaRule(BlockRule):
                     span=cursor.new_span(pos, pos)
                 )
             ],
-            frame=container,
+            frame=frame,
         )
 
     def on_continue(
@@ -53,7 +53,7 @@ class ParaRule(BlockRule):
         # Lazy content checking is determined in main loop, resulting to inconsistency.
         if ctx.cursor.is_whitespace(ctx.cursor.pos):
             return ContinueResult(
-                action=ContinueAction.STOP,
+                frame_action=FrameAction.IMPLICIT_CLOSE,
             )
         
         frame.update_closing_boundary(
@@ -61,7 +61,7 @@ class ParaRule(BlockRule):
             ctx.cursor.line_end
         )
         return ContinueResult(
-            action=ContinueAction.CONTINUE,
+            frame_action=FrameAction.PRESERVE,
         )
 
         
