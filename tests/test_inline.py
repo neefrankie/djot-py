@@ -414,18 +414,6 @@ class TestInlineParser(unittest.TestCase):
 
         self.assertEqual(parser.get_matches(), expected)
 
-    def test_attr(self):
-        text = '{#foo'
-        #       012345
-
-        cursor = Cursor(text)
-        cursor.next_line()
-
-        parser = InlineParser(cursor)
-        parser.feed(0, 5)
-
-        for e in parser.get_matches():
-            print(e)
 
 if __name__ == '__main__':
     unittest.main()
