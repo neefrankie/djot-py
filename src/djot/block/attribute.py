@@ -5,13 +5,14 @@ from djot.cursor import Cursor
 from djot.attributes import (
     AttributeParser,
     AttrStatus,
-    AttrParseResult,
 )
 from djot.event import (
     Event,
     BlockContainer,
 )
 from djot.common import Range
+from djot.inline import InlineParser
+from djot.logger import logger
 
 from .container import ContainerCap
 from .frame import (
@@ -20,42 +21,12 @@ from .frame import (
     BlockRule,
     OpenResult,
     ContinueResult,
-    ContinueAction,
+    FrameAction,
+    LineAction,
     ParsingContext,
+    BlockAttrContext,
 )
 
-def parse_attributes(
-    cursor: Cursor,
-    parser: AttributeParser,
-) -> AttrParseResult:
-    
-    current_line = cursor.current_line
-
-    initial_indented_column = current_line.current_column
-
-    res = parser.feed(current_line.pos, current_line.end_offset)
-
-    while res.status == AttrStatus.CONTINUE:
-        next_line = cursor.peek_line(current_line)
-        if next_line is None: # no more lines
-            return AttrParseResult(
-                status=AttrStatus.FAIL,
-                position=res.position,
-            )
-
-        next_line = cursor.skip_space(next_line)
-        # Multiple lines attributes should be indented.
-        if next_line.current_column <= initial_indented_column:
-            return AttrParseResult(
-                status=AttrStatus.FAIL,
-                position=res.position,
-            )
-        
-        # res.DONE and res.FAIL should break the loop
-        res = parser.feed(next_line.pos, next_line.end_offset)
-        current_line = next_line
-
-    return res
 
 @dataclass
 class AttributeRule(BlockRule):
@@ -71,40 +42,77 @@ class AttributeRule(BlockRule):
 
         start = cursor.pos
         attribute_parser = AttributeParser(cursor)
-        
-        res = parse_attributes(cursor, attribute_parser)
 
-        match res.status:
-            case AttrStatus.CONTINUE:
-                raise Exception('Unexpected continue status for attributes parsing')
-            
+        res = attribute_parser.feed(start, cursor.line_end)
+
+        logger.debug(f'## {start}: Attribute parse result: {res}\n')
+
+        match res.status:            
             case AttrStatus.FAIL:
+                # FAIL might be caused by invalid attributes,
+                # or a line started with inline markup like:
+                # {+ADD ME!+}
                 return OpenResult(
-                    status=OpenStatus.FALLBACK,
-                    fallback_span=Range(start, res.position)
+                    status=OpenStatus.NOT_MATCHED,
                 )
 
             case AttrStatus.DONE:
                 # Attributes should stand alone on a line.
                 if not cursor.is_ahead_blank(res.position + 1):
+                    logger.debug(f'{res.position}: block attributes has contents followed')
                     return OpenResult(
-                        status=OpenStatus.FALLBACK,
-                        fallback_span=Range(start, res.position)
+                        status=OpenStatus.NOT_MATCHED,
                     )
+                
+                # A single line attributes
+                events = self._handle_done(
+                    start=cursor.new_span(start, start),
+                    end=cursor.new_span(
+                        start=res.position,
+                        end=res.position
+                    ),
+                    attr_events=attribute_parser.events
+                )
 
-        frame = BlockFrame(
-            rule=self,
-            start_pos=start
-        )
+                cursor.advance_pos(cursor.line_end) # move directly to EOL to prevent generating redundant events.
+                        
+                return OpenResult(
+                    status=OpenStatus.MATCH_AND_CONSUMED,
+                    events=events,
+                )
 
+            case AttrStatus.CONTINUE:
+                # Only CONTINUE state needs the try_continue method.
+                frame = BlockFrame(
+                    rule=self,
+                    start_pos=start,
+                    closing_boundary=Range(cursor.line_end, cursor.line_end),
+                    block_attr=BlockAttrContext(
+                        status=res.status,
+                        indent=cursor.indent,
+                        start_pos=start,
+                        slices=[
+                            Range(start, cursor.line_end)
+                        ],
+                    ),
+                    attribute_parser=attribute_parser,
+                )
+
+                cursor.advance_pos(cursor.line_end)
+                return OpenResult(
+                    status=OpenStatus.MATCH_AND_CONSUMED,
+                    frame=frame,
+                )
+
+    def _handle_done(self, start: Range, end: Range, attr_events: List[Event]) -> List[Event]:
         events = [
             Event.enter(
-                cursor.new_span(start, start),
-                BlockContainer.ATTRIBUTES
+                span=start,
+                kind=BlockContainer.ATTRIBUTES
             )
         ]
 
-        events.extend(attribute_parser.events)
+        events.extend(attr_events)
 
         events.append(
             Event.exit(
@@ -112,19 +120,12 @@ class AttributeRule(BlockRule):
                 # NOTE: djot.js implementation incorrectly sets the
                 # block attributes to next block starting point.
                 # It should be the end brace based on human intuition and symmetry.
-                span=cursor.new_span(
-                    start=res.position,
-                    end=res.position
-                )
+                span=end
             )
         )
-        
-        cursor.advance_pos(cursor.line_end)
-        return OpenResult(
-            status=OpenStatus.MATCH_AND_CONSUMED,
-            events=events,
-            frame=frame,
-        )
+
+        return events
+
 
     def on_continue(
         self,
@@ -146,13 +147,157 @@ class AttributeRule(BlockRule):
 
         The solution is never creating a frame if you are sure you have finished a block in open stage.
         """
-        return ContinueResult(
-            action=ContinueAction.STOP,
-        )
+        if frame.block_attr is None:
+            return ContinueResult(
+                frame_action=FrameAction.IMPLICIT_CLOSE,
+            )
+
+        # Only CONTINUE state cound be carried over to this stage.
+        if frame.block_attr.status != AttrStatus.CONTINUE:
+            return ContinueResult(
+                frame_action=FrameAction.IMPLICIT_CLOSE,
+            )
+
+        if frame.attribute_parser is None or ctx.cursor.indent <= frame.block_attr.indent:
+            logger.debug(f'{self.__class__.__name__} continue failed: not enough indent')
+            # Current line must be indented more than starting line.
+            # Otherwise continue should fail and previously parsed
+            # spans should rewind.
+            # NOTE:
+            # When we are here, previous line must resulted to
+            # status == AttrStatus.CONTINUE.
+            # However, FrameAction.FALLBACK will result to
+            # the on_close method called.
+            # If we do not change status to FAIL,
+            # the on_close method will create perform reparsing,
+            # which is not what we want.
+            frame.block_attr.status = AttrStatus.FAIL
+            return ContinueResult(
+                frame_action=FrameAction.FALLBACK,
+            )
+
+        logger.debug(f'{ctx.cursor.pos}: AttributeRule continueed')
+
+        start = ctx.cursor.pos
+        line_end = ctx.cursor.line_end
+
+        frame.block_attr.slices.append(Range(
+            start=start,
+            end=line_end,
+        ))
+
+        # For continue, we shuld carry over the last ending points to on_close method.
+        # For done, we don't need it.
+        # Foa fail, we have to include current line.
+        frame.update_closing_boundary(line_end, line_end)
+
+        res = frame.attribute_parser.feed(start, line_end)
+    
+        match res.status:
+            case AttrStatus.FAIL:
+                frame.block_attr.status = AttrStatus.FAIL
+                return ContinueResult(
+                    frame_action=FrameAction.FALLBACK, # fallback includes current line.
+                )
+
+            case AttrStatus.CONTINUE:
+                frame.block_attr.status = AttrStatus.CONTINUE
+
+                ctx.cursor.advance_pos(ctx.cursor.line_end)
+
+                return ContinueResult(
+                    frame_action=FrameAction.PRESERVE,
+                    line_action=LineAction.CONSUMED,
+                )
+
+            
+            case AttrStatus.DONE:
+                # This indicates previous line is attribute-like,
+                # and continue to this line, and initially parsed
+                # to attribute end, but then find out this line
+                # has trailing content.
+                # So previous line should not be treated as attribute.py
+                # In such case we should immediately close current frame.
+                if not ctx.cursor.is_ahead_blank(res.position + 1):
+                    frame.block_attr.status = AttrStatus.FAIL
+                    return ContinueResult(
+                        frame_action=FrameAction.FALLBACK, # fallback includes current line.
+                    )
+
+                events = self._handle_done(
+                    start=ctx.cursor.new_span(
+                        frame.block_attr.start_pos,
+                        frame.block_attr.start_pos
+                    ),
+                    end=ctx.cursor.new_span(
+                        start=res.position,
+                        end=res.position,
+                    ),
+                    attr_events=frame.attribute_parser.events.copy()
+                )
+
+                frame.block_attr.status = AttrStatus.DONE
+                ctx.cursor.advance_pos(ctx.cursor.line_end)
+
+                return ContinueResult(
+                    frame_action=FrameAction.EXPLICIT_CLOSE,
+                    line_action=LineAction.CONSUMED,
+                    events=events,
+                )
+
 
     def on_close(
         self, 
         frame: BlockFrame, 
         ctx: ParsingContext,
     ) -> List[Event]:
-        return []
+        if frame.block_attr is None:
+            return []
+
+        # DONE and FAIL state are handled in open
+        # or continue stage, so they shouldn't fallthough to here.
+        # When attribute frame should close but it
+        # is still in CONTINUE state, it means it
+        # never see ending token.
+        # So the whole block is not valid attribute.
+        if frame.block_attr.status != AttrStatus.CONTINUE:
+            return []
+
+        start_pos = frame.block_attr.start_pos
+        events: List[Event] = [
+            Event.enter(
+                kind=BlockContainer.PARA,
+                span=ctx.cursor.new_span(
+                    start=start_pos,
+                    end=start_pos,
+                )
+            )
+        ]
+
+        # In djot.js, the addContainer method has a parameter called skipCloseUnmatched.
+        # I think it is reserved specfically for usage here, creating a paragraph container
+        # without causing side-effect.
+
+        inline_parser = InlineParser(ctx.cursor)
+
+        inline_parser.reparse_attributes(frame.block_attr.slices)
+
+        events.extend(inline_parser.iter_merged_events())
+
+        assert frame.closing_boundary is not None
+
+        events.append(
+            Event.exit(
+                kind=BlockContainer.PARA,
+                span=Range(
+                    start=frame.closing_boundary.start,
+                    end=frame.closing_boundary.end,
+                )
+            )
+        )
+
+        return events
+
+        
+
+        
