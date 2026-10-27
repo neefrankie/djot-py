@@ -9,6 +9,10 @@ from djot.event import (
     Event,
 )
 from djot.common import Range
+from djot.attributes import (
+    AttrStatus,
+    AttributeParser,
+)
 
 from djot.common.list_style import ListStyle
 
@@ -30,7 +34,12 @@ class ListData:
     styles: List[ListStyle]
     indent: int
 
-
+@dataclass(slots=True)
+class BlockAttrContext:
+    status: AttrStatus
+    indent: int
+    start_pos: int
+    slices: List[Range]
 
 @dataclass(frozen=True)
 class ParsingContext:
@@ -56,6 +65,7 @@ class BlockFrame:
     closing_boundary: Optional[Range] = None # the position of closing token.
     indent: Optional[int] = None
     inline_parser: Optional[InlineParser] = None
+    attribute_parser: Optional[AttributeParser] = None
 
     code_fence: str | None = None
     div_colon: str | None = None
@@ -64,13 +74,16 @@ class BlockFrame:
     ref_def: RefDefData | None = None
     footnote: FootnoteData | None = None
     heading_level: int | None = None
+    block_attr: BlockAttrContext | None = None
 
     def update_closing_boundary(self, start: int, end: int):
+        # Update a block's last satifactory boundary.
+        # Performed only when continue could go on.
         self.closing_boundary = Range(start, end)
     
 
     def __repr__(self) -> str:
-        return f'Container<{self.rule.__class__.__name__}>'
+        return f'Frame<{self.rule.__class__.__name__}>'
 
     @property
     def children_type(self) -> ContainerCap:
@@ -100,7 +113,7 @@ class BlockFrame:
 class OpenStatus(Enum):
     MATCHED = auto() # A rule applied successfully, so stop trying the rest of rules.
     NOT_MATCHED = auto() # Current rule does not apply to a block, continue to try next rules.
-    FALLBACK = auto() # Syntax error, fallback to paragraph rule.
+    # FALLBACK = auto() # Syntax error, fallback to paragraph rule.
     MATCH_AND_CONSUMED = auto() # A rule applied successfully and consumed the whole line, so stop trying any rules and jump to next line directly.
 
 
@@ -117,7 +130,6 @@ class OpenResult:
     status: OpenStatus
     events: List[Event] = field(default_factory=list)
     frame: BlockFrame | None = None
-    fallback_span: Range | None = None
     
     def __repr__(self) -> str:
         return f'RuleResult(status={self.status.name}, new events: {len(self.events)}, new container: {self.frame})'
@@ -126,17 +138,21 @@ class OpenResult:
     def not_matched(cls) -> 'OpenResult':
         return cls(status=OpenStatus.NOT_MATCHED)
 
-class ContinueAction(Enum):
+class FrameAction(Enum):
     """
     Determine the lifecycle of a frame.
     
     CONTINUE: continue to inner frames.
     STOP: stop searcing for inner frames and all frames from here
     to the end should be closed.
+
+    Or are there any proper names?
+    Like PRESERVER, DROP_LATER, DROP_NOW?
     """
-    CONTINUE = auto()
-    STOP = auto()
-    CLOSE = auto()
+    PRESERVE = auto() # Go deeper in tree.
+    IMPLICIT_CLOSE = auto() # stop going deeper but close is delayed.
+    EXPLICIT_CLOSE = auto() # close the frame immediately.
+    FALLBACK = auto()
 
 class LineAction(Enum):
     """
@@ -158,7 +174,7 @@ class ContinueResult:
     the whole line since a frame may cover multiple lines,
     or it could be terminateded while consumed the whole line.
     """
-    action: ContinueAction # determin the lifecycle of frame.
+    frame_action: FrameAction # determin the lifecycle of frame.
     # Mode rules do not generate event during on continue phase.
     # There are two exceptions: reference definition and table.
     events: List[Event] = field(default_factory=list)
@@ -166,7 +182,7 @@ class ContinueResult:
 
     @classmethod
     def stop(cls) -> 'ContinueResult':
-        return cls(action=ContinueAction.STOP)
+        return cls(frame_action=FrameAction.IMPLICIT_CLOSE)
 
 # In djot.js it is called BlockSpec.
 @dataclass
