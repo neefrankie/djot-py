@@ -55,13 +55,11 @@ class InlineNode(AstNode):
 class BlockNode(AstNode, ABC):
     pass
 
-# 区分常规内容块（Para, Heading 等）与 定义类块（Footnote, Reference）
 @dataclass(kw_only=True)
 class ContentBlock(BlockNode, ABC):
-    """能够嵌入普通 Container（如 BlockQuote, Div, Doc）的内容块"""
     pass
 
 @dataclass(kw_only=True)
 class DefinitionBlock(BlockNode, ABC):
-    """元数据/定义类块（如 Footnote, Reference）"""
+    """Metadata/definition block like Footnote, Reference"""
     pass
