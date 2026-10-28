@@ -196,7 +196,7 @@ class Cursor:
         if target.end_offset >= self.length:
             return False
 
-        if target.start_offset <= self.current_line.end_offset:
+        if target.start_offset <= self._line_end:
             return False
 
         self._pos = target.pos
@@ -209,11 +209,11 @@ class Cursor:
         if newpos >= self.length:
             raise Exception('Cursor.advance_pos: newpos is out of range')
 
-        if newpos < self.pos:
+        if newpos < self._pos:
             # Ensure monotony
             raise Exception('Cursor.advance_pos: newpos is less than current pos')
 
-        if newpos == self.pos:
+        if newpos == self._pos:
             return
 
         if newpos <= self._line_end: # same line
@@ -225,7 +225,7 @@ class Cursor:
         self.advance_line(new_line)
 
     def peek_line(self, prev: LineContext) -> LineContext | None:
-        if prev.end_offset >= self.length:
+        if prev.end_offset + 1 >= self.length:
             return None
 
         start_offset = prev.end_offset + 1
