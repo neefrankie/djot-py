@@ -62,14 +62,14 @@ class HeadingRule(BlockRule):
     accepts_content: ContainerCap = ContainerCap.INLINE
 
     def try_open(self, cursor: Cursor) -> OpenResult:
-        level = cursor.count_char('#')
+        start = cursor.pos
+        level = cursor.count_char('#', start)
         if level == 0:
             return OpenResult.not_matched()
 
         if not cursor.is_whitespace(cursor.pos + level):
             return OpenResult.not_matched()
 
-        start = cursor.pos
         endchar = start + level - 1
 
         cursor.advance_pos(endchar + 1) # after ending #
@@ -95,7 +95,8 @@ class HeadingRule(BlockRule):
         frame: BlockFrame,
         ctx: ParsingContext
     ) -> ContinueResult:
-        level = ctx.cursor.count_char('#')
+        start = ctx.cursor.pos
+        level = ctx.cursor.count_char('#', start)
         if level == 0:
             return ContinueResult(
                 frame_action=FrameAction.IMPLICIT_CLOSE,

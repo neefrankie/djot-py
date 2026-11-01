@@ -435,13 +435,8 @@ class Cursor:
     # Replace these regex:
     # re.compile(r'`*')
     # re.compile(r'`+')
-    def count_char(self, ch: str, start: Optional[int] = None) -> int:
-        """Count consecutive chars"""
-        if start is None:
-            pos = self.pos
-        else:
-            pos = start
-        
+    def count_char(self, ch: str, pos: int) -> int:
+        """Count consecutive chars"""        
         if self.src[pos] != ch:
             return 0
         
