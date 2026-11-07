@@ -296,6 +296,12 @@ class Cursor:
         So the indent is not actaully whitespace indentation.
         It might be more properly described as the 
         column position of first non-space character of a node.
+
+        Why do we we record such information?
+        Because indent is local to the lifecycle of a node itself.
+        For example, `>   # Heading`.
+        To determine a heading, you only need to know how many spaces
+        before # and after >, not how many leading spaces there are in this line.
         """
         newpos = self.pos
 
@@ -304,16 +310,6 @@ class Cursor:
 
         self._indent = newpos - self._line_start
         self._pos = newpos
-
-    def skip_space(self, line: LineContext) -> LineContext:
-        newpos = line.pos
-
-        while newpos < line.end_offset and self.src[newpos] in self._SPACE_TAB:
-            newpos += 1
-
-        return line.new_pos(pos=newpos)
-
-    
 
     def find_next_newline(self, pos: int) -> int:
         return self.src.find('\n', pos)
