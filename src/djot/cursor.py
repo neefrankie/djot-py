@@ -302,6 +302,11 @@ class Cursor:
         For example, `>   # Heading`.
         To determine a heading, you only need to know how many spaces
         before # and after >, not how many leading spaces there are in this line.
+
+        NOTE:
+        There's a potential bug in this method.
+        If you accidentially called this method
+        twice consecutively, the indent will be erased.
         """
         newpos = self.pos
 
