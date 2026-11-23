@@ -15,7 +15,6 @@ from djot.ast import (
     HardBreak,
     NonBreakingSpace,
     Symb,
-    FootnoteReference,
     SmartPunctuation,
     SmartPunctType,
 )
@@ -33,7 +32,6 @@ from .state import (
 )
 from .handler import Handler
 from .frame import Frame
-from .normalize import normalize_label
 
 class DefaultHandler(Handler):
     def on_exit(self, state: BuildingState, ctx: DocumentContext, event: Event) -> AstNode | None:

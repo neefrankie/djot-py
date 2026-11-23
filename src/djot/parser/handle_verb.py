@@ -1,7 +1,6 @@
 from djot.ast import (
     AstNode,
     Verbatim,
-    DisplayMath,
     InlineMath,
     RawInline,
     CodeBlock,
@@ -9,7 +8,6 @@ from djot.ast import (
 )
 from djot.event import (
     Event,
-    VerbatimKind,
 )
 from djot.parser.frame import Frame
 
@@ -89,7 +87,7 @@ class InlineMathHandler(Handler):
         )
 
 # InlineLeaf.RAW_FORMAT
-class RawForamtHandler(Handler):
+class RawFormatHandler(Handler):
     def handle_leaf(self, state: BuildingState, ctx: DocumentContext, event: Event):
         """
         Code block:

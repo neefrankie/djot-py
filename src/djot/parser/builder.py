@@ -67,7 +67,7 @@ from .handle_verb import (
     VerbatimHandler,
     DisplayMathHandler,
     InlineMathHandler,
-    RawForamtHandler,
+    RawFormatHandler,
     CodeBlockHandler,
     CodeLangHandler,
 )
@@ -98,7 +98,7 @@ class ASTBuilder:
             InlineLeaf.REFERENCE_KEY:   ReferenceKeyHandler(),
             InlineLeaf.REFERENCE_VALUE: ReferenceValueHandler(),
             VerbatimKind.VERBATIM:      VerbatimHandler(),
-            InlineLeaf.RAW_FORMAT:      RawForamtHandler(),
+            InlineLeaf.RAW_FORMAT:      RawFormatHandler(),
             VerbatimKind.DISPLAY_MATH:  DisplayMathHandler(),
             VerbatimKind.INLINE_MATH:   InlineMathHandler(),
             InlineContainer.URL:        AutoUrlHandler(),
