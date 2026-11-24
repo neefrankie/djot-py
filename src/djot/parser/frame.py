@@ -11,6 +11,7 @@ from djot.ast import (
     InlineNode,
     BlockNode,
     HasChildren,
+    Caption,
     DefinitionListItem,
     TaskListItem,
     ListItem,
@@ -97,6 +98,8 @@ class Frame:
     heading_level: int | None = None
     row_aligns: Optional[List[Alignment]] = None
     label: str | None = None
+
+    caption: Caption | None = None
     
     @property
     def last_child(self) -> Optional[AstNode]:
@@ -110,6 +113,10 @@ class Frame:
         if self.text_buffer:
             return ''.join(self.text_buffer)
         return ''
+
+    @property
+    def is_div(self) -> bool:
+        return self.kind == BlockContainer.DIV
 
     @property
     def is_list(self) -> bool:
@@ -311,3 +318,5 @@ class Frame:
         return [c for c in self.children if isinstance(c, node_type)]
 
 
+    def store_caption(self, node: Caption):
+        self.caption = node
