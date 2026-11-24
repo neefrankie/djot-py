@@ -11,6 +11,7 @@ from .base import (
     HasText,
     ContentBlock,
     DefinitionBlock,
+    Caption,
 )
 from .doc import Doc
 from .block import (
@@ -41,7 +42,7 @@ from .list import (
 )
 from .table import (
     Table,
-    Caption,
+    
     Row,
     Cell,
 )

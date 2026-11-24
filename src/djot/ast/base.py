@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, Generic, List, Optional, TypeVar
 
 from ..common import Pos
@@ -41,7 +41,7 @@ T = TypeVar("T")
 
 @dataclass(kw_only=True)
 class HasChildren(Generic[T], ABC):
-    children: List[T]
+    children: List[T] = field(default_factory=list)
 
 @dataclass(kw_only=True)
 class HasText(ABC):
@@ -63,3 +63,10 @@ class ContentBlock(BlockNode, ABC):
 class DefinitionBlock(BlockNode, ABC):
     """Metadata/definition block like Footnote, Reference"""
     pass
+
+@dataclass(kw_only=True)
+class Caption(HasChildren[InlineNode], AstNode):
+
+    @property
+    def tag(self) -> str:
+        return 'caption'

@@ -1,12 +1,13 @@
 from dataclasses import dataclass
 
-from ..common import Alignment
+from djot.common import Alignment
 
 from .base import (
     AstNode,
     HasChildren,
     InlineNode,
     BlockNode,
+    Caption,
 )
 
 @dataclass(kw_only=True)
@@ -26,14 +27,6 @@ class Row(HasChildren[Cell], AstNode):
     @property
     def tag(self) -> str:
         return 'row'
-
-
-@dataclass(kw_only=True)
-class Caption(HasChildren[InlineNode], AstNode):
-
-    @property
-    def tag(self) -> str:
-        return 'caption'
 
 
 @dataclass(kw_only=True)
