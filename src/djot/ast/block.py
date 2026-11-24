@@ -7,17 +7,18 @@ from .base import (
     BlockNode,
     ContentBlock,
     DefinitionBlock,
+    Caption,
 )
 
 
-@dataclass
+@dataclass(kw_only=True)
 class Para(HasChildren[InlineNode], ContentBlock):
 
     @property
     def tag(self) -> str:
         return 'para'
 
-@dataclass
+@dataclass(kw_only=True)
 class Heading(HasChildren[InlineNode], ContentBlock):
     level: int
 
@@ -25,34 +26,35 @@ class Heading(HasChildren[InlineNode], ContentBlock):
     def tag(self) -> str:
         return 'heading'
 
-@dataclass
+@dataclass(kw_only=True)
 class ThematicBreak(BlockNode):
     @property
     def tag(self) -> str:
         return 'thematic_break'
 
-@dataclass
+@dataclass(kw_only=True)
 class Section(HasChildren[BlockNode], ContentBlock):
 
     @property
     def tag(self) -> str:
         return 'section'
 
-@dataclass
+@dataclass(kw_only=True)
 class Div(HasChildren[BlockNode], ContentBlock):
+    caption: Caption
 
     @property
     def tag(self) -> str:
         return 'div'
 
-@dataclass
+@dataclass(kw_only=True)
 class BlockQuote(HasChildren[BlockNode], ContentBlock):
 
     @property
     def tag(self) -> str:
         return 'block_quote'
 
-@dataclass
+@dataclass(kw_only=True)
 class CodeBlock(HasText, ContentBlock):
     lang: str | None
 
@@ -60,7 +62,7 @@ class CodeBlock(HasText, ContentBlock):
     def tag(self) -> str:
         return 'code_block'
 
-@dataclass
+@dataclass(kw_only=True)
 class RawBlock(HasText, ContentBlock):
     format: str
 
@@ -76,7 +78,7 @@ class Footnote(HasChildren[BlockNode], DefinitionBlock):
     def tag(self) -> str:
         return 'footnote'
 
-@dataclass
+@dataclass(kw_only=True)
 class Reference(DefinitionBlock):
     """
     Handles a reference link definition
