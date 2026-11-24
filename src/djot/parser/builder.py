@@ -23,7 +23,7 @@ from .state import (
     BuildingState,
 )
 from .handler import Handler
-from .handle_default import DefaultHandler
+from .handle_default import DefaultInlineHandler
 from .handle_attr import (
     InlineAttrHandler,
     BlockAttrHandler,
@@ -60,8 +60,8 @@ from .handle_table import (
     TableRowHandler,
     TableSeparatorHandler,
     TableCellHandler,
-    CaptionHandler,
 )
+from .handle_caption import CaptionHandler
 from .handle_thematic import ThematicBreakHandler
 from .handle_verb import (
     VerbatimHandler,
@@ -83,7 +83,7 @@ class ASTBuilder:
         )
         self.state = BuildingState()
 
-        self.handle_default = DefaultHandler()
+        self.handle_default = DefaultInlineHandler()
         self.handle_attr = AttrLeafHandler()
 
         self.handlers: Dict[EventKind, Handler] = {
@@ -122,6 +122,9 @@ class ASTBuilder:
             BlockLeaf.THEMATIC_BREAK:   ThematicBreakHandler(),
             BlockLeaf.BLANKLINE:        BlanklineHandler(),
         }
+
+    def register_handler(self, handler: Handler):
+        self.handlers[handler.event_kind] = handler
 
 
     def build(self):
