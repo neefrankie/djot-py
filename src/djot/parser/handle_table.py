@@ -10,10 +10,12 @@ from djot.ast import (
 from djot.event import (
     Event,
     TablePayload,
+    EventKind,
     BlockContainer,
+    InlineLeaf,
+    InlineContainer,
 )
 from djot.common import Alignment
-from djot.logger import logger
 
 from .state import (
     BuildingState,
@@ -24,6 +26,10 @@ from .frame import Frame
 
 # BlockContainer.TABLE
 class TableHandler(Handler):
+    @property
+    def event_kind(self) -> EventKind:
+        return BlockContainer.TABLE
+    
     def on_enter(self, state: BuildingState, ctx: DocumentContext, event: Event) -> Frame | None:
         return Frame(
             kind=event.kind,
@@ -53,6 +59,10 @@ class TableHandler(Handler):
 
 # BlockContainer.TABLE_ROW
 class TableRowHandler(Handler):
+    @property
+    def event_kind(self) -> EventKind:
+        return BlockContainer.TABLE_ROW
+    
     def on_enter(self, state: BuildingState, ctx: DocumentContext, event: Event) -> Frame | None:
         return Frame(
             kind=event.kind, # ROW
@@ -82,6 +92,10 @@ class TableRowHandler(Handler):
                 
 # InlineLeaf.TABLE_SEPARATOR
 class TableSeparatorHandler(Handler):
+    @property
+    def event_kind(self) -> EventKind:
+        return InlineLeaf.TABLE_SEPARATOR
+    
     def handle_leaf(self, state: BuildingState, ctx: DocumentContext, event: Event):
         """Save separator alignment to row frame.
         
@@ -104,8 +118,12 @@ class TableSeparatorHandler(Handler):
 
         state.current_frame.push_row_align(event.payload.alignment)
 
-# BlockContainer.TABLE_CELL
+
 class TableCellHandler(Handler):
+    @property
+    def event_kind(self) -> EventKind:
+        return InlineContainer.TABLE_CELL
+    
     def on_exit(self, state: BuildingState, ctx: DocumentContext, event: Event) -> AstNode | None:
         frame = state.pop_frame() # row frame
         pos = ctx.calc_container_pos(frame, event)
@@ -117,31 +135,3 @@ class TableCellHandler(Handler):
             head=False,
             align=Alignment.DEFAULT
         )
-
-# BlockContainer.CAPTION
-class CaptionHandler(Handler):
-    def on_exit(self, state: BuildingState, ctx: DocumentContext, event: Event) -> AstNode | None:
-        frame = state.pop_frame()
-        pos = ctx.calc_container_pos(frame, event)
-
-        last_node = state.last_node
-        if isinstance(last_node, Table):
-            caption = Caption(
-                attributes=frame.attributes.build(),
-                pos=pos,
-                children=frame.pop_inline_children()
-            )
-            last_node.caption = caption
-            return None
-
-        if state.current_frame.kind == BlockContainer.DIV:
-            return Caption(
-                attributes=frame.attributes.build(),
-                pos=pos,
-                children=frame.pop_inline_children()
-            )
-
-        logger.warning(f'{pos}. Caption should follow a table or be wrapped in a div')
-
-        
-        

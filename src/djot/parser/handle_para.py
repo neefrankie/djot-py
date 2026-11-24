@@ -2,12 +2,20 @@ from djot.ast import (
     AstNode,
     Para,
 )
-from djot.event import Event
+from djot.event import (
+    Event,
+    EventKind,
+    BlockContainer
+)
 
 from .state import BuildingState, DocumentContext
 from .handler import Handler
 
 class ParaHandler(Handler):
+    @property
+    def event_kind(self) -> EventKind:
+        return BlockContainer.PARA
+    
 
     def on_exit(self, state: BuildingState, ctx: DocumentContext, event: Event) -> AstNode | None:
         frame = state.pop_frame()

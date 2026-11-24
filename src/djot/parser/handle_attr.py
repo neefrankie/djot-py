@@ -2,7 +2,13 @@ from djot.ast import (
     AstNode,
     Str,
 )
-from djot.event import Event, AttrKind
+from djot.event import (
+    Event,
+    AttrKind,
+    EventKind,
+    InlineContainer,
+    BlockContainer,
+)
 from djot.logger import logger
 from djot.common import (
     Pos,
@@ -10,7 +16,7 @@ from djot.common import (
 )
 
 from .state import BuildingState, DocumentContext
-from .handler import Handler
+from .handler import Handler, BaseHandler
 
 def find_last_whitespace(s: str):
     last_space_idx = -1
@@ -57,6 +63,10 @@ def split_at_last_space(node: Str) -> Str | None:
 
 # InlineContainer.ATTR
 class InlineAttrHandler(Handler):
+    @property
+    def event_kind(self) -> EventKind:
+        return InlineContainer.ATTR
+    
     def on_exit(self, state: BuildingState, ctx: DocumentContext, event: Event) -> AstNode | None:
         """Attach inline attributes to last node"""
         frame = state.pop_frame()
@@ -97,6 +107,11 @@ class InlineAttrHandler(Handler):
 
 # BlockContainer.ATTRIBUTES
 class BlockAttrHandler(Handler):
+
+    @property
+    def event_kind(self) -> EventKind:
+        return BlockContainer.ATTRIBUTES
+    
     def on_exit(self, state: BuildingState, ctx: DocumentContext, event: Event) -> AstNode | None:
         """
         Transfer attributes longer-lived object
@@ -113,8 +128,9 @@ class BlockAttrHandler(Handler):
 
         return None
 
-class AttrLeafHandler(Handler):
-    def handle_leaf(self, state: BuildingState, ctx: DocumentContext, event: Event):
+class AttrLeafHandler:
+    
+    def __call__(self, state: BuildingState, ctx: DocumentContext, event: Event):
         frame = state.current_frame
         text = ctx.get_leaf_text(event)
 

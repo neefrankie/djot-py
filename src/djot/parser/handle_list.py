@@ -20,6 +20,10 @@ from djot.event import (
     Event,
     ListPayload,
     CheckboxPayload,
+    EventKind,
+    BlockContainer,
+    InlineLeaf,
+    BlockLeaf,
 )
 from djot.common.list_style import ListStyle
 from djot.logger import logger
@@ -34,6 +38,10 @@ from .frame import Frame, ListData, ListItemData
 
 # BlockContainer.LIST
 class ListHandler(Handler):
+    @property
+    def event_kind(self) -> EventKind:
+        return BlockContainer.LIST
+    
     def on_enter(self, state: BuildingState, ctx: DocumentContext, event: Event) -> Frame | None:
         styles: List[ListStyle] = []
         if isinstance(event.payload, ListPayload):
@@ -146,6 +154,10 @@ class ListItemHandler(Handler):
         -LIST_ITEM
     -LIST
     """
+    @property
+    def event_kind(self) -> EventKind:
+        return BlockContainer.LIST_ITEM
+    
     def on_enter(self, state: BuildingState, ctx: DocumentContext, event: Event) -> Frame | None:
         logger.debug(f'🍄 ListItemHandler.on_enter: {event}')
 
@@ -257,6 +269,10 @@ class CheckboxHandler(Handler):
     +LIST_ITEM
     CHECKBOX
     """
+    @property
+    def event_kind(self) -> EventKind:
+        return InlineLeaf.CHECKBOX
+    
     def handle_leaf(self, state: BuildingState, ctx: DocumentContext, event: Event):
         if isinstance(event.payload, CheckboxPayload):
             
@@ -316,6 +332,11 @@ class BlanklineHandler(Handler):
     -LIST
     
     """
+    @property
+    def event_kind(self) -> EventKind:
+        return BlockLeaf.BLANKLINE
+
+    
     def handle_leaf(self, state: BuildingState, ctx: DocumentContext, event: Event):
         # Attributes must come right before a block, so we
         # reset them on blank lines.

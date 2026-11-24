@@ -12,6 +12,8 @@ from djot.event import (
     Event,
     InlineContainer,
     BlockContainer,
+    InlineLeaf,
+    EventKind,
 )
 
 from .frame import Frame
@@ -35,6 +37,10 @@ class LinkTextHandler(Handler):
         STR
     -REFERENCE
     """
+    @property
+    def event_kind(self) -> EventKind:
+        return InlineContainer.LINK_TEXT
+    
     def on_enter(self, state: BuildingState, ctx: DocumentContext, event: Event) -> Frame | None:
         return Frame(
             kind=event.kind,
@@ -68,6 +74,10 @@ class ImageTextHandler(Handler):
         STR
     -REFERENCE
     """
+    @property
+    def event_kind(self) -> EventKind:
+        return InlineContainer.IMAGE_TEXT
+    
     def on_enter(self, state: BuildingState, ctx: DocumentContext, event: Event) -> Frame | None:
         return Frame(
             kind=event.kind,
@@ -87,6 +97,10 @@ class DestHandler(Handler):
     [My link text](http://example.com)
     ![beautiful skyline](clouds.jpg)
     """
+    @property
+    def event_kind(self) -> EventKind:
+        return InlineContainer.DESTINATION
+    
     def on_enter(self, state: BuildingState, ctx: DocumentContext, event: Event) -> Frame | None:
         state.switch_to_literal()
         return None
@@ -127,6 +141,10 @@ class ReferenceHandler(Handler):
     [My link text][foo bar]
     ![picture of a cat][cat]
     """
+    @property
+    def event_kind(self) -> EventKind:
+        return InlineContainer.REFERENCE
+    
     # [My link text][foo bar]
     # ![picture of a cat][cat]
     def on_enter(self, state: BuildingState, ctx: DocumentContext, event: Event) -> Frame | None:
@@ -175,10 +193,14 @@ class RefDefHandler(Handler):
         REFERENCE_VALUE
     -REFERENCE_DEFINITION
     """
+    @property
+    def event_kind(self) -> EventKind:
+        return BlockContainer.REFERENCE_DEFINITION
+    
     def on_exit(self, state: BuildingState, ctx: DocumentContext, event: Event) -> Optional[AstNode]:
         frame = state.pop_frame()
 
-        assert frame.kind == BlockContainer.REFERENCE_DEFINITION
+        assert frame.kind == self.event_kind
 
         pos = ctx.calc_pos(
             frame.start_pos,
@@ -205,12 +227,20 @@ class RefDefHandler(Handler):
 
 
 class ReferenceKeyHandler(Handler):
+    @property
+    def event_kind(self) -> EventKind:
+        return InlineLeaf.REFERENCE_KEY
+    
     def handle_leaf(self, state: BuildingState, ctx: DocumentContext, event: Event):
         key = ctx.get_text(event.startpos+1, event.endpos)
         state.current_frame.set_ref_key(key)
 
 
 class ReferenceValueHandler(Handler):
+    @property
+    def event_kind(self) -> EventKind:
+        return InlineLeaf.REFERENCE_VALUE
+    
     def handle_leaf(self, state: BuildingState, ctx: DocumentContext, event: Event):
         val = ctx.get_text(event.startpos, event.endpos+1)
         state.current_frame.set_ref_val(val)
@@ -220,6 +250,10 @@ class AutoUrlHandler(Handler):
     """
     <https://pandoc.org/lua-filters>
     """
+    @property
+    def event_kind(self) -> EventKind:
+        return InlineContainer.URL
+    
     def on_enter(self, state: BuildingState, ctx: DocumentContext, event: Event) -> Frame | None:
         state.switch_to_literal()
         return super().on_enter(state, ctx, event)
@@ -241,6 +275,10 @@ class AutoEmailHandler(Handler):
     """
     <me@example.com>
     """
+    @property
+    def event_kind(self) -> EventKind:
+        return InlineContainer.EMAIL
+    
     def on_enter(self, state: BuildingState, ctx: DocumentContext, event: Event) -> Frame | None:
         state.switch_to_literal()
         return Frame(

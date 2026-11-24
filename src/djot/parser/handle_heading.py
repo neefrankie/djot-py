@@ -2,13 +2,23 @@ from djot.ast import (
     AstNode,
     Heading,
 )
-from djot.event import Event
+from djot.event import (
+    Event,
+    EventKind,
+    BlockContainer
+)
 from djot.parser.frame import Frame
 
 from .state import BuildingState, DocumentContext
 from .handler import Handler
 
 class HeadingHandler(Handler):
+
+    @property
+    def event_kind(self) -> EventKind:
+        return BlockContainer.HEADING
+
+    
     def on_enter(self, state: BuildingState, ctx: DocumentContext, event: Event) -> Frame | None:
         return Frame(
             kind=event.kind,

@@ -8,6 +8,10 @@ from djot.ast import (
 )
 from djot.event import (
     Event,
+    EventKind,
+    VerbatimKind,
+    InlineLeaf,
+    BlockContainer,
 )
 from djot.parser.frame import Frame
 
@@ -24,6 +28,10 @@ class VerbatimHandler(Handler):
         STR
     -VERBATIM
     """
+    @property
+    def event_kind(self) -> EventKind:
+        return VerbatimKind.VERBATIM
+    
     def on_enter(self, state: BuildingState, ctx: DocumentContext, event: Event) -> Frame | None:
         state.switch_to_verb()
         return super().on_enter(state, ctx, event)
@@ -48,6 +56,10 @@ class DisplayMathHandler(Handler):
     """
     $$`x + y`
     """
+    @property
+    def event_kind(self) -> EventKind:
+        return VerbatimKind.DISPLAY_MATH
+    
     def on_enter(self, state: BuildingState, ctx: DocumentContext, event: Event) -> Frame | None:
         state.switch_to_verb()
         return super().on_enter(state, ctx, event)
@@ -69,6 +81,10 @@ class InlineMathHandler(Handler):
     """
     $`x`
     """
+    @property
+    def event_kind(self) -> EventKind:
+        return VerbatimKind.INLINE_MATH
+    
     def on_enter(self, state: BuildingState, ctx: DocumentContext, event: Event) -> Frame | None:
         state.switch_to_verb()
         return super().on_enter(state, ctx, event)
@@ -88,6 +104,10 @@ class InlineMathHandler(Handler):
 
 # InlineLeaf.RAW_FORMAT
 class RawFormatHandler(Handler):
+    @property
+    def event_kind(self) -> EventKind:
+        return InlineLeaf.RAW_FORMAT
+    
     def handle_leaf(self, state: BuildingState, ctx: DocumentContext, event: Event):
         """
         Code block:
@@ -126,6 +146,10 @@ class CodeBlockHandler(Handler):
     x = 5 * 6
     ```
     """
+    @property
+    def event_kind(self) -> EventKind:
+        return BlockContainer.CODE_BLOCK
+    
     def on_enter(self, state: BuildingState, ctx: DocumentContext, event: Event) -> Frame | None:
         state.switch_to_verb()
         return super().on_enter(state, ctx, event)
@@ -153,6 +177,9 @@ class CodeBlockHandler(Handler):
 
 # InlineLeaf.CODE_LANGUAGE
 class CodeLangHandler(Handler):
+    @property
+    def event_kind(self) -> EventKind:
+        return InlineLeaf.CODE_LANGUAGE
     
     def handle_leaf(self, state: BuildingState, ctx: DocumentContext, event: Event):
         lang = ctx.get_leaf_text(event)

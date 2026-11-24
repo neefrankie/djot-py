@@ -30,10 +30,11 @@ from .state import (
     DocumentContext,
     Mode,
 )
-from .handler import Handler
+from .handler import BaseHandler
 from .frame import Frame
 
-class DefaultHandler(Handler):
+class DefaultInlineHandler(BaseHandler):
+    
     def on_exit(self, state: BuildingState, ctx: DocumentContext, event: Event) -> AstNode | None:
         frame = state.pop_frame()
         pos = ctx.calc_container_pos(frame, event)

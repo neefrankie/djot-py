@@ -6,6 +6,9 @@ from djot.ast import (
 from djot.common import Pos
 from djot.event import (
     Event,
+    EventKind,
+    BlockContainer,
+    InlineLeaf,
 )
 from djot.logger import logger
 
@@ -29,6 +32,10 @@ class FootnoteHandler(Handler):
     NOTE_LABEL: note
     FOOTNOTE
     """
+    @property
+    def event_kind(self) -> EventKind:
+        return BlockContainer.FOOTNOTE
+    
     def on_exit(self, state: BuildingState, ctx: DocumentContext, event: Event) -> AstNode | None:
         frame = state.pop_frame()
         pos = ctx.calc_container_pos(frame, event)
@@ -47,6 +54,10 @@ class FootnoteHandler(Handler):
 
 # InlineLeaf.NOTE_LABEL
 class NoteLabelHandler(Handler):
+    @property
+    def event_kind(self) -> EventKind:
+        return InlineLeaf.NOTE_LABEL
+    
     def handle_leaf(self, state: BuildingState, ctx: DocumentContext, event: Event):
         state.current_frame.label = ctx.get_leaf_text(event) # foo in [^foo]
 
@@ -55,6 +66,10 @@ class FootnoteRefHandler(Handler):
     """
     [^ref]
     """
+    @property
+    def event_kind(self) -> EventKind:
+        return InlineLeaf.FOOTNOTE_REF
+    
     def on_leaf(self, state: BuildingState, text: str, pos: Pos | None) -> AstNode | None:
         fn_ref = text[2:-1]
         return FootnoteReference(

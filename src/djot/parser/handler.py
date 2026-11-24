@@ -1,8 +1,9 @@
-from abc import ABC
+from abc import ABC, abstractmethod
 from typing import Optional
 
 from djot.event import (
     Event,
+    EventKind,
     Action,
 )
 from djot.ast import (
@@ -14,7 +15,7 @@ from djot.logger import logger
 from .state import DocumentContext, BuildingState
 from .frame import Frame
 
-class Handler(ABC):
+class BaseHandler(ABC):
     def __call__(self, state: BuildingState, ctx: DocumentContext, event: Event):
         if event.action:
             self.handle_container(state, ctx, event)
@@ -61,4 +62,9 @@ class Handler(ABC):
     def on_leaf(self, state: BuildingState, text: str, pos: Pos | None) -> Optional[AstNode]:
         return None
 
-
+class Handler(BaseHandler):
+    
+    @property
+    @abstractmethod
+    def event_kind(self) -> EventKind:
+        pass

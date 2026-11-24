@@ -3,6 +3,8 @@ from djot.ast import (
 )
 from djot.event import (
     Event,
+    EventKind,
+    BlockLeaf,
 )
 
 from .state import (
@@ -12,6 +14,10 @@ from .state import (
 from .handler import Handler
 
 class ThematicBreakHandler(Handler):
+
+    @property
+    def event_kind(self) -> EventKind:
+        return BlockLeaf.THEMATIC_BREAK
 
     def handle_leaf(self, state: BuildingState, ctx: DocumentContext, event: Event):
         node = ThematicBreak(
