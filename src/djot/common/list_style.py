@@ -5,6 +5,29 @@ from typing import List, NamedTuple
 _LOWER_ROMAN = "ivxlcdm"
 _UPPER_ROMAN = "IVXLCDM"
 
+class BulletStyle(StrEnum):
+    PLUS = '+'
+    DASH = '-'
+    STAR = '*'
+
+    def __str__(self) -> str:
+        return self.value
+
+    def __repr__(self) -> str:
+        return f'BulletKind({self.name})'
+
+class CheckboxStyle(StrEnum):
+    EMPTY = ' '
+    LOWER_X = 'x'
+    UPPER_X = 'X'
+
+class TaskList(NamedTuple):
+    style: BulletStyle
+    checkbox: CheckboxStyle
+
+    def __str__(self) -> str:
+        return f'{self.style.value} [{self.checkbox.value}]'
+    
 class OrdinalKind(StrEnum):
     DECIMAL = '1'    # 1, 2, 3
     LOWER_ROMAN = 'i'  # i, ii, iii
@@ -29,7 +52,7 @@ class DelimiterKind(StrEnum):
     def __repr__(self) -> str:
         return f'DelimiterKind({self.name})'
 
-class OrderedStyle(NamedTuple):
+class OrderedList(NamedTuple):
     ordinal: OrdinalKind
     delimiter: DelimiterKind
 
@@ -43,31 +66,9 @@ class OrderedStyle(NamedTuple):
             case DelimiterKind.TWO_PARENS:
                 return f'({ordinal})'
 
-class BulletKind(StrEnum):
-    PLUS = '+'
-    DASH = '-'
-    STAR = '*'
-
-    def __str__(self) -> str:
-        return self.value
-
-    def __repr__(self) -> str:
-        return f'BulletKind({self.name})'
-
-class CheckboxKind(StrEnum):
-    EMPTY = ' '
-    LOWER_X = 'x'
-    UPPER_X = 'X'
-
-class TaskStyle(NamedTuple):
-    bullet: BulletKind
-    checkbox: CheckboxKind
-
-    def __str__(self) -> str:
-        return f'{self.bullet.value} [{self.checkbox.value}]'
 
 class ListKind(Enum):
-    BULLET = auto()
+    UNORDERED = auto()
     TASK = auto()
     DEFINITION = auto()
     ORDERED = auto()
@@ -76,9 +77,9 @@ class ListKind(Enum):
 @dataclass(frozen=True, slots=True)
 class ListStyle:
     list_type: ListKind
-    bullet: BulletKind | None = None
-    task: TaskStyle | None = None
-    ordered: OrderedStyle | None = None
+    unordered: BulletStyle | None = None
+    task: TaskList | None = None
+    ordered: OrderedList | None = None
 
     @classmethod
     def new_defition(cls) -> 'ListStyle':
@@ -89,17 +90,17 @@ class ListStyle:
     @classmethod
     def new_bullet(cls, marker: str) -> 'ListStyle':
         return cls(
-            list_type=ListKind.BULLET,
-            bullet=BulletKind(marker),
+            list_type=ListKind.UNORDERED,
+            unordered=BulletStyle(marker),
         )
 
     @classmethod
     def new_task(cls, marker: str, checker: str) -> 'ListStyle':
         return cls(
             list_type=ListKind.TASK,
-            task=TaskStyle(
-                bullet=BulletKind(marker),
-                checkbox=CheckboxKind(checker),
+            task=TaskList(
+                style=BulletStyle(marker),
+                checkbox=CheckboxStyle(checker),
             ),
         )
 
@@ -107,7 +108,7 @@ class ListStyle:
     def new_ordered(cls, ordinal: OrdinalKind, delimiter: str) -> 'ListStyle':
         return cls(
             list_type=ListKind.ORDERED,
-            ordered=OrderedStyle(ordinal, DelimiterKind(delimiter)),
+            ordered=OrderedList(ordinal, DelimiterKind(delimiter)),
         )
 
     @property
@@ -120,16 +121,16 @@ class ListStyle:
 
     @property
     def is_bullet(self) -> bool:
-        return self.list_type == ListKind.BULLET
+        return self.list_type == ListKind.UNORDERED
 
     def __repr__(self) -> str:
-        return f'ListStyle(list_type={self.list_type!r}, bullet={self.bullet!r}, task={self.task!r}, ordered={self.ordered!r})'
+        return f'ListStyle(list_type={self.list_type!r}, bullet={self.unordered!r}, task={self.task!r}, ordered={self.ordered!r})'
 
     def __str__(self) -> str:
         match self.list_type:
-            case ListKind.BULLET:
-                assert self.bullet is not None
-                return self.bullet.value
+            case ListKind.UNORDERED:
+                assert self.unordered is not None
+                return self.unordered.value
             case ListKind.TASK:
                 assert self.task is not None
                 return str(self.task)

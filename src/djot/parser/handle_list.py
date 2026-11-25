@@ -102,7 +102,7 @@ class ListHandler(Handler):
                 pos=pos,
                 children=frame.pop_list_item(),
                 loose=is_loose,
-                style=BulletListStyle(str(first_style.bullet))
+                style=BulletListStyle(str(first_style.unordered))
             )
 
         assert first_style.ordered is not None
