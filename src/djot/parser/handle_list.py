@@ -28,7 +28,7 @@ from djot.event import (
 from djot.common.list_style import ListStyle
 from djot.logger import logger
 
-from .roman import get_list_start
+from .roman import parse_ordered_number
 from .state import (
     BuildingState,
     DocumentContext
@@ -107,7 +107,7 @@ class ListHandler(Handler):
 
         assert first_style.ordered is not None
 
-        list_start = get_list_start(
+        list_start = parse_ordered_number(
             list_data.first_marker,
             first_style.ordered,
         )

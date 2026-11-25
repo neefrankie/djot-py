@@ -18,36 +18,39 @@ roman_digits = {
 }
 
 def roman_to_number(s: str) -> int:
-    total = 0
-    prevdigit = 0
-    i = len(s) - 1
-    while i >= 0:
-        c = s[i]
+    sum = 0
+    prev = 0
+
+    for c in reversed(s):
         if c not in roman_digits:
             raise Exception(f'Encountered bad character in roman numeral {s}')
+        
         n = roman_digits[c]
-        if n < prevdigit: # e.g. ix
-            total -= n
+        if n < prev: # e.g. ix
+            sum -= n
         else:
-            total += n
-        prevdigit = n
-        i -= 1
+            sum += n
+        prev = n
 
-    return total
+    return sum
+
+def alpha_to_number(s: str) -> int:
+    d0 = ord('a') if s.islower() else ord('A') # 97 for a, 65 for A
+    result = 0
+    for i, ch in enumerate(reversed(s)):
+        digit = ord(ch) - d0 + 1   # A=1, B=2, ..., Z=26
+        result += digit * (26 ** i)
+    return result
 
 
-def get_list_start(marker: str, style: OrderedList) -> int | None:
+def parse_ordered_number(marker: str, style: OrderedList) -> int:
 
     s = marker.replace('(', '').replace(')', '').replace('.', '')
 
     match style.ordinal:
         case OrdinalKind.DECIMAL:
             return int(s)
-        case OrdinalKind.ALPHA_UPPER:
-            return ord(s[0]) - 65 + 1 # 65 = 'A'
-        case OrdinalKind.ALPHA_LOWER:
-            return ord(s[0]) - 97 + 1
+        case OrdinalKind.ALPHA_UPPER | OrdinalKind.ALPHA_LOWER:
+            return alpha_to_number(s)
         case OrdinalKind.ROMAN_UPPER | OrdinalKind.ROMAN_LOWER:
             return roman_to_number(s)
-        case _:
-            return None
