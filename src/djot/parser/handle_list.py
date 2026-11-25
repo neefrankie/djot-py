@@ -26,9 +26,9 @@ from djot.event import (
     BlockLeaf,
 )
 from djot.common.list_style import ListStyle
+from djot.common.list_number import parse_ordered_number
 from djot.logger import logger
 
-from .roman import parse_ordered_number
 from .state import (
     BuildingState,
     DocumentContext
