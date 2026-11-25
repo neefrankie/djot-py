@@ -14,7 +14,7 @@ from .string import (
 )
 from .list_style import (
     OrdinalKind,
-    DelimiterKind,
+    OrderedListStyle,
     OrderedList,
     BulletStyle,
     CheckboxStyle,

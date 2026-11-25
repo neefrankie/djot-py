@@ -43,11 +43,11 @@ def get_list_start(marker: str, style: OrderedList) -> int | None:
     match style.ordinal:
         case OrdinalKind.DECIMAL:
             return int(s)
-        case OrdinalKind.UPPER_ALPHA:
+        case OrdinalKind.ALPHA_UPPER:
             return ord(s[0]) - 65 + 1 # 65 = 'A'
-        case OrdinalKind.LOWER_ALPHA:
+        case OrdinalKind.ALPHA_LOWER:
             return ord(s[0]) - 97 + 1
-        case OrdinalKind.UPPER_ROMAN | OrdinalKind.LOWER_ROMAN:
+        case OrdinalKind.ROMAN_UPPER | OrdinalKind.ROMAN_LOWER:
             return roman_to_number(s)
         case _:
             return None

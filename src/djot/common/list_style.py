@@ -30,10 +30,10 @@ class TaskList(NamedTuple):
     
 class OrdinalKind(StrEnum):
     DECIMAL = '1'    # 1, 2, 3
-    LOWER_ROMAN = 'i'  # i, ii, iii
-    UPPER_ROMAN = 'I'  # I, II, III
-    LOWER_ALPHA = 'a'  # a, b, c
-    UPPER_ALPHA = 'A'  # A, B, C
+    ROMAN_LOWER = 'i'  # i, ii, iii
+    ROMAN_UPPER = 'I'  # I, II, III
+    ALPHA_LOWER = 'a'  # a, b, c
+    ALPHA_UPPER = 'A'  # A, B, C
 
     def __str__(self) -> str:
             return self.value
@@ -41,7 +41,7 @@ class OrdinalKind(StrEnum):
     def __repr__(self) -> str:
         return f'OrdinalKind({self.name})'
 
-class DelimiterKind(StrEnum):
+class OrderedListStyle(StrEnum):
     PERIOD = '.'     # '1.'
     PAREN = ')'      # '1)'
     TWO_PARENS = '()' # '(1)'
@@ -54,16 +54,16 @@ class DelimiterKind(StrEnum):
 
 class OrderedList(NamedTuple):
     ordinal: OrdinalKind
-    delimiter: DelimiterKind
+    style: OrderedListStyle
 
     def __str__(self) -> str:
         ordinal = self.ordinal.value
-        match self.delimiter:
-            case DelimiterKind.PERIOD:
+        match self.style:
+            case OrderedListStyle.PERIOD:
                 return f'{ordinal}.'
-            case DelimiterKind.PAREN:
+            case OrderedListStyle.PAREN:
                 return f'{ordinal})'
-            case DelimiterKind.TWO_PARENS:
+            case OrderedListStyle.TWO_PARENS:
                 return f'({ordinal})'
 
 
@@ -108,7 +108,7 @@ class ListStyle:
     def new_ordered(cls, ordinal: OrdinalKind, delimiter: str) -> 'ListStyle':
         return cls(
             list_type=ListKind.ORDERED,
-            ordered=OrderedList(ordinal, DelimiterKind(delimiter)),
+            ordered=OrderedList(ordinal, OrderedListStyle(delimiter)),
         )
 
     @property
@@ -141,6 +141,7 @@ class ListStyle:
                 return str(self.ordered)
 
 
+
 def classify_ordinal(ordinal: str) -> List[OrdinalKind]:
     if len(ordinal) == 1:
         if '0' <= ordinal <= '9':
@@ -148,33 +149,33 @@ def classify_ordinal(ordinal: str) -> List[OrdinalKind]:
         
         if ordinal in _LOWER_ROMAN:
             return [
-                OrdinalKind.LOWER_ROMAN,
-                OrdinalKind.LOWER_ALPHA
+                OrdinalKind.ROMAN_LOWER,
+                OrdinalKind.ALPHA_LOWER
             ]
 
         if ordinal in _UPPER_ROMAN:
             return [
-                OrdinalKind.UPPER_ROMAN,
-                OrdinalKind.UPPER_ALPHA
+                OrdinalKind.ROMAN_UPPER,
+                OrdinalKind.ALPHA_UPPER
             ]
 
         if 'a' <= ordinal <= 'z':
-            return [OrdinalKind.LOWER_ALPHA]
+            return [OrdinalKind.ALPHA_LOWER]
         if 'A' <= ordinal <= 'Z':
-            return [OrdinalKind.UPPER_ALPHA]
+            return [OrdinalKind.ALPHA_UPPER]
         return []
 
     if all(c in _LOWER_ROMAN for c in ordinal):
-        return [OrdinalKind.LOWER_ROMAN]
+        return [OrdinalKind.ROMAN_LOWER]
 
     if all (c in _UPPER_ROMAN for c in ordinal):
-        return [OrdinalKind.UPPER_ROMAN]
+        return [OrdinalKind.ROMAN_UPPER]
 
     if all('a' <= c <= 'z' for c in ordinal):
-        return [OrdinalKind.LOWER_ALPHA]
+        return [OrdinalKind.ALPHA_LOWER]
 
     if all('A' <= c <= 'Z' for c in ordinal):
-        return [OrdinalKind.UPPER_ALPHA]
+        return [OrdinalKind.ALPHA_UPPER]
 
     return []
 
