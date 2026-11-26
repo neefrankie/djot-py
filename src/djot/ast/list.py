@@ -5,7 +5,7 @@ from .base import (
     AstNode,
     HasChildren,
     InlineNode,
-    TreeBlock,
+    BlockNode,
 )
 
 # === List ===
@@ -16,14 +16,14 @@ class BulletListStyle(StrEnum):
 
 
 @dataclass(kw_only=True)
-class ListItem(HasChildren[TreeBlock], AstNode):
+class ListItem(HasChildren[BlockNode], AstNode):
 
     @property
     def tag(self) -> str:
         return 'list_item'
 
 @dataclass(kw_only=True)
-class BulletList(HasChildren[ListItem], TreeBlock):
+class BulletList(HasChildren[ListItem], BlockNode):
     style: BulletListStyle
     loose: bool
 
@@ -53,7 +53,7 @@ class OrderedListStyle(StrEnum):
     UPPER_ROMAN_PAREN = '(I)'
 
 @dataclass(kw_only=True)
-class OrderedList(HasChildren[ListItem], TreeBlock):
+class OrderedList(HasChildren[ListItem], BlockNode):
     style: OrderedListStyle
     start: int | None
     loose: bool
@@ -67,7 +67,7 @@ class CheckboxStatus(Enum):
     UNCHECKED = 1
 
 @dataclass(kw_only=True)
-class TaskListItem(HasChildren[TreeBlock], AstNode):
+class TaskListItem(HasChildren[BlockNode], AstNode):
     checkbox: CheckboxStatus
 
     @property
@@ -75,7 +75,7 @@ class TaskListItem(HasChildren[TreeBlock], AstNode):
         return 'task_list_item'
 
 @dataclass(kw_only=True)
-class TaskList(HasChildren[TaskListItem], TreeBlock):
+class TaskList(HasChildren[TaskListItem], BlockNode):
     loose: bool
 
     @property
@@ -102,7 +102,7 @@ class Term(HasChildren[InlineNode], AstNode):
         return 'term'
 
 @dataclass(kw_only=True)
-class Definition(HasChildren[TreeBlock], AstNode):
+class Definition(HasChildren[BlockNode], AstNode):
 
     @property
     def tag(self) -> str:
@@ -118,7 +118,7 @@ class DefinitionListItem(AstNode):
         return 'definition_list_item'
 
 @dataclass(kw_only=True)
-class DefinitionList(HasChildren[DefinitionListItem], TreeBlock):
+class DefinitionList(HasChildren[DefinitionListItem], BlockNode):
 
     @property
     def tag(self) -> str:

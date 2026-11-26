@@ -20,7 +20,7 @@ from .common import (
 from .ast import (
     AstNode,
     Attributes,
-    BaseBlock,
+    BlockNode,
     BlockQuote,
     BulletList,
     BulletListStyle,
@@ -28,7 +28,7 @@ from .ast import (
     Cell,
     CheckboxStatus,
     CodeBlock,
-    TermDefinition,
+    Definition,
     DefinitionList,
     DefinitionListItem,
     Delete,

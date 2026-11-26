@@ -32,25 +32,13 @@ class HasText(ABC):
 class InlineNode(AstNode, ABC):
     pass
 
-@dataclass(kw_only=True)
-class BaseBlock(AstNode, ABC):
-    """
-    All block elements should inherit from this.
-    It plays the role of blockTags and isBlock in djot.js
-    So use instance(node, BaseBlock) for isBlock function.
-    """
-    pass
 
 # sub-categorize block nodes.
 # footnote and reference are not taken into the tree.
 @dataclass(kw_only=True)
-class TreeBlock(BaseBlock, ABC):
+class BlockNode(AstNode, ABC):
     pass
 
-@dataclass(kw_only=True)
-class OrphanBlock(BaseBlock, ABC):
-    """Footnote, Reference that are not part of AST"""
-    pass
 
 @dataclass(kw_only=True)
 class Caption(HasChildren[InlineNode], AstNode):

@@ -4,21 +4,20 @@ from .base import (
     HasText,
     HasChildren,
     InlineNode,
-    TreeBlock,
-    OrphanBlock,
+    BlockNode,
     Caption,
 )
 
 
 @dataclass(kw_only=True)
-class Para(HasChildren[InlineNode], TreeBlock):
+class Para(HasChildren[InlineNode], BlockNode):
 
     @property
     def tag(self) -> str:
         return 'para'
 
 @dataclass(kw_only=True)
-class Heading(HasChildren[InlineNode], TreeBlock):
+class Heading(HasChildren[InlineNode], BlockNode):
     level: int
 
     @property
@@ -26,20 +25,20 @@ class Heading(HasChildren[InlineNode], TreeBlock):
         return 'heading'
 
 @dataclass(kw_only=True)
-class ThematicBreak(TreeBlock):
+class ThematicBreak(BlockNode):
     @property
     def tag(self) -> str:
         return 'thematic_break'
 
 @dataclass(kw_only=True)
-class Section(HasChildren[TreeBlock], TreeBlock):
+class Section(HasChildren[BlockNode], BlockNode):
 
     @property
     def tag(self) -> str:
         return 'section'
 
 @dataclass(kw_only=True)
-class Div(HasChildren[TreeBlock], TreeBlock):
+class Div(HasChildren[BlockNode], BlockNode):
     caption: Caption
 
     @property
@@ -47,14 +46,14 @@ class Div(HasChildren[TreeBlock], TreeBlock):
         return 'div'
 
 @dataclass(kw_only=True)
-class BlockQuote(HasChildren[TreeBlock], TreeBlock):
+class BlockQuote(HasChildren[BlockNode], BlockNode):
 
     @property
     def tag(self) -> str:
         return 'block_quote'
 
 @dataclass(kw_only=True)
-class CodeBlock(HasText, TreeBlock):
+class CodeBlock(HasText, BlockNode):
     lang: str | None
 
     @property
@@ -62,30 +61,9 @@ class CodeBlock(HasText, TreeBlock):
         return 'code_block'
 
 @dataclass(kw_only=True)
-class RawBlock(HasText, TreeBlock):
+class RawBlock(HasText, BlockNode):
     format: str
 
     @property
     def tag(self) -> str:
         return 'raw_block'
-
-@dataclass(kw_only=True)
-class Footnote(HasChildren[TreeBlock], OrphanBlock):
-    label: str
-
-    @property
-    def tag(self) -> str:
-        return 'footnote'
-
-@dataclass(kw_only=True)
-class Reference(OrphanBlock):
-    """
-    Handles a reference link definition
-    """
-    label: str
-    destination: str
-
-    @property
-    def tag(self) -> str:
-        return 'reference'
-

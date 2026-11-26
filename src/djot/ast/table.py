@@ -6,7 +6,7 @@ from .base import (
     AstNode,
     HasChildren,
     InlineNode,
-    TreeBlock,
+    BlockNode,
     Caption,
 )
 
@@ -30,7 +30,7 @@ class Row(HasChildren[Cell], AstNode):
 
 
 @dataclass(kw_only=True)
-class Table(HasChildren[Row], TreeBlock):
+class Table(HasChildren[Row], BlockNode):
     caption: Caption
 
     @property

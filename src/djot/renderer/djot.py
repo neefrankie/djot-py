@@ -9,7 +9,6 @@ from djot.ast import (
     Doc,
     AstNode,
     HasChildren,
-    BaseBlock,
     is_block,
     is_inline,
     Para,

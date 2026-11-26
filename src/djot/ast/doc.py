@@ -1,11 +1,11 @@
 from dataclasses import dataclass
 from typing import Dict
 
-from .base import AstNode, TreeBlock, HasChildren
-from .block import Footnote, Reference
+from .base import AstNode, BlockNode, HasChildren
+from .reference import Footnote, Reference
 
 @dataclass(kw_only=True)
-class Doc(AstNode, HasChildren[TreeBlock]):
+class Doc(AstNode, HasChildren[BlockNode]):
     references: Dict[str, Reference]
     footnotes: Dict[str, Footnote]
 

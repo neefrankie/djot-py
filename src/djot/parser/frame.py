@@ -9,7 +9,7 @@ from djot.event import (
 from djot.ast import (
     AstNode,
     InlineNode,
-    BaseBlock,
+    BlockNode,
     HasChildren,
     Caption,
     DefinitionListItem,
@@ -298,9 +298,9 @@ class Frame:
         """专门提取 Inline 节点，逻辑上断言或过滤"""
         return cast(List[InlineNode], self.children)
 
-    def pop_block_children(self, start: int | None = None, stop: int | None = None) -> List[BaseBlock]:
+    def pop_block_children(self, start: int | None = None, stop: int | None = None) -> List[BlockNode]:
         """专门提取 Block 节点"""
-        return cast(List[BaseBlock], self.children[slice(start, stop)])
+        return cast(List[BlockNode], self.children[slice(start, stop)])
 
     def pop_def_list_items(self) -> List[DefinitionListItem]:
         return cast(List[DefinitionListItem], self.children)
