@@ -543,7 +543,8 @@ class TestParser(unittest.TestCase):
                                 Str(text='hi')
                             ]
                         )
-                    ]
+                    ],
+                    caption=Caption(),
                 )
             ]
         )
