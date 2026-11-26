@@ -4,13 +4,12 @@ from typing import TypeGuard, TypeVar
 from .base import (
     AstNode,
     Attributes,
-    merge_attributes,
-    BlockNode,
+    BaseBlock,
     InlineNode,
     HasChildren,
     HasText,
-    ContentBlock,
-    DefinitionBlock,
+    TreeBlock,
+    OrphanBlock,
     Caption,
 )
 from .doc import Doc
@@ -272,7 +271,7 @@ class Visitor[C, R](ABC):
     def reference(self, node: Reference, context: C) -> R:
         pass
 
-def is_block(node: AstNode) -> TypeGuard[BlockNode]:
+def is_block(node: AstNode) -> TypeGuard[BaseBlock]:
     match node:
         case (
             Para()
