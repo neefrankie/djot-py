@@ -14,8 +14,14 @@ _ASCII_NAME_CHARS: Final = frozenset(string.ascii_letters + string.digits + "_:-
 
 _ASCII_WHITESPACE = set(' \t\n\r\x0c')
 
+# Equivalent to JS regex `\w`, or [A-Za-z0-9_]
+WORD_CHARS: Final = frozenset(string.ascii_letters + string.digits + '_')
+
 def is_name_char(c: str) -> bool:
     return c in _ASCII_NAME_CHARS
+
+def is_word_char_at_end(s: str) -> bool:
+    return len(s) > 0 and s[-1] in WORD_CHARS
 
 def is_ascii_punctuation(c: str) -> bool:
     """
@@ -49,7 +55,11 @@ def is_digit(c: str) -> bool:
     return '0' <= c <= '9'
 
 def is_alnum(ch: str) -> bool:
-    return '0' <= ch <= '9' or 'a' <= ch <= 'z' or 'A' <= ch <= 'Z'
+    return (
+        '0' <= ch <= '9'
+        or 'a' <= ch <= 'z'
+        or 'A' <= ch <= 'Z'
+    )
 
 
 def unescape_djot(s: str) -> str:
