@@ -4,22 +4,22 @@ from .base import (
     HasText,
     HasChildren,
     InlineNode,
-    BlockNode,
-    ContentBlock,
-    DefinitionBlock,
+    BaseBlock,
+    TreeBlock,
+    OrphanBlock,
     Caption,
 )
 
 
 @dataclass(kw_only=True)
-class Para(HasChildren[InlineNode], ContentBlock):
+class Para(HasChildren[InlineNode], TreeBlock):
 
     @property
     def tag(self) -> str:
         return 'para'
 
 @dataclass(kw_only=True)
-class Heading(HasChildren[InlineNode], ContentBlock):
+class Heading(HasChildren[InlineNode], TreeBlock):
     level: int
 
     @property
@@ -27,20 +27,20 @@ class Heading(HasChildren[InlineNode], ContentBlock):
         return 'heading'
 
 @dataclass(kw_only=True)
-class ThematicBreak(BlockNode):
+class ThematicBreak(BaseBlock):
     @property
     def tag(self) -> str:
         return 'thematic_break'
 
 @dataclass(kw_only=True)
-class Section(HasChildren[BlockNode], ContentBlock):
+class Section(HasChildren[BaseBlock], TreeBlock):
 
     @property
     def tag(self) -> str:
         return 'section'
 
 @dataclass(kw_only=True)
-class Div(HasChildren[BlockNode], ContentBlock):
+class Div(HasChildren[BaseBlock], TreeBlock):
     caption: Caption
 
     @property
@@ -48,14 +48,14 @@ class Div(HasChildren[BlockNode], ContentBlock):
         return 'div'
 
 @dataclass(kw_only=True)
-class BlockQuote(HasChildren[BlockNode], ContentBlock):
+class BlockQuote(HasChildren[BaseBlock], TreeBlock):
 
     @property
     def tag(self) -> str:
         return 'block_quote'
 
 @dataclass(kw_only=True)
-class CodeBlock(HasText, ContentBlock):
+class CodeBlock(HasText, TreeBlock):
     lang: str | None
 
     @property
@@ -63,7 +63,7 @@ class CodeBlock(HasText, ContentBlock):
         return 'code_block'
 
 @dataclass(kw_only=True)
-class RawBlock(HasText, ContentBlock):
+class RawBlock(HasText, TreeBlock):
     format: str
 
     @property
@@ -71,7 +71,7 @@ class RawBlock(HasText, ContentBlock):
         return 'raw_block'
 
 @dataclass(kw_only=True)
-class Footnote(HasChildren[BlockNode], DefinitionBlock):
+class Footnote(HasChildren[BaseBlock], OrphanBlock):
     label: str
 
     @property
@@ -79,7 +79,7 @@ class Footnote(HasChildren[BlockNode], DefinitionBlock):
         return 'footnote'
 
 @dataclass(kw_only=True)
-class Reference(DefinitionBlock):
+class Reference(OrphanBlock):
     """
     Handles a reference link definition
     """
