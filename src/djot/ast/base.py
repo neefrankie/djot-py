@@ -1,28 +1,11 @@
 from abc import ABC, abstractmethod
-import copy
 from dataclasses import dataclass, field
-from typing import Dict, Generic, List, Optional, TypeVar
+from typing import Dict, Generic, List, TypeVar
 
-from ..common import Pos
+from djot.common import Pos
 
 type Attributes = Dict[str, str]
 
-def merge_attributes(
-    target: Optional[Attributes],
-    source: Attributes
-) -> Attributes:
-    if not target:
-        return source.copy()
-
-    result = target.copy()
-
-    for key, value in source.items():
-        if key == 'class' and key in result:
-            result[key] = f'{result[key]} {value}'
-        else:
-            result[key] = value
-
-    return result
 
 @dataclass(kw_only=True)
 class AstNode(ABC):
@@ -34,8 +17,6 @@ class AstNode(ABC):
     def tag(self) -> str:
         pass
 
-    def merge_attributes(self, other: Attributes):
-        self.attributes = merge_attributes(self.attributes, other)
 
 T = TypeVar("T")
 
@@ -48,20 +29,27 @@ class HasText(ABC):
     text: str
 
 @dataclass(kw_only=True)
-class InlineNode(AstNode):
+class InlineNode(AstNode, ABC):
     pass
 
 @dataclass(kw_only=True)
-class BlockNode(AstNode, ABC):
+class BaseBlock(AstNode, ABC):
+    """
+    All block elements should inherit from this.
+    It plays the role of blockTags and isBlock in djot.js
+    So use instance(node, BaseBlock) for isBlock function.
+    """
+    pass
+
+# sub-categorize block nodes.
+# footnote and reference are not taken into the tree.
+@dataclass(kw_only=True)
+class TreeBlock(BaseBlock, ABC):
     pass
 
 @dataclass(kw_only=True)
-class ContentBlock(BlockNode, ABC):
-    pass
-
-@dataclass(kw_only=True)
-class DefinitionBlock(BlockNode, ABC):
-    """Metadata/definition block like Footnote, Reference"""
+class OrphanBlock(BaseBlock, ABC):
+    """Footnote, Reference that are not part of AST"""
     pass
 
 @dataclass(kw_only=True)
