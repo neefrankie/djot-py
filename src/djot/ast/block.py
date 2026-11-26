@@ -4,7 +4,6 @@ from .base import (
     HasText,
     HasChildren,
     InlineNode,
-    BaseBlock,
     TreeBlock,
     OrphanBlock,
     Caption,
@@ -27,20 +26,20 @@ class Heading(HasChildren[InlineNode], TreeBlock):
         return 'heading'
 
 @dataclass(kw_only=True)
-class ThematicBreak(BaseBlock):
+class ThematicBreak(TreeBlock):
     @property
     def tag(self) -> str:
         return 'thematic_break'
 
 @dataclass(kw_only=True)
-class Section(HasChildren[BaseBlock], TreeBlock):
+class Section(HasChildren[TreeBlock], TreeBlock):
 
     @property
     def tag(self) -> str:
         return 'section'
 
 @dataclass(kw_only=True)
-class Div(HasChildren[BaseBlock], TreeBlock):
+class Div(HasChildren[TreeBlock], TreeBlock):
     caption: Caption
 
     @property
@@ -48,7 +47,7 @@ class Div(HasChildren[BaseBlock], TreeBlock):
         return 'div'
 
 @dataclass(kw_only=True)
-class BlockQuote(HasChildren[BaseBlock], TreeBlock):
+class BlockQuote(HasChildren[TreeBlock], TreeBlock):
 
     @property
     def tag(self) -> str:
@@ -71,7 +70,7 @@ class RawBlock(HasText, TreeBlock):
         return 'raw_block'
 
 @dataclass(kw_only=True)
-class Footnote(HasChildren[BaseBlock], OrphanBlock):
+class Footnote(HasChildren[TreeBlock], OrphanBlock):
     label: str
 
     @property

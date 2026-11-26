@@ -5,7 +5,7 @@ from .base import (
     AstNode,
     HasChildren,
     InlineNode,
-    BaseBlock,
+    TreeBlock,
 )
 
 # === List ===
@@ -16,14 +16,14 @@ class BulletListStyle(StrEnum):
 
 
 @dataclass(kw_only=True)
-class ListItem(HasChildren[BaseBlock], AstNode):
+class ListItem(HasChildren[TreeBlock], AstNode):
 
     @property
     def tag(self) -> str:
         return 'list_item'
 
 @dataclass(kw_only=True)
-class BulletList(HasChildren[ListItem], BaseBlock):
+class BulletList(HasChildren[ListItem], TreeBlock):
     style: BulletListStyle
     loose: bool
 
@@ -53,7 +53,7 @@ class OrderedListStyle(StrEnum):
     UPPER_ROMAN_PAREN = '(I)'
 
 @dataclass(kw_only=True)
-class OrderedList(HasChildren[ListItem], BaseBlock):
+class OrderedList(HasChildren[ListItem], TreeBlock):
     style: OrderedListStyle
     start: int | None
     loose: bool
@@ -67,7 +67,7 @@ class CheckboxStatus(Enum):
     UNCHECKED = 1
 
 @dataclass(kw_only=True)
-class TaskListItem(HasChildren[BaseBlock], AstNode):
+class TaskListItem(HasChildren[TreeBlock], AstNode):
     checkbox: CheckboxStatus
 
     @property
@@ -75,7 +75,7 @@ class TaskListItem(HasChildren[BaseBlock], AstNode):
         return 'task_list_item'
 
 @dataclass(kw_only=True)
-class TaskList(HasChildren[TaskListItem], BaseBlock):
+class TaskList(HasChildren[TaskListItem], TreeBlock):
     loose: bool
 
     @property
@@ -102,7 +102,7 @@ class Term(HasChildren[InlineNode], AstNode):
         return 'term'
 
 @dataclass(kw_only=True)
-class Definition(HasChildren[BaseBlock], AstNode):
+class Definition(HasChildren[TreeBlock], AstNode):
 
     @property
     def tag(self) -> str:
@@ -118,7 +118,7 @@ class DefinitionListItem(AstNode):
         return 'definition_list_item'
 
 @dataclass(kw_only=True)
-class DefinitionList(HasChildren[DefinitionListItem], BaseBlock):
+class DefinitionList(HasChildren[DefinitionListItem], TreeBlock):
 
     @property
     def tag(self) -> str:
