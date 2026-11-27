@@ -1,5 +1,9 @@
 from dataclasses import dataclass, field
 
+from djot.common.list_style import (
+    OrderedListStyle,
+    BulletKind,
+)
 from .base import (
     HasText,
     HasChildren,
@@ -9,8 +13,6 @@ from .base import (
 )
 from .list import (
     ListItem,
-    OrderedListStyle,
-    BulletListStyle,
     TaskListItem,
     DefinitionListItem,
 )
@@ -82,7 +84,7 @@ class BlockQuote(HasChildren[BlockNode], BlockNode):
 @dataclass(kw_only=True)
 class OrderedList(HasChildren[ListItem], BlockNode):
     style: OrderedListStyle
-    start: int | None
+    start: int
     loose: bool
     
     @property
@@ -91,7 +93,7 @@ class OrderedList(HasChildren[ListItem], BlockNode):
 
 @dataclass(kw_only=True)
 class BulletList(HasChildren[ListItem], BlockNode):
-    style: BulletListStyle
+    style: BulletKind
     loose: bool
 
     @property

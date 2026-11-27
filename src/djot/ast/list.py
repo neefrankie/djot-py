@@ -8,12 +8,6 @@ from .base import (
     BlockNode,
 )
 
-# === List ===
-class BulletListStyle(StrEnum):
-    PLUS = '+'
-    DASH = '-'
-    STAR = '*'
-
 
 @dataclass(kw_only=True)
 class ListItem(HasChildren[BlockNode], AstNode):
@@ -21,36 +15,6 @@ class ListItem(HasChildren[BlockNode], AstNode):
     @property
     def tag(self) -> str:
         return 'list_item'
-
-@dataclass(kw_only=True)
-class BulletList(HasChildren[ListItem], BlockNode):
-    style: BulletListStyle
-    loose: bool
-
-    @property
-    def tag(self) -> str:
-        return 'bullet_list'
-
-# TODO: it could be classified into:
-# - Alpha/Number/Roman
-# - Dot/Paren/TwoParen
-# - UpperCase/LowerCase for Alpha/Roman
-class OrderedListStyle(StrEnum):
-    NUMBER = '1.'
-    NUM_RPAREN = '1)'
-    NUM_PAREN = '(1)'
-    LOWER_ALPHA = 'a.'
-    LOWER_ALPHA_RPAREN = 'a)'
-    LOWER_ALPHA_PAREN = '(a)'
-    UPPER_ALPHA = 'A.'
-    UPPER_ALPHA_RPAREN = 'A)'
-    UPPER_ALPHA_PAREN = '(A)'
-    LOWER_ROMAN = 'i.'
-    LOWER_ROMAN_RPAREN = 'i)'
-    LOWER_ROMAN_PAREN = '(i)'
-    UPPER_ROMAN = 'I.'
-    UPPER_ROMAN_RPAREN = 'I)'
-    UPPER_ROMAN_PAREN = '(I)'
 
 
 class CheckboxStatus(Enum):

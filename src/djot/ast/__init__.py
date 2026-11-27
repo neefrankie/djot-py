@@ -36,8 +36,6 @@ from .list import (
     DefinitionListItem,
     Term,
     Definition,
-    BulletListStyle,
-    OrderedListStyle,
     CheckboxStatus,
 )
 from .table import (

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Dict, Generic, List, TypeVar
+from typing import Dict, Generic, List, Sequence, TypeVar
 
 from djot.common import Pos
 
@@ -22,7 +22,7 @@ T = TypeVar("T")
 
 @dataclass(kw_only=True)
 class HasChildren(Generic[T], ABC):
-    children: List[T] = field(default_factory=list)
+    children: Sequence[T] = field(default_factory=list)
 
 @dataclass(kw_only=True)
 class HasText(ABC):
