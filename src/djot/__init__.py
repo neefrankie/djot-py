@@ -16,6 +16,10 @@ from .common import (
     Pos,
     SourceLoc,
 )
+from .common.list_style import (
+    OrderedListStyle,
+    BulletKind,
+)
 
 from .ast import (
     AstNode,
@@ -23,7 +27,6 @@ from .ast import (
     BlockNode,
     BlockQuote,
     BulletList,
-    BulletListStyle,
     Caption,
     Cell,
     CheckboxStatus,
@@ -53,7 +56,6 @@ from .ast import (
     Mark,
     NonBreakingSpace,
     OrderedList,
-    OrderedListStyle,
     Para,
     RawBlock,
     RawInline,
