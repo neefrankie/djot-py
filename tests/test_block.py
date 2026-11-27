@@ -16,20 +16,20 @@ from djot.block import EventParser
 from djot.block.table import scan_table_pipe, parse_data_row
 from djot.common import (
     ListStyle,
-    OrderedList,
-    ListKind,
-    BulletStyle,
-    OrdinalKind,
     OrderedListStyle,
+    ListKind,
+    BulletKind,
+    OrdinalKind,
+    OrderedListDelimiter,
 )
 
 def bullet_style(marker: str) -> ListStyle:
     return ListStyle(
         list_type=ListKind.UNORDERED,
-        unordered=BulletStyle(marker),
+        unordered=BulletKind(marker),
     )
 
-def ordered_style(ordered_style: OrderedList) -> ListStyle:
+def ordered_style(ordered_style: OrderedListStyle) -> ListStyle:
     return ListStyle(
         list_type=ListKind.ORDERED,
         ordered=ordered_style,
@@ -43,18 +43,18 @@ def definition_style() -> ListStyle:
 def ordered_decimal_period():
     return ListStyle(
         list_type=ListKind.ORDERED,
-        ordered=OrderedList(
+        ordered=OrderedListStyle(
             ordinal=OrdinalKind.DECIMAL,
-            style=OrderedListStyle.PERIOD,
+            delimiter=OrderedListDelimiter.PERIOD,
         ),
     )
 
 def ordered_lower_roman_two_parens():
     return ListStyle(
         list_type=ListKind.ORDERED,
-        ordered=OrderedList(
+        ordered=OrderedListStyle(
             ordinal=OrdinalKind.ROMAN_LOWER,
-            style=OrderedListStyle.TWO_PARENS,
+            delimiter=OrderedListDelimiter.TWO_PARENS,
         )
     )
 

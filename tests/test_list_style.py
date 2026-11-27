@@ -1,13 +1,13 @@
 import unittest
 
 from djot.common.list_style import (
-    TaskList,
-    BulletStyle,
-    CheckboxStyle,
+    TaskListStyle,
+    BulletKind,
+    CheckboxKind,
     OrdinalKind,
     classify_ordinal,
+    OrderedListDelimiter,
     OrderedListStyle,
-    OrderedList,
     ListStyle,
     ListKind,
 )
@@ -27,7 +27,7 @@ class TestListStyles(unittest.TestCase):
                     styles=[
                         ListStyle(
                             list_type=ListKind.UNORDERED,
-                            unordered=BulletStyle.DASH
+                            unordered=BulletKind.DASH
                         )
                     ],
                     item_span=Range(0, 0),
@@ -57,9 +57,9 @@ class TestListStyles(unittest.TestCase):
                     styles=[
                         ListStyle(
                             list_type=ListKind.TASK,
-                            task=TaskList(
-                                style=BulletStyle.DASH,
-                                checkbox=CheckboxStyle.EMPTY,
+                            task=TaskListStyle(
+                                bullet=BulletKind.DASH,
+                                checkbox=CheckboxKind.EMPTY,
                             )
                         )
                     ],
@@ -77,9 +77,9 @@ class TestListStyles(unittest.TestCase):
                     styles=[
                         ListStyle(
                             list_type=ListKind.TASK,
-                            task=TaskList(
-                                style=BulletStyle.DASH,
-                                checkbox=CheckboxStyle.UPPER_X,
+                            task=TaskListStyle(
+                                bullet=BulletKind.DASH,
+                                checkbox=CheckboxKind.UPPER_X,
                             )
                         )
                     ],
@@ -97,9 +97,9 @@ class TestListStyles(unittest.TestCase):
                     styles=[
                         ListStyle(
                             list_type=ListKind.TASK,
-                            task=TaskList(
-                                style=BulletStyle.DASH,
-                                checkbox=CheckboxStyle.LOWER_X,
+                            task=TaskListStyle(
+                                bullet=BulletKind.DASH,
+                                checkbox=CheckboxKind.LOWER_X,
                             )
                         )
                     ],
@@ -172,9 +172,9 @@ class TestListStyles(unittest.TestCase):
                     styles=[
                         ListStyle(
                             list_type=ListKind.ORDERED,
-                            ordered=OrderedList(
+                            ordered=OrderedListStyle(
                                 ordinal=OrdinalKind.DECIMAL,
-                                style=OrderedListStyle.PERIOD
+                                delimiter=OrderedListDelimiter.PERIOD
                             )
                         )
                     ],
@@ -191,9 +191,9 @@ class TestListStyles(unittest.TestCase):
                     styles=[
                         ListStyle(
                             list_type=ListKind.ORDERED,
-                            ordered=OrderedList(
+                            ordered=OrderedListStyle(
                                 ordinal=OrdinalKind.DECIMAL,
-                                style=OrderedListStyle.PAREN
+                                delimiter=OrderedListDelimiter.PAREN
                             )
                         )
                     ],
@@ -210,9 +210,9 @@ class TestListStyles(unittest.TestCase):
                     styles=[
                         ListStyle(
                             list_type=ListKind.ORDERED,
-                            ordered=OrderedList(
+                            ordered=OrderedListStyle(
                                 ordinal=OrdinalKind.DECIMAL,
-                                style=OrderedListStyle.TWO_PARENS,
+                                delimiter=OrderedListDelimiter.TWO_PARENS,
                             )
                         )
                     ],
@@ -229,9 +229,9 @@ class TestListStyles(unittest.TestCase):
                     styles=[
                         ListStyle(
                             list_type=ListKind.ORDERED,
-                            ordered=OrderedList(
+                            ordered=OrderedListStyle(
                                 ordinal=OrdinalKind.ALPHA_LOWER,
-                                style=OrderedListStyle.PERIOD
+                                delimiter=OrderedListDelimiter.PERIOD
                             )
                         )
                     ],
@@ -248,9 +248,9 @@ class TestListStyles(unittest.TestCase):
                     styles=[
                         ListStyle(
                             list_type=ListKind.ORDERED,
-                            ordered=OrderedList(
+                            ordered=OrderedListStyle(
                                 ordinal=OrdinalKind.ALPHA_LOWER,
-                                style=OrderedListStyle.PAREN
+                                delimiter=OrderedListDelimiter.PAREN
                             )
                         )
                     ],
@@ -267,9 +267,9 @@ class TestListStyles(unittest.TestCase):
                     styles=[
                         ListStyle(
                             list_type=ListKind.ORDERED,
-                            ordered=OrderedList(
+                            ordered=OrderedListStyle(
                                 ordinal=OrdinalKind.ALPHA_LOWER,
-                                style=OrderedListStyle.TWO_PARENS,
+                                delimiter=OrderedListDelimiter.TWO_PARENS,
                             )
                         )
                     ],
@@ -286,16 +286,16 @@ class TestListStyles(unittest.TestCase):
                     styles=[
                         ListStyle(
                             list_type=ListKind.ORDERED,
-                            ordered=OrderedList(
+                            ordered=OrderedListStyle(
                                 ordinal=OrdinalKind.ROMAN_LOWER,
-                                style=OrderedListStyle.PERIOD
+                                delimiter=OrderedListDelimiter.PERIOD
                             )
                         ),
                         ListStyle(
                             list_type=ListKind.ORDERED,
-                            ordered=OrderedList(
+                            ordered=OrderedListStyle(
                                 ordinal=OrdinalKind.ALPHA_LOWER,
-                                style=OrderedListStyle.PERIOD
+                                delimiter=OrderedListDelimiter.PERIOD
                             )
                         )
                     ],
@@ -312,16 +312,16 @@ class TestListStyles(unittest.TestCase):
                     styles=[
                         ListStyle(
                             list_type=ListKind.ORDERED,
-                            ordered=OrderedList(
+                            ordered=OrderedListStyle(
                                 ordinal=OrdinalKind.ROMAN_LOWER,
-                                style=OrderedListStyle.PAREN
+                                delimiter=OrderedListDelimiter.PAREN
                             )
                         ),
                         ListStyle(
                             list_type=ListKind.ORDERED,
-                            ordered=OrderedList(
+                            ordered=OrderedListStyle(
                                 ordinal=OrdinalKind.ALPHA_LOWER,
-                                style=OrderedListStyle.PAREN
+                                delimiter=OrderedListDelimiter.PAREN
                             )
                         )
                     ],
@@ -338,16 +338,16 @@ class TestListStyles(unittest.TestCase):
                     styles=[
                         ListStyle(
                             list_type=ListKind.ORDERED,
-                            ordered=OrderedList(
+                            ordered=OrderedListStyle(
                                 ordinal=OrdinalKind.ROMAN_LOWER,
-                                style=OrderedListStyle.TWO_PARENS,
+                                delimiter=OrderedListDelimiter.TWO_PARENS,
                             )
                         ),
                         ListStyle(
                             list_type=ListKind.ORDERED,
-                            ordered=OrderedList(
+                            ordered=OrderedListStyle(
                                 ordinal=OrdinalKind.ALPHA_LOWER,
-                                style=OrderedListStyle.TWO_PARENS
+                                delimiter=OrderedListDelimiter.TWO_PARENS
                             )
                         )
                     ],

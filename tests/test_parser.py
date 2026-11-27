@@ -17,10 +17,8 @@ from djot.ast import (
     Caption,
     CodeBlock,
     BulletList,
-    BulletListStyle,
     ListItem,
     OrderedList,
-    OrderedListStyle,
     DefinitionList,
     Term,
     Definition,
@@ -51,6 +49,12 @@ from djot.common import (
     Pos,
     SourceLoc,
     Alignment,
+)
+from djot.common.list_style import (
+    OrdinalKind,
+    OrderedListDelimiter,
+    OrderedListStyle,
+    BulletKind,
 )
 from djot.parser import (
     parse,
@@ -284,7 +288,7 @@ class TestParser(unittest.TestCase):
             footnotes={},
             children=[
                 BulletList(
-                    style=BulletListStyle.DASH,
+                    style=BulletKind.DASH,
                     children=[
                         ListItem(
                             children=[
@@ -320,7 +324,7 @@ class TestParser(unittest.TestCase):
             footnotes={},
             children=[
                 BulletList(
-                    style=BulletListStyle.DASH,
+                    style=BulletKind.DASH,
                     children=[
                         ListItem(
                             children=[
@@ -369,7 +373,7 @@ class TestParser(unittest.TestCase):
             footnotes={},
             children=[
                 BulletList(
-                    style=BulletListStyle.DASH,
+                    style=BulletKind.DASH,
                     children=[
                         ListItem(
                             children=[
@@ -401,7 +405,7 @@ class TestParser(unittest.TestCase):
             footnotes={},
             children=[
                 BulletList(
-                    style=BulletListStyle.DASH,
+                    style=BulletKind.DASH,
                     children=[
                         ListItem(
                             children=[
@@ -425,7 +429,10 @@ class TestParser(unittest.TestCase):
                     loose=False
                 ),
                 OrderedList(
-                    style=OrderedListStyle.NUMBER,
+                    style=OrderedListStyle(
+                        ordinal=OrdinalKind.DECIMAL,
+                        delimiter=OrderedListDelimiter.PERIOD
+                    ),
                     children=[
                         ListItem(
                             children=[
@@ -441,7 +448,10 @@ class TestParser(unittest.TestCase):
                     start=1,
                 ),
                 OrderedList(
-                    style=OrderedListStyle.LOWER_ROMAN_PAREN,
+                    style=OrderedListStyle(
+                        ordinal=OrdinalKind.ROMAN_LOWER,
+                        delimiter=OrderedListDelimiter.TWO_PARENS
+                    ),
                     children=[
                         ListItem(
                             children=[
@@ -451,7 +461,7 @@ class TestParser(unittest.TestCase):
                                     ]
                                 ),
                                 BulletList(
-                                    style=BulletListStyle.DASH,
+                                    style=BulletKind.DASH,
                                     children=[
                                         ListItem(
                                             children=[
