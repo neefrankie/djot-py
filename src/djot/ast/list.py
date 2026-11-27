@@ -52,15 +52,6 @@ class OrderedListStyle(StrEnum):
     UPPER_ROMAN_RPAREN = 'I)'
     UPPER_ROMAN_PAREN = '(I)'
 
-@dataclass(kw_only=True)
-class OrderedList(HasChildren[ListItem], BlockNode):
-    style: OrderedListStyle
-    start: int | None
-    loose: bool
-    
-    @property
-    def tag(self) -> str:
-        return 'ordered_list'
 
 class CheckboxStatus(Enum):
     CHECKED = 0
@@ -74,13 +65,6 @@ class TaskListItem(HasChildren[BlockNode], AstNode):
     def tag(self) -> str:
         return 'task_list_item'
 
-@dataclass(kw_only=True)
-class TaskList(HasChildren[TaskListItem], BlockNode):
-    loose: bool
-
-    @property
-    def tag(self) -> str:
-        return 'task_list'
 
 """
 In a definition list item, the first line or lines after the `:` marker
@@ -116,10 +100,3 @@ class DefinitionListItem(AstNode):
     @property
     def tag(self) -> str:
         return 'definition_list_item'
-
-@dataclass(kw_only=True)
-class DefinitionList(HasChildren[DefinitionListItem], BlockNode):
-
-    @property
-    def tag(self) -> str:
-        return 'definition_list'

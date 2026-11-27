@@ -7,6 +7,13 @@ from .base import (
     BlockNode,
     Caption,
 )
+from .list import (
+    ListItem,
+    OrderedListStyle,
+    BulletListStyle,
+    TaskListItem,
+    DefinitionListItem,
+)
 
 
 @dataclass(kw_only=True)
@@ -45,12 +52,7 @@ class Div(HasChildren[BlockNode], BlockNode):
     def tag(self) -> str:
         return 'div'
 
-@dataclass(kw_only=True)
-class BlockQuote(HasChildren[BlockNode], BlockNode):
 
-    @property
-    def tag(self) -> str:
-        return 'block_quote'
 
 @dataclass(kw_only=True)
 class CodeBlock(HasText, BlockNode):
@@ -67,3 +69,44 @@ class RawBlock(HasText, BlockNode):
     @property
     def tag(self) -> str:
         return 'raw_block'
+
+@dataclass(kw_only=True)
+class BlockQuote(HasChildren[BlockNode], BlockNode):
+
+    @property
+    def tag(self) -> str:
+        return 'block_quote'
+
+@dataclass(kw_only=True)
+class OrderedList(HasChildren[ListItem], BlockNode):
+    style: OrderedListStyle
+    start: int | None
+    loose: bool
+    
+    @property
+    def tag(self) -> str:
+        return 'ordered_list'
+
+@dataclass(kw_only=True)
+class BulletList(HasChildren[ListItem], BlockNode):
+    style: BulletListStyle
+    loose: bool
+
+    @property
+    def tag(self) -> str:
+        return 'bullet_list'
+    
+@dataclass(kw_only=True)
+class TaskList(HasChildren[TaskListItem], BlockNode):
+    loose: bool
+
+    @property
+    def tag(self) -> str:
+        return 'task_list'
+
+@dataclass(kw_only=True)
+class DefinitionList(HasChildren[DefinitionListItem], BlockNode):
+
+    @property
+    def tag(self) -> str:
+        return 'definition_list'

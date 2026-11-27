@@ -20,16 +20,16 @@ from .block import (
     CodeBlock,
     RawBlock,
     BlockQuote,
+    OrderedList,
+    BulletList,
+    TaskList,
+    DefinitionList,
 )
 from .reference import (
     Footnote,
     Reference,
 )
 from .list import (
-    OrderedList,
-    BulletList,
-    TaskList,
-    DefinitionList,
     ListItem,
     TaskListItem,
     DefinitionListItem,
