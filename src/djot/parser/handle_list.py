@@ -5,9 +5,7 @@ from djot.ast import (
     DefinitionList,
     TaskList,
     BulletList,
-    BulletListStyle,
     OrderedList,
-    OrderedListStyle,
     Para,
     Term,
     Definition,
@@ -97,12 +95,13 @@ class ListHandler(Handler):
             )
 
         if first_style.is_bullet:
+            assert first_style.unordered is not None
             return BulletList(
                 attributes=frame.attributes.build(),
                 pos=pos,
                 children=frame.pop_list_item(),
                 loose=is_loose,
-                style=BulletListStyle(str(first_style.unordered))
+                style=first_style.unordered
             )
 
         assert first_style.ordered is not None
@@ -116,7 +115,7 @@ class ListHandler(Handler):
             pos=pos,
             children=frame.pop_list_item(),
             loose=is_loose,
-            style=OrderedListStyle(str(first_style.ordered)),
+            style=first_style.ordered,
             start=list_start
         )
 
