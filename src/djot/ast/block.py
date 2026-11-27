@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .base import (
     HasText,
@@ -14,7 +14,9 @@ from .list import (
     TaskListItem,
     DefinitionListItem,
 )
-
+from .table import (
+    Row,
+)
 
 @dataclass(kw_only=True)
 class Para(HasChildren[InlineNode], BlockNode):
@@ -110,3 +112,11 @@ class DefinitionList(HasChildren[DefinitionListItem], BlockNode):
     @property
     def tag(self) -> str:
         return 'definition_list'
+
+@dataclass(kw_only=True)
+class Table(HasChildren[Row], BlockNode):
+    caption: Caption = field(default_factory=Caption)
+
+    @property
+    def tag(self) -> str:
+        return 'table'

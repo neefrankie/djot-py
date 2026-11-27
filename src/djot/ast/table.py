@@ -6,8 +6,6 @@ from .base import (
     AstNode,
     HasChildren,
     InlineNode,
-    BlockNode,
-    Caption,
 )
 
 @dataclass(kw_only=True)
@@ -28,11 +26,3 @@ class Row(HasChildren[Cell], AstNode):
     def tag(self) -> str:
         return 'row'
 
-
-@dataclass(kw_only=True)
-class Table(HasChildren[Row], BlockNode):
-    caption: Caption
-
-    @property
-    def tag(self) -> str:
-        return 'table'

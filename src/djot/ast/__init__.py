@@ -24,6 +24,7 @@ from .block import (
     BulletList,
     TaskList,
     DefinitionList,
+    Table,
 )
 from .reference import (
     Footnote,
@@ -40,8 +41,6 @@ from .list import (
     CheckboxStatus,
 )
 from .table import (
-    Table,
-    
     Row,
     Cell,
 )
