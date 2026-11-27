@@ -14,11 +14,11 @@ from .string import (
 )
 from .list_style import (
     OrdinalKind,
+    OrderedListDelimiter,
     OrderedListStyle,
-    OrderedList,
-    BulletStyle,
-    CheckboxStyle,
-    TaskList,
+    BulletKind,
+    CheckboxKind,
+    TaskListStyle,
     ListKind,
     ListStyle,
     intersect_list_styles,

@@ -5,7 +5,7 @@ from typing import List, NamedTuple
 _LOWER_ROMAN = "ivxlcdm"
 _UPPER_ROMAN = "IVXLCDM"
 
-class BulletStyle(StrEnum):
+class BulletKind(StrEnum):
     PLUS = '+'
     DASH = '-'
     STAR = '*'
@@ -16,17 +16,17 @@ class BulletStyle(StrEnum):
     def __repr__(self) -> str:
         return f'BulletKind({self.name})'
 
-class CheckboxStyle(StrEnum):
+class CheckboxKind(StrEnum):
     EMPTY = ' '
     LOWER_X = 'x'
     UPPER_X = 'X'
 
-class TaskList(NamedTuple):
-    style: BulletStyle
-    checkbox: CheckboxStyle
+class TaskListStyle(NamedTuple):
+    bullet: BulletKind
+    checkbox: CheckboxKind
 
     def __str__(self) -> str:
-        return f'{self.style.value} [{self.checkbox.value}]'
+        return f'{self.bullet.value} [{self.checkbox.value}]'
     
 class OrdinalKind(StrEnum):
     DECIMAL = '1'    # 1, 2, 3
@@ -41,7 +41,7 @@ class OrdinalKind(StrEnum):
     def __repr__(self) -> str:
         return f'OrdinalKind({self.name})'
 
-class OrderedListStyle(StrEnum):
+class OrderedListDelimiter(StrEnum):
     PERIOD = '.'     # '1.'
     PAREN = ')'      # '1)'
     TWO_PARENS = '()' # '(1)'
@@ -52,18 +52,18 @@ class OrderedListStyle(StrEnum):
     def __repr__(self) -> str:
         return f'DelimiterKind({self.name})'
 
-class OrderedList(NamedTuple):
+class OrderedListStyle(NamedTuple):
     ordinal: OrdinalKind
-    style: OrderedListStyle
+    delimiter: OrderedListDelimiter
 
     def __str__(self) -> str:
         ordinal = self.ordinal.value
-        match self.style:
-            case OrderedListStyle.PERIOD:
+        match self.delimiter:
+            case OrderedListDelimiter.PERIOD:
                 return f'{ordinal}.'
-            case OrderedListStyle.PAREN:
+            case OrderedListDelimiter.PAREN:
                 return f'{ordinal})'
-            case OrderedListStyle.TWO_PARENS:
+            case OrderedListDelimiter.TWO_PARENS:
                 return f'({ordinal})'
 
 
@@ -77,9 +77,9 @@ class ListKind(Enum):
 @dataclass(frozen=True, slots=True)
 class ListStyle:
     list_type: ListKind
-    unordered: BulletStyle | None = None
-    task: TaskList | None = None
-    ordered: OrderedList | None = None
+    unordered: BulletKind | None = None
+    task: TaskListStyle | None = None
+    ordered: OrderedListStyle | None = None
 
     @classmethod
     def new_defition(cls) -> 'ListStyle':
@@ -91,16 +91,16 @@ class ListStyle:
     def new_bullet(cls, marker: str) -> 'ListStyle':
         return cls(
             list_type=ListKind.UNORDERED,
-            unordered=BulletStyle(marker),
+            unordered=BulletKind(marker),
         )
 
     @classmethod
     def new_task(cls, marker: str, checker: str) -> 'ListStyle':
         return cls(
             list_type=ListKind.TASK,
-            task=TaskList(
-                style=BulletStyle(marker),
-                checkbox=CheckboxStyle(checker),
+            task=TaskListStyle(
+                bullet=BulletKind(marker),
+                checkbox=CheckboxKind(checker),
             ),
         )
 
@@ -108,7 +108,7 @@ class ListStyle:
     def new_ordered(cls, ordinal: OrdinalKind, delimiter: str) -> 'ListStyle':
         return cls(
             list_type=ListKind.ORDERED,
-            ordered=OrderedList(ordinal, OrderedListStyle(delimiter)),
+            ordered=OrderedListStyle(ordinal, OrderedListDelimiter(delimiter)),
         )
 
     @property

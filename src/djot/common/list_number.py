@@ -1,7 +1,7 @@
 from .list_style import (
-    OrderedList,
-    OrdinalKind,
     OrderedListStyle,
+    OrdinalKind,
+    OrderedListDelimiter,
 )
 
 roman_digits = {
@@ -47,7 +47,7 @@ def alpha_to_number(s: str) -> int:
     return result
 
 
-def parse_ordered_number(marker: str, style: OrderedList) -> int:
+def parse_ordered_number(marker: str, style: OrderedListStyle) -> int:
 
     s = marker.replace('(', '').replace(')', '').replace('.', '')
 
@@ -131,13 +131,13 @@ def number_to_str(num: int, kind: OrdinalKind) -> str:
         case OrdinalKind.ROMAN_UPPER:
             return number_to_roman(num).upper()
 
-def format_number(num: int, ol: OrderedList) -> str:
+def format_number(num: int, ol: OrderedListStyle) -> str:
     num_str = number_to_str(num, ol.ordinal)
 
-    match ol.style:
-        case OrderedListStyle.PAREN:
+    match ol.delimiter:
+        case OrderedListDelimiter.PAREN:
             return f'{num_str})'
-        case OrderedListStyle.PERIOD:
+        case OrderedListDelimiter.PERIOD:
             return f'{num_str}.'
-        case OrderedListStyle.TWO_PARENS:
+        case OrderedListDelimiter.TWO_PARENS:
             return f'({num_str})'
