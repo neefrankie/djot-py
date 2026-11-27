@@ -1,8 +1,12 @@
+from dataclasses import dataclass
 import re
 from typing import Callable, Dict, List, Sequence
 
 from djot.common.string import (
     is_word_char_at_end,
+)
+from djot.common.list_number import (
+    format_number
 )
 
 from djot.ast import (
@@ -96,17 +100,33 @@ def verbatim_delim(node: HasText, minticks: int) -> str:
 
 Handler = Callable[['DjotRenderer', AstNode], None]
 
+@dataclass(slots=True)
+class DjotRenderOptions:
+    wrap_width: int = 0
+    """
+    0 means no wrap but soft_breaks are breaks.
+    -1 means no wrap and soft_breaks are spaces.
+    >0 means wrap to width, with soft_breaks as spaces.
+    """
+
 class DjotRenderer:
     ESCAPE_PATTERN = re.compile(r"""([~`'"${}\[\]^<>\\*_|]|-(?=-)|!(?=\[)|\.(?=\.))""")
     HASH_PATTERN = re.compile(r'^#')
 
-    def __init__(self, doc: Doc):
+    def __init__(
+        self,
+        doc: Doc,
+        options: DjotRenderOptions | None = None
+    ):
         self.doc = doc
-        self.wrap_width = 0
+
+        self.wrap_width = options.wrap_width if options else 0
+        # A stack of prefixes for each new line.
         self.prefixes: List[str] = []
         self.buffer: List[str] = []
         self.start_of_line = True
         self.end_of_prefix = 0
+        # How many characters are written on the current line
         self.column = 0
         self.needs_blankline = False
 
@@ -141,7 +161,7 @@ class DjotRenderer:
 
     def newline(self):
         if self.end_of_prefix == self.column:
-            
+            # remove spaces after prefix
             i = len(self.buffer)
             while i > 0:
                 s = self.buffer[i - 1]
@@ -160,10 +180,13 @@ class DjotRenderer:
         self.column = 0
         self.buffer.append('\n')
 
+        # Prefix at the front of new line.
+        # For example, some elements requires
+        # indentation.
         if self.prefixes:
-            for p in self.prefixes:
-                self.buffer.append(p)
-                self.column += len(p)
+            for s in self.prefixes:
+                self.buffer.append(s)
+                self.column += len(s)
             self.end_of_prefix = self.column
 
         self.start_of_line = True
@@ -182,10 +205,13 @@ class DjotRenderer:
             and len(self.buffer) > 0
             and self.column > self.wrap_width
         ):
+            # Try to find a space to wrap
+            # only when we are in the middle of a line.
+            # and current column exceeds wrap_width.
             last_buff = ''
             while idx > 0:
                 last_buff = self.buffer[idx]
-                if last_buff == ' ':
+                if last_buff == ' ': # wrap at space.
                     break
                 elif not last_buff.strip():
                     return
@@ -193,17 +219,23 @@ class DjotRenderer:
             if idx < 0:
                 return
 
+        # If we actually found a space,
+        # try to insert a newline at idx.
         if idx < len(self.buffer) - 1:
             execess_on_line = self.buffer[idx + 1:]
             if self.buffer[-1] == ' ':
                 self.buffer.pop()
 
+            # Insert a newline somewhere between
+            # two segments
             self.newline()
+            # Newline inserted, so turn we are at the start of a line.
             self.start_of_line = True
 
             for line in execess_on_line:
                 self.buffer.append(line)
                 self.column += len(line)
+                # When there are content in a line, we are not at the start of a line.
                 self.start_of_line = False
 
     def space(self):
@@ -291,4 +323,174 @@ class DjotRenderer:
     def render_attributes(self, node: AstNode):
         if not node .attributes:
             return
+
+        attr = node.attributes
+
+        self.lit('{')
+
+        is_first = True
+
+        if is_block(node):
+            self.prefixes.append(' ')
+
+        for k, v in attr.items():
+            if not is_first:
+                self.space()
+
+            match k:
+                case 'id':
+                    self.lit('#')
+                    self.lit(v)
+                case 'class':
+                    classes = v.split()
+                    for i, cls in enumerate(classes):
+                        if i > 0:
+                            self.space()
+                        self.lit('.')
+                        self.lit(cls)
+                case _:
+                    self.lit(k)
+                    self.lit('="')
+                    self.out(v)
+                    self.lit('"')
+
+            is_first = False
+
+        if is_block(node):
+            self.prefixes.pop()
+
+        self.lit('}')
+
+    def render(self) -> str:
+        self.render_node(self.doc)
+        return ''.join(self.buffer)
+
+
+    def render_doc(self, node: Doc):
+        self.render_children(node.children)
+        self.prefixes = []
+        self.cr()
+        has_references = len(node.references) > 0
+        if has_references:
+            self.cr()
+            self.newline()
+
+        for ref in node.references.values():
+            self.render_node(ref)
+
+        has_footnotes = len(node.footnotes) > 0
+        for footnote in node.footnotes.values():
+            self.render_node(footnote)
+
+        self.prefixes = []
+        self.cr()
+
+    def render_footnote(self, node: Footnote):
+        self.lit('[^' + node.label + ']: ')
+        self.space()
+        self.needs_blankline = False
+        self.prefixes.append(' ')
+        self.render_children(node.children)
+        self.prefixes.pop()
+        self.blankline()
+
+    def render_reference(self, node: Reference):
+        self.lit('[')
+        self.lit(node.label)
+        self.lit(']:')
+        self.prefixes.append('  ')
+        self.space()
+        self.lit(node.destination)
+        self.wrap()
+        self.prefixes.pop()
+        self.blankline()
+
+    def render_para(self, node: Para):
+        self.render_children(node.children)
+        self.blankline()
+
+    def render_thematic_break(self):
+        self.lit('* * * * *')
+        self.blankline()
+
+    def render_div(self, node: Div):
+        self.lit(':::') # TODO: I want to keep a 'name' field.
+        self.cr()
+        self.render_children(node.children)
+        self.cr()
+        self.lit(':::')
+        self.blankline()
+
+    def reander_heading(self, node: Heading):
+        hashes = '#' * node.level
+        self.lit(hashes + ' ')
+        self.prefixes.append(hashes + ' ')
+        self.render_children(node.children)
+        self.prefixes.pop()
+        self.blankline()
+
+    def render_block_quote(self, node: BlockQuote):
+        self.prefixes.append('> ')
+        self.lit('> ')
+        self.render_children(node.children)
+        self.prefixes.pop()
+        self.blankline()
+
+    def render_code_block(self, node: CodeBlock):
+        ticks = verbatim_delim(node, 3)
+        self.lit(ticks)
+        if node.lang:
+            self.lit(' ' + node.lang)
+
+        self.cr()
+        self.lit_lines(node.text)
+        self.cr()
+        self.lit_lines(ticks)
+        self.blankline()
+
+    def render_raw_block(self, node: RawBlock):
+        ticks = verbatim_delim(node, 3)
+        self.lit_lines(ticks)
+        self.lit(' =' + node.format)
+        self.cr()
+        self.lit_lines(node.text)
+        self.cr()
+        self.lit(ticks)
+        self.blankline()
+
+    def render_definition_list(self, node: DefinitionList):
+        items = node.children
+        for i, item in enumerate(items):
+            if i > 0:
+                self.newline()
+            self.lit(':')
+            self.needs_blankline = False
+            self.space()
+            self.prefixes.append(' ' * 2)
+            self.render_children((item.term, item.definition))
+            self.prefixes.pop()
+
+    def render_ordered_list(self, node: OrderedList):
+        style = node.style
+        start = node.start
+        items = node.children
+        loose = node.loose
+
+        for i, item in enumerate(items):
+            if i > 0:
+                self.cr()
+                if loose:
+                    self.newline()
+
+            marker = format_number(start + i, style)
+
+
+        
+
+
+def render_djot(doc: Doc) -> str:
+    return DjotRenderer(doc).render()
+
+
+        
 
