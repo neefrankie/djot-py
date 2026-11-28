@@ -5,7 +5,7 @@ from .base import AstNode, BlockNode, HasChildren
 from .reference import Footnote, Reference
 
 @dataclass(kw_only=True)
-class Doc(AstNode, HasChildren[BlockNode]):
+class Doc(HasChildren[BlockNode], AstNode):
     references: Dict[str, Reference]
     footnotes: Dict[str, Footnote]
 
