@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 import re
-from typing import Callable, Dict, List, Sequence
+from typing import Callable, List, Sequence
 
+from djot.common import Alignment
 from djot.common.string import (
     is_word_char_at_end,
 )
@@ -13,41 +14,52 @@ from djot.ast import (
     Doc,
     AstNode,
     HasChildren,
+    HasText,
+    InlineNode,
     is_block,
     is_inline,
     Para,
+    ThematicBreak,
     Heading,
     Div,
     BulletList,
     OrderedList,
     TaskList,
+    CheckboxStatus,
     DefinitionList,
+    Term,
+    Definition,
     Table,
-    Caption,
     Row,
     BlockQuote,
     CodeBlock,
     RawBlock,
-    Term,
     Footnote,
     Reference,
-    Symb,
-    Span,
-    Link,
-    Image,
-    Email,
-    Url,
-    HasText,
-    RawInline,
-    FootnoteReference,
-    InlineNode,
+    Str,
     SoftBreak,
     HardBreak,
-    Str,
+    Symb,
+    Verbatim,
+    RawInline,
     InlineMath,
     DisplayMath,
-    Verbatim,
+    Url,
+    Email,
+    FootnoteReference,
     SmartPunctuation,
+    Emph,
+    Strong,
+    Link,
+    Image,
+    Span,
+    Mark,
+    Superscript,
+    Subscript,
+    Insert,
+    Delete,
+    DoubleQuoted,
+    SingleQuoted,
 )
 from djot.parser import get_string_content
 
@@ -98,8 +110,6 @@ def verbatim_delim(node: HasText, minticks: int) -> str:
 
     return '`' * numtick
 
-Handler = Callable[['DjotRenderer', AstNode], None]
-
 @dataclass(slots=True)
 class DjotRenderOptions:
     wrap_width: int = 0
@@ -130,10 +140,11 @@ class DjotRenderer:
         self.column = 0
         self.needs_blankline = False
 
-        self.handlers: Dict[str, Handler] = {}
+        self.handlers = {
+            'doc': self.render_doc,
+            'footnote': self.render_footnote,
+        }
 
-    def register_handler(self, name: str, handler: Handler):
-        self.handlers[name] = handler
 
     def escape(self, s: str) -> str:
         s = self.ESCAPE_PATTERN.sub(r'\\\1', s)
@@ -312,13 +323,73 @@ class DjotRenderer:
                 self.render_attributes(node)
                 self.cr()
 
-            handler(self, node)
+            handler(node)
 
             if (node.attributes and is_inline(node)):
                 self.render_attributes(node)
 
         else:
             raise Exception(f'No renderer defined  for node type {node.tag}')
+
+        match node:
+            case Doc():
+                self.render_doc(node)
+            case Footnote():
+                self.render_footnote(node)
+            case Reference():
+                self.render_reference(node)
+            case Para():
+                self.render_para(node)
+            case ThematicBreak():
+                self.render_thematic_break()
+            case Div():
+                self.render_div(node)
+            case Heading():
+                self.render_heading(node)
+            case BlockQuote():
+                self.render_block_quote(node)
+            case CodeBlock():
+                self.render_code_block(node)
+            case RawBlock():
+                self.render_raw_block(node)
+            case DefinitionList():
+                self.render_definition_list(node)
+            case OrderedList():
+                self.render_ordered_list(node)
+            case BulletList():
+                self.render_bullet_list(node)
+            case TaskList():
+                self.render_task_list(node)
+            case Term():
+                self.render_term(node)
+            case Definition():
+                self.render_definition(node)
+            case Table():
+                self.render_table(node)
+            case Str():
+                self.render_str(node)
+            case FootnoteReference():
+                self.render_footnote_reference(node)
+            case Symb():
+                self.render_symb(node)
+            case Email():
+                self.render_email(node)
+            case Url():
+                self.render_url(node)
+            case Span():
+                self.render_span(node)
+            case Link():
+                self.render_link(node)
+            case Image():
+                self.render_image(node)
+            case RawInline():
+                self.render_raw_inline(node)
+            case Verbatim():
+                self.render_verbatim(node)
+            case InlineMath():
+                self.render_inline_math(node)
+            case DisplayMath():
+                self.render_display_math(node)
 
     def render_attributes(self, node: AstNode):
         if not node .attributes:
@@ -421,7 +492,7 @@ class DjotRenderer:
         self.lit(':::')
         self.blankline()
 
-    def reander_heading(self, node: Heading):
+    def render_heading(self, node: Heading):
         hashes = '#' * node.level
         self.lit(hashes + ' ')
         self.prefixes.append(hashes + ' ')
@@ -483,6 +554,231 @@ class DjotRenderer:
                     self.newline()
 
             marker = format_number(start + i, style)
+            self.lit(marker)
+            self.needs_blankline = False
+            self.space()
+            self.prefixes.append(' ' * (len(marker) + 1))
+            self.render_children(item.children)
+            self.prefixes.pop()
+
+        if not loose:
+            self.blankline()
+
+    def render_bullet_list(self, node: BulletList):
+        items = node.children
+        loose = node.loose
+
+        for i, item in enumerate(items):
+            if i > 0:
+                self.cr()
+                if loose:
+                    self.newline()
+
+            marker = node.style.value
+            self.lit(marker)
+            self.needs_blankline = False
+            self.space()
+            self.prefixes.append(' ' * (len(marker) + 1))
+            self.render_children(item.children)
+            self.prefixes.pop()
+
+        if not loose:
+            self.blankline()
+
+    def render_task_list(self, node: TaskList):
+        items = node.children
+        loose = node.loose
+
+        for i, item in enumerate(items):
+            if i > 0:
+                self.cr()
+                if loose:
+                    self.newline()
+
+            self.needs_blankline = False
+            check_marker = 'X' if item.checkbox == CheckboxStatus.CHECKED else ' '
+            self.lit(f'- [{check_marker}]')
+            self.space()
+            self.prefixes.append(' ' * 6)
+            self.render_children(item.children)
+            self.prefixes.pop()
+
+        if not loose:
+            self.blankline()
+
+    def render_term(self, node: Term):
+        self.render_children(node.children)
+        self.blankline()
+
+    def render_definition(self, node: Definition):
+        self.render_children(node.children)
+
+    def render_separator(self, head_row: Row):
+        for j, cell in enumerate(head_row.children):
+            if j == 0:
+                self.lit('|')
+
+            match cell.align:
+                case Alignment.LEFT:
+                    self.lit(':--')
+                case Alignment.RIGHT:
+                    self.lit('--:')
+                case Alignment.CENTER:
+                    self.lit(':--:')
+                case _:
+                    self.lit('---')
+
+            self.lit('|')
+
+        self.cr()
+
+
+    def render_table(self, node: Table):
+        caption = node.caption
+        rows = node.children
+
+        for i, row in enumerate(rows):
+            # If last row was head and this one is not, add separator line.
+            if not row.head and i > 0 and rows[i-1].head:
+                self.render_separator(rows[i-1])
+
+            for j, cell in enumerate(row.children):
+                if j == 0:
+                    self.lit('|')
+                self.no_wrap(lambda: self.render_children(cell.children))
+                self.lit('|')
+
+            self.cr()
+
+        if rows and rows[-1].head:
+            self.render_separator(rows[-1])
+
+        if caption.children:
+            self.newline()
+            self.lit('^ ')
+            self.needs_blankline = False
+            self.prefixes.append('  ')
+            self.render_children(caption.children)
+            self.prefixes.pop()
+            self.blankline()
+
+        self.blankline()
+
+    def render_str(self, node: Str):
+        self.out(node.text)
+
+    def render_space(self):
+        self.space()
+
+    def render_soft_break(self):
+        self.soft_break()
+
+    def render_smart_punctuation(self, node: SmartPunctuation):
+        self.lit(node.text)
+
+    def render_non_breaking_space(self):
+        self.lit('\\')
+
+    def render_single_quoted(self, node: SingleQuoted):
+        self.inline_container(node, "'")
+
+    def render_double_quoted(self, node: DoubleQuoted):
+        self.inline_container(node, '"')
+
+    def render_emph(self, node: Emph):
+        self.inline_container(node, '_')
+
+    def render_strong(self, node: Strong):
+        self.inline_container(node, '*')
+
+    def render_superscript(self, node: Superscript):
+        self.inline_container(node, '^')
+
+    def render_subscript(self, node: Subscript):
+        self.inline_container(node, '~')
+
+    def render_mark(self, node: Mark):
+        self.inline_container(node, '=', True)
+
+    def render_delete(self, node: Delete):
+        self.inline_container(node, '-', True)
+
+    def render_insert(self, node: Insert):
+        self.inline_container(node, '+', True)
+
+    def render_footnote_reference(self, node: FootnoteReference):
+        self.lit(f'[^{node.text}]')
+
+    def render_symb(self, node: Symb):
+        self.lit(f':{node.alias}:')
+
+    def render_email(self, node: Email):
+        self.lit(f'<{node.text}>')
+
+    def render_url(self, node: Url):
+        self.lit(f'<{node.text}>')
+
+    def render_span(self, node: Span):
+        self.lit('[')
+        self.render_children(node.children)
+        self.lit(']')
+
+    def render_link(self, node: Link):
+        self.lit('[')
+        self.render_children(node.children)
+        self.lit(']')
+        if node.reference:
+            self.lit('[')
+            if node.reference != get_string_content(node):
+                self.lit(node.reference)
+            self.lit(']')
+        elif node.destination:
+            self.lit('(')
+            self.lit(node.destination)
+            self.lit(')')
+        else: # should not happen
+            self.lit('()')
+
+    def render_image(self, node: Image):
+        self.lit('![')
+        self.render_children(node.children)
+        self.lit(']')
+        if node.reference:
+            self.lit('[')
+            if node.reference != get_string_content(node):
+                self.lit(node.reference)
+
+            self.lit(']')
+
+        elif node.destination:
+            self.lit('(')
+            self.lit(node.destination)
+            self.lit(')')
+        else: # should not happen
+            self.lit('()')
+
+    def render_raw_inline(self, node: RawInline):
+        self.verbatim_node(node)
+        self.lit('{=' + node.format + '}')
+
+    def render_verbatim(self, node: Verbatim):
+        self.verbatim_node(node)
+
+    def render_inline_math(self, node: InlineMath):
+        self.lit('$')
+        self.verbatim_node(node)
+
+    def render_display_math(self, node: DisplayMath):
+        self.lit('$$')
+        self.verbatim_node(node)
+
+    
+
+
+        
+
+
+
 
 
         
